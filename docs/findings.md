@@ -12874,6 +12874,31 @@ naming a media path still require authentication and the normal decision; this r
 `test_dash_audio_copy.py` enables the token gate and replays the sequence before
 decoding and seeking both clips.
 
+### DASH segments permit persistent connections (2026-10-30)
+
+An audio-converting playback downloaded each five-second video
+segment in roughly ten seconds. The player used many successive Range requests;
+rex forced every response closed, repeatedly restarting TCP and TLS. Conversion
+was already faster than real time, and the segments decoded successfully.
+
+A disposable PMS 1.43.5.11079 replayed the captured player decision parameters
+against generated H.264/AAC media. Completed DASH headers and segments answered
+HTTP/1.1 GET and Range GET with `Connection: Keep-Alive`, `Keep-Alive: timeout=20`
+and the appropriate Content-Length/Content-Range. An explicit request-side
+`Connection: close` produced a closed response. The observations are recorded in
+`tests/fixtures/transcode/dash_connections.json`. The older whole-GET fixture's
+closed response does not establish that all clients must be disconnected.
+
+Remove the forced close for DASH headers/segments and let the normal request
+connection policy apply. No codec or encoding decision changes. The audio-copy
+integration test proves successive ranges reuse the actual socket, preserve the
+segment bytes, and still honor an explicit close.
+
+After deployment, recent five-second video segments downloaded
+in about 4.2 seconds after connection warmup, compared with roughly ten seconds
+before. Smooth playback was confirmed after restarting. Production
+logs still showed copied HEVC video and TrueHD converted to six-channel AAC.
+
 ### A subtitle track dense from its start; a live DASH restart behind the clock (2026-10-27)
 
 **Round Two Time never started in Plex Web** (rex-fun, ratingKey 106616: HEVC Main10 1080p and Opus

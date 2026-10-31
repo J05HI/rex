@@ -6,6 +6,7 @@ source interface; packet hashes prove that video was copied, not re-encoded.
 """
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+import http.client
 import json
 import math
 import os
@@ -220,6 +221,26 @@ def run(scratch):
                         status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/%d/%d.m4s" % (session, rep, index), timeout=45)
                         assert status == 200, (status, rep, index)
                         f.write(data)
+                # Native players read each segment in small ranges. Reuse the same
+                # socket across both tracks, as measured on PMS 1.43.5.
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=45)
+                segment = "/video/:/transcode/universal/session/%s/%d/0.m4s" % (session, rep)
+                connection.request("GET", segment, headers={"Range": "bytes=0-499"})
+                response = connection.getresponse()
+                assert response.status == 206 and response.getheader("Connection") == "Keep-Alive"
+                first = response.read()
+                transport = connection.sock
+                assert transport is not None
+                connection.request("GET", segment, headers={"Range": "bytes=500-999"})
+                response = connection.getresponse()
+                assert response.status == 206
+                second = response.read()
+                assert connection.sock is transport, "segment ranges reconnected"
+                assert first + second == open(path, "rb").read(1000)
+                connection.request("GET", segment, headers={"Range": "bytes=0-499", "Connection": "close"})
+                response = connection.getresponse()
+                assert response.getheader("Connection") == "close" and response.read() == first
+                connection.close()
             output = os.path.join(scratch, codec + "-out.mkv")
             subprocess.run([nt.FFMPEG, "-v", "error", "-y", "-i", paths[0], "-i", paths[1],
                             "-map", "0:v:0", "-map", "1:a:0", "-c", "copy", output], check=True, timeout=30)

@@ -3970,7 +3970,9 @@ impl Runtime {
                         let mut response = Response::bytes(200, "application/octet-stream");
                         response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
                         response.headers.push(("Accept-Ranges".to_string(), "bytes".to_string()));
-                        response.close = true;
+                        // PMS keeps completed DASH segments open for subsequent
+                        // Range reads. Closing each slice repeatedly restarts TCP/TLS
+                        // and can make high-bitrate video download slower than playback.
                         self.pending_segment = Some(SegmentPlan { session, index: index.unwrap_or(0), rep, header: index.is_none(), transcoder });
                         Some(response)
                     }
