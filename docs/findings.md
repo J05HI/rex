@@ -12802,6 +12802,61 @@ suite's 2 s-GOP clips): its MPEG-TS far seek read the conversion's video at the 
 timescale (tfdt 2.731 s for 20 s).
 rex keeps `-use_timeline 0` and reads each chunk's `sidx`.
 
+### Indexed Matroska audio conversion with copied DASH video (2026-10-30)
+
+A playback started with H.264 copy and DTS-to-AAC,
+then the long-GOP check above switched it to video encoding. An audio-only FFmpeg
+policy rejected that fallback. The video codec was compatible; five-second DASH
+slots were too short for its keyframes.
+
+For recorded Matroska files with video cues, rex now reads the SeekHead, Info,
+Tracks and Cues using bounded Range reads before starting DASH. The largest gap
+between video cues (including the beginning and tail) sets a minimum slot length,
+rounded up to seconds. Sparse cues conservatively lengthen slots. The same length
+drives the manifest, FFmpeg, segment lookup and seeks. Index reads occur outside
+the runtime lock. Other containers, missing indexes and live streams retain the
+existing behavior; this is not a universal prohibition on video conversion.
+
+A DASH start registers a preparing session before releasing the runtime lock for
+those reads. Stop and newer starts invalidate that exact session. After reading,
+rex publishes the fitted plan only if the preparing session still owns the id;
+otherwise it answers 404 and starts no FFmpeg. A preparing session exposes no
+manifest or segments. The generated-media suite delays the source's index reads
+to check cancellation and replacement, and runs in the Linux and Windows CI jobs.
+
+`tests/test_dash_audio_copy.py` generates H.264 and HEVC with long keyframe gaps
+and DTS/TrueHD audio. It replays the recorded DASH request with the target codecs,
+checks the AAC output and every copied video packet hash, decodes the full
+output and requests a later segment first to exercise seeking. This is local
+generated-media validation.
+
+### Reopening an existing DASH manifest by session (2026-10-30)
+
+A player requested the full authenticated `start.mpd` for H.264/DTS and
+HEVC/TrueHD media, then requested `start.mpd?session=<same-id>` with
+no token, path or profile. Both attempts stopped immediately after rex's 401;
+neither reached a segment request.
+
+Replayed the authenticated DASH start followed by that session-only request on
+a disposable, network-isolated PMS 1.43.4.10903 using generated H.264/AAC media.
+The library control refused the tokenless request (401); a running DASH manifest
+answered GET and HEAD without a token (200). Unknown and stopped session ids
+answered 400. An HLS session also reopened through `start.mpd`, returning its
+HLS master playlist: the current request's `X-Plex-Incomplete-Segments=1`
+controls that playlist's query suffix.
+`tests/fixtures/transcode/dash_manifest_session.json` records the
+requests and response metadata; public codec modules were provisioned from the
+host so PMS required no network access.
+
+The session-only GET/HEAD returns the running DASH plan's manifest, including
+the fitted segment duration, without restarting FFmpeg. Live DASH keeps the session's
+original availability start time when reopened; only its publish time advances
+(`test_http_mkv.py`, generated live channel). Existing HLS sessions
+return their master playlist; unknown and stopped sessions return 400. Requests
+naming a media path still require authentication and the normal decision; this read cannot create a conversion.
+`test_dash_audio_copy.py` enables the token gate and replays the sequence before
+decoding and seeking both clips.
+
 ### A subtitle track dense from its start; a live DASH restart behind the clock (2026-10-27)
 
 **Round Two Time never started in Plex Web** (rex-fun, ratingKey 106616: HEVC Main10 1080p and Opus

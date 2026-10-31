@@ -435,7 +435,7 @@ impl Plan {
     }
 
     /// `start.mpd`, in the reference's own layout (`scratch_dash_copy.json`).
-    pub fn mpd(&self, session: &str) -> String {
+    pub fn mpd(&self, session: &str, started: f64) -> String {
         let length = self.segment_seconds();
         let duration = dash_duration(self.duration_ms);
         let template = format!(
@@ -462,7 +462,7 @@ impl Plan {
                     // and the max segment duration lower than FFmpeg's reader does: at
                     // `LIVE_DASH_FIRST`, where the run starts, with that many segments of margin
                     // above the window's oldest; FFmpeg's reader two segments on.
-                    utc(now_seconds() - f64::from(length) * (LIVE_DASH_FIRST + 4) as f64),
+                    utc(started - f64::from(length) * (LIVE_DASH_FIRST + 4) as f64),
                     utc(now_seconds()),
                     length * (LIVE_DASH_FIRST as u32 + 4),
                     length * 2
@@ -529,6 +529,20 @@ impl Plan {
             (_, true) if self.live() => LIVE_COPY_SEGMENT,
             (Protocol::Dash, true) => DASH_COPY_SEGMENT,
             (Protocol::Hls | Protocol::File | Protocol::Http, true) => COPY_SEGMENT,
+        }
+    }
+
+    /// Fixed DASH slots must be at least as long as the source's largest keyframe gap.
+    /// Otherwise two slots can collapse into one video chunk while audio keeps counting.
+    fn fit_copy_segments(&mut self) {
+        if self.protocol != Protocol::Dash || self.live() { return; }
+        let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return };
+        let read = |offset, length| read_range(&self.url, self.auth.as_deref(), offset, length);
+        if let Ok(gap) = super::mkvsubs::video_gap(&read, video.index, self.duration_ms) {
+            let seconds = ((gap + 999) / 1000).max(i64::from(DASH_COPY_SEGMENT));
+            if let Ok(seconds) = u32::try_from(seconds) {
+                self.segment_length = Some(seconds);
+            }
         }
     }
 
@@ -1122,6 +1136,8 @@ pub(crate) struct Session {
     run: std::sync::atomic::AtomicU64,
     stopped: AtomicBool,
     pub started: f64,
+    /// Registered for cancellation, but its indexed DASH timing is not ready to serve.
+    preparing: bool,
     cover: Mutex<Cover>,
     /// Copied streams converted since a copy failed: audio, video (`force_next`).
     forced: Mutex<(bool, bool)>,
@@ -1130,6 +1146,25 @@ pub(crate) struct Session {
 }
 
 impl Session {
+    fn new(id: &str, plan: Plan, dir: PathBuf, preparing: bool) -> Arc<Self> {
+        let plan_burns = plan.text_burn.is_some();
+        Arc::new(Self {
+            id: id.to_string(),
+            plan,
+            dir,
+            state: Mutex::new(Progress { touched: Some(Instant::now()), ..Progress::default() }),
+            child: Mutex::new(None),
+            launching: Mutex::new(()),
+            run: std::sync::atomic::AtomicU64::new(0),
+            stopped: AtomicBool::new(false),
+            started: now_seconds(),
+            preparing,
+            cover: Mutex::new(Cover { unread: if plan_burns { None } else { Some(BTreeMap::new()) }, run_limit: None }),
+            forced: Mutex::new((false, false)),
+            silent: AtomicBool::new(false),
+        })
+    }
+
     /// The plan a run goes by: the session's, with each copied stream a failed copy has turned
     /// into a conversion, on the segment length the player already has.
     pub fn plan_now(&self) -> Plan {
@@ -1558,6 +1593,39 @@ pub(crate) struct SegmentPlan {
     pub transcoder: Arc<Transcoder>,
 }
 
+/// Registered before index I/O so a stop or newer start invalidates this request.
+pub(crate) struct DashStart {
+    pub session: Arc<Session>,
+    pub plan: Plan,
+    pub transcoder: Arc<Transcoder>,
+}
+
+impl DashStart {
+    pub fn fit(&mut self) {
+        self.plan.fit_copy_segments();
+    }
+
+    /// Called with the runtime lock held again, before another route can stop the launch.
+    pub fn start(self) -> Response {
+        let pending = self.session;
+        let session = Session::new(&pending.id, self.plan, pending.dir.clone(), false);
+        let mut sessions = self.transcoder.sessions.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !sessions.get(&pending.id).is_some_and(|held| Arc::ptr_eq(held, &pending)) {
+            return Response::error(404, "rex: session stopped or replaced");
+        }
+        // No child or segments exist yet; transfer the directory without deleting it.
+        pending.stopped.store(true, Ordering::SeqCst);
+        sessions.insert(session.id.clone(), Arc::clone(&session));
+        drop(sessions);
+        let manifest = session.plan.mpd(&session.id, session.started);
+        self.transcoder.start_registered(&session);
+        let mut response = Response::bytes(200, "application/dash+xml");
+        response.body = manifest.into_bytes();
+        response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
+        response
+    }
+}
+
 impl Transcoder {
     /// The FFmpeg `REX_TRANSCODER` names; subtitle measuring reads audio with it too.
     pub(super) fn ffmpeg(&self) -> &std::path::Path {
@@ -1812,42 +1880,32 @@ impl Transcoder {
     /// `start.m3u8`: a fresh session under the client's `session` id (a previous one of
     /// the same id is replaced), already running from segment 0.
     pub fn start(self: &Arc<Self>, id: &str, plan: Plan) -> Result<Arc<Session>, String> {
-        let session = self.register(id, plan)?;
+        let session = self.register(id, plan, false)?;
+        self.start_registered(&session);
+        Ok(session)
+    }
+
+    fn start_registered(self: &Arc<Self>, session: &Arc<Session>) {
         let first = if session.plan.protocol == Protocol::Dash && session.plan.live() { LIVE_DASH_FIRST } else { 0 };
         match session.plan.text_burn.clone() {
             Some(text) => {
                 let transcoder = Arc::clone(self);
-                let reading = Arc::clone(&session);
+                let reading = Arc::clone(session);
                 thread::spawn(move || transcoder.read_text(&reading, &text));
             }
-            None => self.launch(&session, first, None),
+            None => self.launch(session, first, None),
         }
-        Ok(session)
     }
 
     /// A session under the client's `session` id, replacing an earlier one of that id, with
     /// nothing running yet: listed, pinged and stopped as any other.
-    fn register(&self, id: &str, plan: Plan) -> Result<Arc<Session>, String> {
+    fn register(&self, id: &str, plan: Plan, preparing: bool) -> Result<Arc<Session>, String> {
         self.stop(id);
         // `.` is no character `sanitize` keeps, so no session's directory is a download's
         // (`download-<id>`).
         let dir = self.root.join(format!("{}.{}", sanitize(id), self.starts.fetch_add(1, Ordering::SeqCst)));
         std::fs::create_dir_all(&dir).map_err(|error| format!("cannot create {}: {error}", dir.display()))?;
-        let plan_burns = plan.text_burn.is_some();
-        let session = Arc::new(Session {
-            id: id.to_string(),
-            plan,
-            dir,
-            state: Mutex::new(Progress { touched: Some(Instant::now()), ..Progress::default() }),
-            child: Mutex::new(None),
-            launching: Mutex::new(()),
-            run: std::sync::atomic::AtomicU64::new(0),
-            stopped: AtomicBool::new(false),
-            started: now_seconds(),
-            cover: Mutex::new(Cover { unread: if plan_burns { None } else { Some(BTreeMap::new()) }, run_limit: None }),
-            forced: Mutex::new((false, false)),
-            silent: AtomicBool::new(false),
-        });
+        let session = Session::new(id, plan, dir, preparing);
         self.sessions
             .lock()
             .map_err(|_| "transcoder lock poisoned".to_string())?
@@ -1858,7 +1916,7 @@ impl Transcoder {
     /// `start` with `protocol=http`: the session `serve_stream` runs FFmpeg for, once the
     /// runtime lock is released.
     pub fn open_stream(self: &Arc<Self>, id: &str, plan: Plan, offset: i64) -> Result<StreamPlan, String> {
-        Ok(StreamPlan { session: self.register(id, plan)?, offset, transcoder: Arc::clone(self) })
+        Ok(StreamPlan { session: self.register(id, plan, false)?, offset, transcoder: Arc::clone(self) })
     }
 
     /// Convert beside the persistent destination, then publish with an atomic rename.
@@ -2816,6 +2874,12 @@ fn sanitize(id: &str) -> String {
         .collect()
 }
 
+impl std::fmt::Debug for DashStart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DashStart").field("session", &self.session.id).finish()
+    }
+}
+
 /// `TranscodeSession`, in the reference's field order. `key` is the bare id on
 /// `/transcode/sessions` and `/transcode/sessions/<id>` inside a session or timeline.
 impl std::fmt::Debug for SegmentPlan {
@@ -3575,6 +3639,31 @@ impl Runtime {
     pub(super) fn route_universal(&mut self, segments: &[&str], query: &HashMap<String, String>, request: &Request) -> Option<Response> {
         let transcoder = Arc::clone(self.transcoder.as_ref()?);
         let leaf = segments.get(4).copied().unwrap_or_default();
+        // PMS 1.43.4 reopens a running DASH manifest by session alone, without a token.
+        // Unknown and stopped ids answer 400 (dash_manifest_session.json).
+        if leaf == "start.mpd" && !query.contains_key("path") && query.contains_key("session") {
+            if segments.len() != 5 || !matches!(request.method.as_str(), "GET" | "HEAD") {
+                return Some(Response::error(404, "rex: not found"));
+            }
+            let session = query.get("session").and_then(|id| transcoder.session(id)).filter(|session| !session.preparing);
+            let Some(session) = session else {
+                return Some(Response::error(400, "rex: no session"));
+            };
+            let (manifest, content_type) = match session.plan.protocol {
+                Protocol::Dash => (session.plan.mpd(&session.id, session.started), "application/dash+xml"),
+                Protocol::Hls => {
+                    let mut plan = session.plan.clone();
+                    plan.incomplete_segments = query.get("X-Plex-Incomplete-Segments").is_some_and(|value| value == "1");
+                    (plan.master_playlist(&session.id), "application/vnd.apple.mpegurl")
+                }
+                _ => return Some(Response::error(400, "rex: no manifest")),
+            };
+            session.touch();
+            let mut response = Response::bytes(200, content_type);
+            response.body = manifest.into_bytes();
+            response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
+            return Some(response);
+        }
         match leaf {
             // Plex Desktop names no extension for `http` (its web client's `{dash: ".mpd",
             // hls: ".m3u8", http: ""}`); a bare `start` for any other protocol stays refused.
@@ -3618,10 +3707,10 @@ impl Runtime {
                     return Some(Response::error(503, error.reason()));
                 }
                 let id = query.get("session").filter(|id| !id.is_empty()).cloned().unwrap_or_else(|| playback.clone());
-                let (manifest, content_type) = match plan.protocol {
-                    Protocol::Hls => (plan.master_playlist(&id), "application/vnd.apple.mpegurl"),
-                    Protocol::Dash => (plan.mpd(&id), "application/dash+xml"),
-                    Protocol::Http => (String::new(), "video/x-matroska"),
+                let content_type = match plan.protocol {
+                    Protocol::Hls => "application/vnd.apple.mpegurl",
+                    Protocol::Dash => "application/dash+xml",
+                    Protocol::Http => "video/x-matroska",
                     Protocol::File => return Some(Response::error(400, "rex: bad request")),
                 };
                 info!(
@@ -3648,11 +3737,29 @@ impl Runtime {
                     response.close = true;
                     return Some(response);
                 }
-                if let Err(error) = transcoder.start(&id, plan) {
-                    self.release_stream_admission(self.viewer.id, &playback);
-                    error!("TRANSCODE {id}: {error}");
-                    return Some(Response::error(500, "rex: transcode failed"));
+                if plan.protocol == Protocol::Dash && !plan.live() && plan.video.as_ref().is_some_and(|video| video.copy) {
+                    match transcoder.register(&id, plan.clone(), true) {
+                        Ok(session) => self.pending_dash_start = Some(DashStart { session, plan, transcoder }),
+                        Err(error) => {
+                            self.release_stream_admission(self.viewer.id, &playback);
+                            error!("TRANSCODE {id}: {error}");
+                            return Some(Response::error(500, "rex: transcode failed"));
+                        }
+                    }
+                    return Some(Response::bytes(200, content_type));
                 }
+                let session = match transcoder.start(&id, plan) {
+                    Ok(session) => session,
+                    Err(error) => {
+                        self.release_stream_admission(self.viewer.id, &playback);
+                        error!("TRANSCODE {id}: {error}");
+                        return Some(Response::error(500, "rex: transcode failed"));
+                    }
+                };
+                let manifest = match session.plan.protocol {
+                    Protocol::Dash => session.plan.mpd(&session.id, session.started),
+                    _ => session.plan.master_playlist(&session.id),
+                };
                 let mut response = Response::bytes(200, content_type);
                 response.body = manifest.into_bytes();
                 response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
@@ -3661,7 +3768,7 @@ impl Runtime {
             "session" => {
                 let id = segments.get(5).copied().unwrap_or_default();
                 // The reference answers a live session's playlist 404 to POST, PUT and DELETE.
-                let Some(session) = transcoder.session(id).filter(|_| matches!(request.method.as_str(), "GET" | "HEAD")) else {
+                let Some(session) = transcoder.session(id).filter(|session| !session.preparing && matches!(request.method.as_str(), "GET" | "HEAD")) else {
                     return Some(Response::error(404, "rex: not found"));
                 };
                 match (segments.get(6).copied(), segments.get(7).copied(), segments.len()) {
@@ -3935,7 +4042,7 @@ mod tests {
             audio.sampling_rate = 44100;
         }
         // Byte for byte the reference's, but for `minBufferTime`, which is ours (`mpd`).
-        assert_eq!(copy.mpd("rexdashdash-cop"), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT5S\""));
+        assert_eq!(copy.mpd("rexdashdash-cop", 0.0), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT5S\""));
     }
 
     #[test]

@@ -692,6 +692,7 @@ pub struct Runtime {
     /// A transcoded segment the router accepted; served once ffmpeg has written it, after
     /// the runtime lock is released (`universal.rs`).
     pending_segment: Option<universal::SegmentPlan>,
+    pending_dash_start: Option<universal::DashStart>,
     /// A Matroska conversion (`protocol=http`) the router accepted; `handle_connection` runs
     /// its FFmpeg and streams it after the runtime lock is released.
     pending_stream: Option<universal::StreamPlan>,
@@ -1038,6 +1039,7 @@ impl Runtime {
             pending_part: None,
             pending_file_checks: None,
             pending_segment: None,
+            pending_dash_start: None,
             pending_stream: None,
             // `redirect-only` promises rex carries no stream, and every conversion reads its source.
             transcoder: if options.part_mode == "redirect-only" {
@@ -9004,6 +9006,12 @@ impl Runtime {
             // once it does not, for every verb, claimed or not (findings, "A conversion
             // session is its own key"). start, ping, stop and /transcode/sessions stay gated.
             || path.starts_with("/video/:/transcode/universal/session/")
+            // PMS also reopens an existing DASH manifest by session alone
+            // (dash_manifest_session.json); this form cannot start a conversion.
+            || (path == "/video/:/transcode/universal/start.mpd"
+                && !query.contains_key("path")
+                && query.contains_key("session")
+                && matches!(request.method.as_str(), "GET" | "HEAD"))
             || (matches!(
                 path,
                 "/crossdomain.xml" | "/clientaccesspolicy.xml" | "/favicon.ico"
@@ -24229,6 +24237,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             guard.pending_part = None;
             guard.pending_file_checks = None;
             guard.pending_segment = None;
+            guard.pending_dash_start = None;
             guard.pending_stream = None;
             guard.pending_download = None;
             guard.pending_artifact = None;
@@ -24285,6 +24294,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             part_plan = guard.pending_part.take();
             let file_checks = guard.pending_file_checks.take();
             let segment = guard.pending_segment.take();
+            let dash_start = guard.pending_dash_start.take();
             stream_plan = guard.pending_stream.take();
             download = guard.pending_download.take();
             // A source's own artwork (`source://<name>/<path>`, only ever from what it pushed)
@@ -24330,6 +24340,11 @@ fn handle_connection<S: Read + Write + PollRead>(
             // the runtime lock so the other clients' requests go on meanwhile.
             write_or_log(snapshot);
             let mut response = response;
+            if let Some(mut start) = dash_start {
+                start.fit();
+                let _guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+                response = start.start();
+            }
             if let Some((jobs, artifact, seek, kind)) = artifact {
                 response = match jobs.resolve(&artifact) {
                     None => Response::error(404, "rex: artifact not found"),
