@@ -32,6 +32,9 @@ pub(crate) struct Source {
     /// the trash for its file to come back. A live channel that ends never does: the production
     /// server's Live Sports library held 2,115 trashed channels beside 853 live ones (2026-11-01).
     pub trash: bool,
+    /// True when it registered `"artwork": "source"`: the artist pictures it pushes
+    /// (`display.artist`) are its artists' even where Plex's agent named them (`music::place_track`).
+    pub artwork: bool,
 }
 
 /// One entry of a registration's `directories`: the first directory of the source's item
@@ -126,11 +129,12 @@ impl Source {
             directories: Vec::new(),
             ignored: Vec::new(),
             trash: true,
+            artwork: false,
         }
     }
 
     /// A `PUT /rex/sources/{name}` body: `url` (http or https), `user`/`password` or
-    /// `bearer` for it, `mount`, `directories` and `trash`. Answers why it is refused.
+    /// `bearer` for it, `mount`, `directories`, `trash` and `artwork`. Answers why it is refused.
     pub(crate) fn register(name: &str, body: &Value) -> Result<Self, String> {
         if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') {
             return Err(format!("source name {name:?}: letters, digits, '-' and '_' only"));
@@ -172,8 +176,13 @@ impl Source {
         if !trash {
             record.insert("trash".to_string(), json!(false));
         }
+        let artwork = field("artwork") == "source";
+        if artwork {
+            record.insert("artwork".to_string(), json!("source"));
+        }
         let mut source = Source::new(name, &url, auth, Some(&field("mount")));
         source.trash = trash;
+        source.artwork = artwork;
         source.record = Value::Object(record);
         source.directories = directories;
         source.ignored = ignored;
@@ -192,6 +201,9 @@ impl Source {
         }
         if !self.trash {
             public["trash"] = json!(false);
+        }
+        if self.artwork {
+            public["artwork"] = json!("source");
         }
         public
     }
@@ -360,6 +372,10 @@ mod tests {
         assert!(!live.trash && live.public()["trash"] == json!(false), "{}", live.public());
         assert!(!Source::register("live", &live.record).unwrap().trash, "trash false restored from the state file");
         assert!(Source::register("plain", &json!({"url": "http://h/x"})).unwrap().trash, "trash kept by default");
+        let art = Source::register("yt", &json!({"url": "http://h/x", "artwork": "source"})).unwrap();
+        assert!(art.artwork && art.public()["artwork"] == json!("source"), "{}", art.public());
+        assert!(Source::register("yt", &art.record).unwrap().artwork, "artwork restored from the state file");
+        assert!(!Source::register("plain", &json!({"url": "http://h/x", "artwork": "agent"})).unwrap().artwork, "only \"source\" turns it on");
         for none in [json!({"url": "http://h/dav"}), json!({"url": "http://h/dav", "directories": []}), json!({"url": "http://h/dav", "directories": null})] {
             let plain = Source::register("zurg", &none).unwrap();
             assert!(plain.directories.is_empty() && plain.record == json!({"url": "http://h/dav"}) && plain.public().get("directories").is_none());
