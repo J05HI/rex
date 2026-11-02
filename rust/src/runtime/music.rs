@@ -481,7 +481,7 @@ impl Runtime {
         // after every other row has been read (`runtime::stream_candidates`).
         let levels = match self.stream_owner(stream_id) {
             Some(row) => found(&row)?,
-            None => self.catalog.hot().lazy().find_map(|row| found(row.body()))?,
+            None => self.catalog.hot().lazy().find_map(|row| row.with_body(&found))?,
         };
         let wanted = query.get("subsample").and_then(|value| value.parse::<usize>().ok());
         let shown = subsample_levels(&levels, wanted);

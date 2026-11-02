@@ -16926,7 +16926,9 @@ impl Runtime {
                 let row = self.catalog.rows_by(crate::catalog::By::Upload, &stream_id.to_string())
                     .into_iter().find_map(answer)
                     .or_else(|| self.stream_owner(stream_id))
-                    .or_else(|| self.catalog.hot().lazy().find_map(|row| answer(row.body())));
+                    // Every row read and let go of: an id no row holds read the library into the
+                    // row cache for the request, +118 MB on 45 MB of rows (test_perf_memory's, 2026-11-02).
+                    .or_else(|| self.catalog.hot().lazy().find_map(|row| row.with_body(answer)));
                 let Some(row) = row else { return Response::error(404, "rex: not found") };
                 if let Some(response) = self.music_lyrics(&row, stream_id, query, &request.headers) {
                     return response;
@@ -16943,7 +16945,7 @@ impl Runtime {
             if request.method == "PUT" {
                 // Measured on a writable copy: a PUT to a stream it HAS is 200 with an
                 // empty body and stores nothing; one it does not have is a 400.
-                let known = self.catalog.hot().lazy().any(|row| row_has_stream(row.body(), stream_id));
+                let known = self.catalog.hot().lazy().any(|row| row.with_body(|body| row_has_stream(body, stream_id)));
                 if known {
                     return Response::empty(200);
                 }
@@ -16967,7 +16969,7 @@ impl Runtime {
                         .catalog
                         .hot()
                         .lazy()
-                        .filter(|row| row_has_stream(row.body(), stream_id))
+                        .filter(|row| row.with_body(|body| row_has_stream(body, stream_id)))
                         .filter_map(|row| key_of(&row))
                         .collect();
                 }

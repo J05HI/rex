@@ -2141,8 +2141,10 @@ impl Runtime {
             .hot()
             .lazy()
             .filter_map(|row| {
-                let all = crate::catalog::releases(row.body());
-                let mine: Vec<String> = all.iter().filter(|(of, _, _, _)| of == source).map(|(_, sid, _, _)| sid.clone()).collect();
+                // The hot row's releases: read whole, every row of the library was held for the
+                // delete's ask, +78 MB on 45 MB of rows (test_perf_memory's, 2026-11-02).
+                let all: Vec<_> = row.hot.releases().collect();
+                let mine: Vec<String> = all.iter().filter(|release| release.source == source).map(|release| release.sid.to_string()).collect();
                 let whole = mine.len() == all.len();
                 Some((key_of(&row)?, mine, whole)).filter(|(_, mine, _)| !mine.is_empty())
             })
