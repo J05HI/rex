@@ -21977,11 +21977,16 @@ impl Runtime {
             let mut media = row.get("Media").cloned().unwrap_or(Value::Null);
             crate::mediainfo::select_media_tracks(&mut media, &prefs)
         };
+        // Each row is read for the comparison and let go of. This runs on plex.tv's account
+        // refresh thread, outside any request, so nothing trims the rows `body` keeps: read
+        // through it, every claimed start held the library parsed at once, the production
+        // server's peaking at 1.57 GB of heap, 1,199 MB of it these rows, over an idle 95 MB
+        // (45,328 rows, heaptrack, 2026-11-02; `the_track_settings_pass_holds_one_row_at_a_time`).
         let keys: Vec<String> = self
             .catalog
             .hot()
             .lazy()
-            .filter(|row| differ(row.body()))
+            .filter(|row| row.with_body(&differ))
             .filter_map(|row| key_of(&row))
             .collect();
         for key in &keys {
@@ -26707,6 +26712,95 @@ mod migration_tests {
         eprintln!("deleted: {held} bytes, {} a key", held / 52_439);
         let _ = fs::remove_dir_all(&dir);
         assert!(held < 52_439 * 16, "{held} bytes");
+    }
+
+    /// The owner's track settings, handed over by plex.tv's account refresh on its own thread,
+    /// outside any request, are compared with every Part's selection. Every row read for it was
+    /// kept for the request's `trim`, which never came: a claimed start held the library parsed at
+    /// once, its peak 1.57 GB of heap on the production server's 45,328 rows (heaptrack, 2026-11-02).
+    /// Here, 4,000 rows of which 191 re-select: it peaked at 82.6 MB, every episode at 21.4 KB, and
+    /// kept 41.1 MB, the cache trimmed to its budget only by the save; read a row at a time, 7.4 MB
+    /// and 7.3 MB, the rows it wrote and their save (2026-11-02).
+    #[test]
+    fn the_track_settings_pass_holds_one_row_at_a_time() {
+        const ROWS: usize = 4_000;
+        let dir = work("track-prefs-peak");
+        let catalog_path = dir.join("catalog.json");
+        let state_path = dir.join("rex.db");
+        let mut document: Value = serde_json::from_str(include_str!("../../tests/catalog_ui.json")).unwrap();
+        let shape: Vec<Vec<usize>> = serde_json::from_str(include_str!("../tests/fixtures/fun_show_shape.json")).unwrap();
+        let episode: Value = serde_json::from_str(include_str!("../../tests/fixtures/fun_episode_row.json")).unwrap();
+        let (mut items, mut episodes, mut english) = (Vec::new(), Vec::new(), HashSet::new());
+        let mut key = 400_000;
+        'library: for seasons in &shape {
+            key += 1;
+            let show = key.to_string();
+            items.push(json!({"ratingKey": show, "type": "show", "title": format!("Show {key}"), "librarySectionID": 2, "_scanned": true}));
+            for (season, count) in seasons.iter().enumerate() {
+                key += 1;
+                let parent = key.to_string();
+                items.push(json!({"ratingKey": parent, "type": "season", "index": season + 1, "parentRatingKey": show, "librarySectionID": 2, "_scanned": true}));
+                for index in 1..=*count {
+                    key += 1;
+                    let mut row = episode.clone();
+                    for (name, value) in [("ratingKey", json!(key.to_string())), ("key", json!(format!("/library/metadata/{key}"))), ("index", json!(index)),
+                                          ("parentIndex", json!(season + 1)), ("parentRatingKey", json!(parent)), ("grandparentRatingKey", json!(show)),
+                                          ("librarySectionID", json!(2)), ("_scanned", json!(true))] {
+                        row[name] = value;
+                    }
+                    // The real row plays its first Russian track; one in twenty here its English one,
+                    // which an account wanting Russian moves back.
+                    if key % 20 == 0 {
+                        let streams = row.pointer_mut("/Media/0/Part/0/Stream").and_then(Value::as_array_mut).unwrap();
+                        streams[1].as_object_mut().unwrap().shift_remove("selected");
+                        streams[9]["selected"] = json!(true);
+                        english.insert(key.to_string());
+                    }
+                    episodes.push(key.to_string());
+                    items.push(row);
+                    if items.len() == ROWS {
+                        break 'library;
+                    }
+                }
+            }
+        }
+        document["items"] = Value::Array(items);
+        fs::write(&catalog_path, document.to_string()).unwrap();
+        drop(document);
+        let mut first = Runtime::load(options(&catalog_path, &state_path)).expect("a start");
+        first.save_state().unwrap();
+        drop(first);
+        let mut runtime = Runtime::load(options(&catalog_path, &state_path)).expect("a restart");
+        // As `serve` starts: the rows are the file's.
+        runtime.catalog.pack_pending();
+        // One row as a read from the file holds it (`Rows::read`).
+        let text = episode.to_string();
+        let before = crate::test_alloc::held();
+        let mut row: Value = serde_json::from_str(&text).unwrap();
+        crate::catalog::pack_streams(&mut row);
+        crate::catalog::compact(&mut row);
+        let one = (crate::test_alloc::held() - before) as usize;
+        drop(row);
+        let prefs = crate::mediainfo::TrackPrefs { auto_audio: true, audio: Some("ru".to_string()), subtitles: 0, subtitle: None };
+        let before = crate::test_alloc::held();
+        crate::test_alloc::reset_peak();
+        runtime.set_track_prefs(prefs);
+        let peak = (crate::test_alloc::peak() - before) as usize;
+        let kept = (crate::test_alloc::held() - before).max(0) as usize;
+        // Written, and so held until their save reaches the file: those re-selected, and only those.
+        let written: HashSet<String> = episodes.iter().filter(|key| matches!(runtime.catalog.held_row(key), Some(Some(_)))).cloned().collect();
+        assert_eq!(written, english, "the rows whose selection the settings change");
+        for key in &english {
+            let streams = crate::catalog::part_streams(runtime.catalog.get(key).unwrap().pointer("/Media/0/Part/0").unwrap()).into_owned();
+            let selected: Vec<i64> = streams.iter().filter(|stream| stream["selected"] == json!(true)).filter_map(|stream| stream["index"].as_i64()).collect();
+            assert_eq!(selected, [1], "{key} plays its first Russian track again");
+        }
+        eprintln!("{ROWS} rows, {} re-selected; a row read holds {one} bytes: the pass peaked at {peak} bytes, {kept} kept after it", english.len());
+        let _ = fs::remove_dir_all(&dir);
+        // What it keeps is the rows it wrote, held until their save is written, and that save; beyond
+        // that, a few rows at a time.
+        assert!(kept < 3 * english.len() * one, "kept {kept} bytes for {} rows written", english.len());
+        assert!(peak < kept + 8 * one, "peaked at {peak} bytes over the {kept} it keeps: {} rows of {one} bytes", (peak - kept) / one);
     }
 
     /// A deleted key is saved as it was given, whether or not a number spells it.

@@ -1,5 +1,6 @@
 //! The test binary's allocator, counting what each thread holds, so a memory test weighs what
-//! a call keeps (`rows::budget_tests`, `store::tests`); the other tests allocate on threads of
+//! a call keeps (`rows::budget_tests`, `store::tests`) and the most it held while it ran
+//! (`peak`, `runtime::tests`); the other tests allocate on threads of
 //! their own. One per crate: a second `#[global_allocator]` does not compile.
 
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -7,6 +8,7 @@ use std::cell::Cell;
 
 thread_local! {
     static HELD: Cell<isize> = const { Cell::new(0) };
+    static PEAK: Cell<isize> = const { Cell::new(0) };
 }
 
 /// Bytes this thread allocated and has not freed.
@@ -14,8 +16,20 @@ pub(crate) fn held() -> isize {
     HELD.with(Cell::get)
 }
 
+/// The most `held` has been since `reset_peak`: what a call held at once while it ran.
+pub(crate) fn peak() -> isize {
+    PEAK.with(Cell::get)
+}
+
+pub(crate) fn reset_peak() {
+    PEAK.with(|peak| peak.set(held()));
+}
+
 fn count(bytes: isize) {
-    let _ = HELD.try_with(|held| held.set(held.get() + bytes));
+    let _ = HELD.try_with(|held| {
+        held.set(held.get() + bytes);
+        let _ = PEAK.try_with(|peak| peak.set(peak.get().max(held.get())));
+    });
 }
 
 struct Counting;
