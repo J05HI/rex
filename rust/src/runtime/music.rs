@@ -159,6 +159,7 @@ pub(super) fn upsert_tracks(
                         // from its album's listing) sends it on the next push, which this counted
                         // unchanged and dropped, leaving the Part at size 0 (2026-11-01).
                         let refreshed = guard.refresh_track_part(key, &item);
+                        let repictured = guard.refresh_track_pictures(key, source.artwork, &item);
                         let had = guard.item_streams(key, &source.name, &item.id).map(|streams| lyric_sources(&streams)).unwrap_or_default();
                         let wanted: Option<Vec<(String, Option<u64>)>> =
                             item.lyrics.as_ref().map(|lyrics| lyrics.iter().map(|(path, _, size)| (path.clone(), *size)).collect());
@@ -167,7 +168,7 @@ pub(super) fn upsert_tracks(
                         match wanted {
                             Some(wanted) if wanted != had => plans.push((item, section, Plan::Lyrics(key.clone()))),
                             _ if loudness_changed => plans.push((item, section, Plan::Lyrics(key.clone()))),
-                            _ if refreshed => counts.updated += 1,
+                            _ if refreshed || repictured => counts.updated += 1,
                             _ => {
                                 counts.unchanged += 1;
                                 counts.unchanged_tracks.push(item.id.clone());
@@ -300,6 +301,35 @@ pub(super) fn upsert_tracks(
 impl Runtime {
     /// A placed track's Part takes the file and size its source pushes now; whether either changed.
     /// A size of 0 (none sent, none probed) keeps the one the Part has.
+    /// A placed track's artist and album take its source's pictures as `place_track` gives them, on a
+    /// push that changes nothing else: rex-fun's BINI and nine other displayed artists stayed blank
+    /// after their source's pushes already carried the channel's picture, since those pushes were
+    /// counted unchanged and never placed again (2026-11-02). Never over a person's (`write_display`).
+    fn refresh_track_pictures(&mut self, key: &str, artwork: bool, item: &Item) -> bool {
+        let Some(row) = self.catalog.get(key).cloned() else {
+            return false;
+        };
+        let named = |this: &Self, key: &str, kind: &str| {
+            this.catalog.get(key).and_then(|row| row.get("guid")).and_then(Value::as_str).is_some_and(|guid| guid.starts_with(kind))
+        };
+        let mut changed = false;
+        if let Some(artist) = row.get("grandparentRatingKey").map(string_value) {
+            if artwork || !named(self, &artist, "plex://artist/") {
+                let pictures: Map<String, Value> = [("poster", "_poster_url"), ("art", "_art_url")]
+                    .into_iter()
+                    .filter_map(|(field, target)| Some((target.to_string(), json!(display_text(item, Some("artist"), field)?))))
+                    .collect();
+                changed |= !pictures.is_empty() && self.write_display(&artist, &pictures, None);
+            }
+        }
+        if let (Some(album), Some(poster)) = (row.get("parentRatingKey").map(string_value), display_text(item, Some("album"), "poster")) {
+            if !named(self, &album, "plex://album/") {
+                changed |= self.write_display(&album, &Map::from_iter([("_poster_url".to_string(), json!(poster))]), None);
+            }
+        }
+        changed
+    }
+
     fn refresh_track_part(&mut self, key: &str, item: &Item) -> bool {
         let Some(part) = self.catalog.get(key).and_then(|row| row.pointer("/Media/0/Part/0")).cloned() else {
             return false;

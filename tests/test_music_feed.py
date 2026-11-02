@@ -205,6 +205,13 @@ def main():
         registered = rex.request("/rex/sources/plexav")[1]
         status, _ = rex.request("/rex/sources/plexav", "PUT", {"url": registered["url"], "mount": registered["mount"], "artwork": "source"},
                                 {"Content-Type": "application/json"})
+        # The same item again, nothing about the track changed: the picture it already carried is the
+        # artist's now (rex-fun's BINI and nine others kept blank circles, since their sources' pushes
+        # brought no change and were counted unchanged, 2026-11-02).
+        status, body = rex.push([dict(track, display={"artist": {"title": "Radiohead", "poster": "https://example.test/radiohead-1.jpg"}})])
+        check("a push that changes nothing else still brings its source's artist picture",
+              selected(radiohead["ratingKey"]) == "https://example.test/radiohead-1.jpg" and body.get("updated") == 1,
+              (body, selected(radiohead["ratingKey"])))
         rex.push([dict(track, display={"artist": {"title": "Radiohead", "poster": "https://example.test/radiohead-2.jpg"}})])
         check("with artwork: source, the source's picture is the agent-named artist's",
               status == 200 and selected(radiohead["ratingKey"]) == "https://example.test/radiohead-2.jpg",
