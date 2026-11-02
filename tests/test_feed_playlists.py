@@ -146,7 +146,13 @@ def films():
 
 
 def main():
-    music()
+    # The music half needs FFmpeg to make plexav's files; CI's black-box step has none (every run
+    # failed there from 2026-11-01 23:40 until this), so it runs the film half there and the whole
+    # suite again in its transcoder step.
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        music()
+    else:
+        print("SKIP: the music half needs ffmpeg and ffprobe to make plexav's files")
     films()
     print("\n%d/%d passed" % (sum(results), len(results)))
     return 0 if all(results) else 1
