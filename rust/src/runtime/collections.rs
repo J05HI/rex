@@ -2225,12 +2225,11 @@ pub(super) fn auto_collect(shared: &SharedRuntime, backfill: bool) {
             .filter(|row| row.get("_collections").is_none() && row.get("deletedAt").is_none())
             .filter(|row| row.get("librarySectionID").is_some_and(|id| thresholds.contains_key(&string_value(id))))
             .filter_map(|row| {
-                let externals = row
-                    .get("Guid")
-                    .and_then(Field::as_array)?
-                    .iter()
-                    .filter_map(|entry| entry.get("id")?.as_str().map(str::to_string))
-                    .collect::<Vec<_>>();
+                // Read and let go of (`Lazy::with_body`): this thread runs outside any request, and
+                // the first pass after the setting is made reads every film of the library.
+                let externals = row.with_body(|body| {
+                    Some(body.get("Guid")?.as_array()?.iter().filter_map(|entry| entry.get("id")?.as_str().map(str::to_string)).collect::<Vec<_>>())
+                })?;
                 Some((key_of(&row)?, externals)).filter(|(_, externals)| !externals.is_empty())
             })
             .collect::<Vec<_>>();

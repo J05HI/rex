@@ -1511,17 +1511,24 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
             .filter_map(|season| {
                 let key = key_of(&season)?;
                 let index = season.get("index").and_then(Field::as_i64)?;
-                let show = guard.catalog.get(&season.get("parentRatingKey").map(string_value)?)?;
-                // A show an id names: `title:` ones are the retired name search's, left as they are.
-                let identity = show.get("_identity").filter(present).filter(|id| !string_value(id).starts_with("title:"))?.clone();
-                // Plex's guid for the show, as the episodes' identification named it.
-                let named = guard.catalog.children_refs(&key).into_iter().find_map(|episode| {
-                    episode.pointer("/_identify/plex").and_then(Value::as_str).filter(|guid| guid.starts_with("plex://show/")).map(str::to_string)
+                // Shows and episodes read and let go of (`Lazy::with_body`): this runs at a claimed
+                // start, outside any request, and a season none of whose episodes Plex named reads them all.
+                let show = guard.catalog.lazy_get(&season.get("parentRatingKey").map(string_value)?)?;
+                let (identity, artwork) = show.with_body(|show| {
+                    // A show an id names: `title:` ones are the retired name search's, left as they are.
+                    let identity = show.get("_identity").filter(present).filter(|id| !string_value(id).starts_with("title:"))?.clone();
+                    let artwork: Map<String, Value> = [("_show_poster", "_poster_url"), ("_show_art", "_art_url")]
+                        .into_iter()
+                        .filter_map(|(hint, field)| Some((hint.to_string(), show.get(field).filter(present)?.clone())))
+                        .collect();
+                    Some((identity, artwork))
                 })?;
-                let artwork = [("_show_poster", "_poster_url"), ("_show_art", "_art_url")]
-                    .into_iter()
-                    .filter_map(|(hint, field)| Some((hint.to_string(), show.get(field).filter(present)?.clone())))
-                    .collect();
+                // Plex's guid for the show, as the episodes' identification named it.
+                let named = guard.catalog.lazy_by(crate::catalog::By::Parent, &key).into_iter().find_map(|episode| {
+                    episode.with_body(|episode| {
+                        episode.pointer("/_identify/plex").and_then(Value::as_str).filter(|guid| guid.starts_with("plex://show/")).map(str::to_string)
+                    })
+                })?;
                 Some((key, identity, index, named, artwork))
             })
             .collect();
@@ -1713,13 +1720,15 @@ pub(super) fn retry_blank(shared: &SharedRuntime, limit: usize) -> usize {
             // Only what its source placed: rows pushed before DMM placed anything still carry ids
             // zurg's own Plex gave, an episode's among them (Pawn Stars' 1559521), and trusted
             // as they are those would name junk titles; they stay as they are, for Fix Match.
-            if !guard.blank(row.body())
-                || version_placed(row.body(), 0).is_none()
-                || super::scan::identified_by(row.get("_ids").and_then(Field::as_object), version_placed(row.body(), 0), library).is_none()
-            {
-                continue;
-            }
-            let (Some(key), Some(item)) = (key_of(&row), pushed_item(row.body())) else {
+            // Each read and let go of (`Lazy::with_body`): no request trims what this thread reads,
+            // and the passes at a claim take every row placed while there was no agent (a sponsor's 7,035).
+            let item = row.with_body(|body| {
+                let retried = guard.blank(body)
+                    && version_placed(body, 0).is_some()
+                    && super::scan::identified_by(body.get("_ids").and_then(Value::as_object), version_placed(body, 0), library).is_some();
+                retried.then(|| pushed_item(body)).flatten()
+            });
+            let (Some(key), Some(item)) = (key_of(&row), item) else {
                 continue;
             };
             let group = row.get("grandparentRatingKey").map(string_value).unwrap_or_else(|| key.clone());

@@ -356,8 +356,10 @@ pub(super) fn shutdown(shared: &SharedRuntime) {
 fn worker(shared: Weak<Mutex<Runtime>>, jobs: Arc<Jobs>) {
     let restored = if let Some(runtime) = shared.upgrade() {
         let guard = runtime.lock().unwrap(); let mut result = Vec::new();
-        for row in guard.catalog.hot().lazy().filter(|row| row.hot.has_analysis) {
-            for media in row.get("Media").and_then(Field::as_array).into_iter().flatten() {
+        // Each row read and let go of (`Lazy::with_body`): this thread runs outside any request, and
+        // the Butler's analysis tasks queue every film and episode, each keeping its record on its row.
+        for row in guard.catalog.hot().lazy().filter(|row| row.hot.has_analysis) { row.with_body(|body| {
+            for media in body.get("Media").and_then(Value::as_array).into_iter().flatten() {
                 for (part,record) in media["_analysis"].as_object().into_iter().flat_map(|m|m.iter()) {
                     jobs.replace_artifacts(&Value::Null,record); result.extend(artifacts(record));
                     if let (Some(key),Some(error)) = (key_of(&row),record["failure"].as_str()) {
@@ -365,7 +367,7 @@ fn worker(shared: Weak<Mutex<Runtime>>, jobs: Arc<Jobs>) {
                     }
                 }
             }
-        } result
+        }) } result
     } else { return };
     for artifact in restored { jobs.resolve(&artifact); }
     if let Ok(entries) = std::fs::read_dir(&jobs.root) { for entry in entries.flatten() { let path = entry.path(); if entry.file_type().is_ok_and(|t|t.is_dir()) && entry.file_name().to_str().is_some_and(|n|n.starts_with("v1-") || n.starts_with(".pending-v1-")) { jobs.garbage.lock().unwrap().insert(path); } } }
