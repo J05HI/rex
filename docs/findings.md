@@ -12820,7 +12820,10 @@ existing behavior; this is not a universal prohibition on video conversion.
 A DASH start registers a preparing session before releasing the runtime lock for
 those reads. Stop and newer starts invalidate that exact session. After reading,
 rex publishes the fitted plan only if the preparing session still owns the id;
-otherwise it answers 404 and starts no FFmpeg. A preparing session exposes no
+otherwise it answers 404 and starts no FFmpeg. After the reads, rex also checks
+that the client is still connected before launching FFmpeg. A failed manifest
+write stops only that request's session, leaving any replacement running.
+A preparing session exposes no
 manifest or segments. The generated-media suite delays the source's index reads
 to check cancellation and replacement, and runs in the Linux and Windows CI jobs.
 

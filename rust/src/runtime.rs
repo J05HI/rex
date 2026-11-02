@@ -24223,6 +24223,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             .is_some_and(String::is_empty);
         let mut part_plan = None;
         let mut stream_plan: Option<universal::StreamPlan> = None;
+        let mut dash_start: Option<universal::DashStart> = None;
         let mut download = None;
         let mut response_account = accounts::OWNER;
         let mut response_lan = true;
@@ -24294,7 +24295,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             part_plan = guard.pending_part.take();
             let file_checks = guard.pending_file_checks.take();
             let segment = guard.pending_segment.take();
-            let dash_start = guard.pending_dash_start.take();
+            dash_start = guard.pending_dash_start.take();
             stream_plan = guard.pending_stream.take();
             download = guard.pending_download.take();
             // A source's own artwork (`source://<name>/<path>`, only ever from what it pushed)
@@ -24340,9 +24341,23 @@ fn handle_connection<S: Read + Write + PollRead>(
             // the runtime lock so the other clients' requests go on meanwhile.
             write_or_log(snapshot);
             let mut response = response;
-            if let Some(mut start) = dash_start {
+            if let Some(start) = dash_start.as_mut() {
                 start.fit();
-                let _guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+                // Read through TLS too, so close_notify is seen. Preserve a pipelined
+                // request's byte rather than mistaking readable data for a hang-up.
+                stream.poll_timeout(Some(std::time::Duration::from_millis(1)));
+                let mut byte = [0_u8; 1];
+                let closed = match stream.read(&mut byte) {
+                    Ok(0) => true,
+                    Ok(_) => { pending.extend_from_slice(&byte); false }
+                    Err(error) => !matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted),
+                };
+                stream.poll_timeout(Some(std::time::Duration::from_secs(20)));
+                let mut guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+                if closed {
+                    start.cancel(&mut guard);
+                    return Ok(());
+                }
                 response = start.start();
             }
             if let Some((jobs, artifact, seek, kind)) = artifact {
@@ -24554,7 +24569,16 @@ fn handle_connection<S: Read + Write + PollRead>(
                 false
             }
             _ => {
-                let open = wire::write_enveloped(&mut stream, &response, &envelope, keep)?;
+                let open = match wire::write_enveloped(&mut stream, &response, &envelope, keep) {
+                    Ok(open) => open,
+                    Err(error) => {
+                        if let Some(start) = &dash_start {
+                            let mut guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+                            start.cancel(&mut guard);
+                        }
+                        return Err(error);
+                    }
+                };
                 // Every response counts towards the bandwidth statistics (`_count_bytes`).
                 let payload = wire::LAST_PAYLOAD.with(|cell| cell.get());
                 // Counting registers the client as a device, so only an admitted request is

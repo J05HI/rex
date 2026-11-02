@@ -11,10 +11,12 @@ import math
 import os
 import queue
 import re
+import socket
 import socketserver
 import subprocess
 import tempfile
 import threading
+import urllib.parse
 
 import test_native_transcode as nt
 from test_http_mkv import file_row
@@ -39,6 +41,7 @@ class Source(nt.Zurg):
 
 @contextmanager
 def pending_start(source, port, query):
+    """Hold an index read while another request stops or replaces the session."""
     entered, resume = threading.Event(), threading.Event()
     source.pauses.put((entered, resume))
     with ThreadPoolExecutor(max_workers=1) as pool:
@@ -51,6 +54,7 @@ def pending_start(source, port, query):
 
 
 def packet_hashes(path):
+    """Read every video packet hash in order to detect any change to the copy."""
     out = subprocess.check_output([
         nt.FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_packets",
         "-show_data_hash", "sha256", "-show_entries", "packet=data_hash", "-of", "json", path,
@@ -59,6 +63,7 @@ def packet_hashes(path):
 
 
 def decoded_hash(path, kind="v"):
+    """Decode a complete track and hash its frames, failing on decoder errors."""
     # Decode the served MP4 tracks directly. Remuxing HEVC into Matroska first
     # introduces timestamp errors in the output muxer, unrelated to decoding.
     result = subprocess.run([
@@ -110,6 +115,34 @@ def run(scratch):
             assert any(s.get("streamType") == 2 and s.get("decision") == "transcode" for s in streams), media
             lookup = [("session", session)]
             authenticated = lookup + [("X-Plex-Token", token)]
+            # A disconnected start is removed; cancelling an older request must
+            # leave a newer session on the same id running.
+            for replace in (False, True):
+                entered, resume = threading.Event(), threading.Event()
+                source.pauses.put((entered, resume))
+                client = socket.create_connection(("127.0.0.1", port), timeout=10)
+                try:
+                    target = START + "?" + urllib.parse.urlencode(query)
+                    client.sendall(("GET %s HTTP/1.1\r\nHost: localhost\r\n\r\n" % target).encode())
+                    assert entered.wait(10), "start did not read the index"
+                    if replace:
+                        status, _, winner = nt.get(port, START, query)
+                        assert status == 200, winner
+                    client.shutdown(socket.SHUT_WR)
+                    resume.set()
+                    assert client.recv(1) == b"", "disconnected start returned a manifest"
+                finally:
+                    client.close()
+                    resume.set()
+                if replace:
+                    assert nt.get(port, START, lookup)[2] == winner, "disconnect stopped the replacement"
+                    assert nt.get(port, STOP, authenticated)[0] == 200
+                else:
+                    status, _, body = nt.get(port, "/transcode/sessions", authenticated)
+                    assert status == 200, body
+                    assert not json.loads(body)["MediaContainer"].get("TranscodeSession"), body
+                    assert "TRANSCODE %s run" % session not in open(log).read(), "disconnected start launched FFmpeg"
+                assert nt.get(port, START, lookup)[0] == 400
             # A first start is stoppable while its source index is still being read.
             with pending_start(source, port, query) as cancelled:
                 assert nt.get(port, START, lookup)[0] == 400, "unfitted manifest was exposed"

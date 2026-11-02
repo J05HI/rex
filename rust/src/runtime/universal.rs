@@ -1601,22 +1601,31 @@ pub(crate) struct DashStart {
 }
 
 impl DashStart {
+    /// Release only this request's session; a newer start may already own its id.
+    pub fn cancel(&self, runtime: &mut Runtime) {
+        if self.transcoder.stop_session(&self.session) {
+            runtime.release_stream_admission(self.plan.account, &self.plan.playback);
+        }
+    }
+
+    /// Read the source index outside the runtime lock before publishing its timing.
     pub fn fit(&mut self) {
         self.plan.fit_copy_segments();
     }
 
     /// Called with the runtime lock held again, before another route can stop the launch.
-    pub fn start(self) -> Response {
-        let pending = self.session;
-        let session = Session::new(&pending.id, self.plan, pending.dir.clone(), false);
+    pub fn start(&mut self) -> Response {
+        let pending = &self.session;
+        let session = Session::new(&pending.id, self.plan.clone(), pending.dir.clone(), false);
         let mut sessions = self.transcoder.sessions.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if !sessions.get(&pending.id).is_some_and(|held| Arc::ptr_eq(held, &pending)) {
+        if !sessions.get(&pending.id).is_some_and(|held| Arc::ptr_eq(held, pending)) {
             return Response::error(404, "rex: session stopped or replaced");
         }
         // No child or segments exist yet; transfer the directory without deleting it.
         pending.stopped.store(true, Ordering::SeqCst);
         sessions.insert(session.id.clone(), Arc::clone(&session));
         drop(sessions);
+        self.session = Arc::clone(&session);
         let manifest = session.plan.mpd(&session.id, session.started);
         self.transcoder.start_registered(&session);
         let mut response = Response::bytes(200, "application/dash+xml");
