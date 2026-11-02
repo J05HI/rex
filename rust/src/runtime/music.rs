@@ -650,6 +650,17 @@ impl Runtime {
                 rk
             }
         };
+        // A later push's pictures for a found artist: one from its source's `display` takes them
+        // on every push (it took them only when made, so rex-fun's BINI, with several tracks,
+        // stayed blank after its source began sending its channel's picture, 2026-11-02); one
+        // Plex's agent named, when its source registered `artwork: source`. Never over a person's.
+        if !artist_identity.starts_with("plex://") || source.artwork {
+            let pictures: Map<String, Value> = [("poster", "_poster_url"), ("art", "_art_url")]
+                .into_iter()
+                .filter_map(|(field, target)| Some((target.to_string(), json!(display_text(item, Some("artist"), field)?))))
+                .collect();
+            self.write_display(&artist_key, &pictures, None);
+        }
         let artist_row = self.catalog.get(&artist_key).cloned().unwrap_or_default();
         let artist_field = |field: &str| artist_row.get(field).cloned().unwrap_or(Value::Null);
 
@@ -735,6 +746,12 @@ impl Runtime {
                 rk
             }
         };
+        // The same for an album nothing named: its source's cover on every push.
+        if !album_identity.starts_with("plex://") {
+            if let Some(poster) = display_text(item, Some("album"), "poster") {
+                self.write_display(&album_key, &Map::from_iter([("_poster_url".to_string(), json!(poster))]), None);
+            }
+        }
         let album_row = self.catalog.get(&album_key).cloned().unwrap_or_default();
         let album_field = |field: &str| album_row.get(field).cloned().unwrap_or(Value::Null);
 

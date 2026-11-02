@@ -2990,7 +2990,7 @@ impl Runtime {
 
     /// `values` onto one row, leaving any field a person locked: `title` and `summary` by name,
     /// a date as `originallyAvailableAt`, the poster and background as `thumb` and `art`.
-    fn write_display(&mut self, key: &str, values: &Map<String, Value>, kept: Option<Value>) -> bool {
+    pub(super) fn write_display(&mut self, key: &str, values: &Map<String, Value>, kept: Option<Value>) -> bool {
         let Some(row) = self.catalog.get(key).and_then(Value::as_object).cloned() else {
             return false;
         };

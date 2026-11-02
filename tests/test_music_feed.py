@@ -173,6 +173,43 @@ def main():
               not any(row["title"] == "Solo Act" for row in rex.rows("/library/sections/1/all?type=8")),
               [row["title"] for row in rex.rows("/library/sections/1/all?type=8")])
 
+        # An artist from its source's `display` takes a picture pushed later, not only the one it was
+        # made with: on rex-fun (2026-11-02) BINI and nine others, each with several tracks, stayed
+        # blank after their source began sending its YouTube channel's picture.
+        def selected(key):
+            rows = rex.rows("/library/metadata/%s/posters" % key)
+            return next((row.get("key") for row in rows if row.get("selected")), None)
+        pictured = dict(display, artist=dict(display["artist"], poster="https://example.test/home-band.jpg"))
+        rex.push([{"id": "loose/a.mp3", "path": "loose/a.mp3", "kind": "track", "track": 1, "media_info": probe, "display": pictured},
+                  {"id": "loose/b.mp3", "path": "loose/b.mp3", "kind": "track", "track": 2, "media_info": probe,
+                   "ids": {"mbid": "00000000-0000-0000-0000-000000000000"}, "display": dict(pictured, title="Closing")}])
+        check("a displayed artist pushed again with a picture shows it", selected(band["ratingKey"]) == "https://example.test/home-band.jpg",
+              selected(band["ratingKey"]))
+        png = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+                            "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")
+        status, _ = rex.request("/library/metadata/%s/posters" % band["ratingKey"], "POST", png, {"Content-Type": "image/png"})
+        uploaded = selected(band["ratingKey"])
+        rex.push([{"id": "loose/a.mp3", "path": "loose/a.mp3", "kind": "track", "track": 1, "media_info": probe,
+                   "display": dict(pictured, artist=dict(pictured["artist"], poster="https://example.test/other.jpg"))}])
+        check("a person's upload stays theirs over a later pushed picture",
+              status == 200 and uploaded and uploaded.startswith("/library/metadata/") and selected(band["ratingKey"]) == uploaded,
+              (status, uploaded, selected(band["ratingKey"])))
+
+        # An artist Plex's agent named keeps the agent's picture, unless its source registered
+        # `artwork: source` (Ben, 2026-11-02: "always use YouTube channel pictures").
+        track = next(item for item in items if item["path"].endswith("03 - Nude.flac"))
+        agents = selected(radiohead["ratingKey"])
+        rex.push([dict(track, display={"artist": {"title": "Radiohead", "poster": "https://example.test/radiohead-1.jpg"}})])
+        check("without artwork: source, an agent-named artist keeps the agent's picture",
+              selected(radiohead["ratingKey"]) == agents and agents != "https://example.test/radiohead-1.jpg", (agents, selected(radiohead["ratingKey"])))
+        registered = rex.request("/rex/sources/plexav")[1]
+        status, _ = rex.request("/rex/sources/plexav", "PUT", {"url": registered["url"], "mount": registered["mount"], "artwork": "source"},
+                                {"Content-Type": "application/json"})
+        rex.push([dict(track, display={"artist": {"title": "Radiohead", "poster": "https://example.test/radiohead-2.jpg"}})])
+        check("with artwork: source, the source's picture is the agent-named artist's",
+              status == 200 and selected(radiohead["ratingKey"]) == "https://example.test/radiohead-2.jpg",
+              (status, selected(radiohead["ratingKey"])))
+
         # Placed again: same key, another track of the album.
         key = step["ratingKey"]
         moved = dict(next(item for item in items if item["path"].endswith("01 - 15 Step.flac")), track=2)
