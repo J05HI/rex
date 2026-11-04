@@ -109,8 +109,9 @@ directories:
     rex_movies: Anime Movies  # and a movie library
 ```
 
-In zurg, give a directory both: DMM places some of its files as films and some as episodes, and a kind
-with no title of its own goes to Movies or TV Shows.
+In zurg, give a directory `rex_movies` when it holds films, `rex_shows` when it holds shows, and both only
+when it holds both: each makes a library, an empty one too. DMM places some of a directory's files as films
+and some as episodes, and a kind with no title of its own goes to Movies or TV Shows.
 
 The source sends it when it registers (step 6), and rex makes the libraries then and moves what it
 already shows from that directory into them as it is: watch state, Fix Match and edits included.
@@ -118,7 +119,8 @@ An open Plex Web lists them at once under More in its sidebar, where you can pin
 other directory stays in Movies and TV Shows. Rename the libraries in Plex as you like.
 Delete one and it stays deleted, its directory going back to Movies and TV Shows, until
 you add it again with Add Library, whose folder list shows the directories sources sent.
-Taking a directory out of the source's registration (zurg: its config) keeps the library.
+Taking a directory or one of its titles out of the source's registration (zurg: its config) keeps the
+library, empty or not: delete it in Plex.
 
 rex keeps everything clients change (watch state, edits, playlists, collections,
 history, preferences), and each source's registration, in the same `rex.db`, written as it
