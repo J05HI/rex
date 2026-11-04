@@ -2369,7 +2369,8 @@ pub(super) fn auto_collect(shared: &SharedRuntime, backfill: bool) {
                 let externals = row.with_body(|body| {
                     Some(body.get("Guid")?.as_array()?.iter().filter_map(|entry| entry.get("id")?.as_str().map(str::to_string)).collect::<Vec<_>>())
                 })?;
-                Some((key_of(&row)?, externals)).filter(|(_, externals)| !externals.is_empty())
+                let language = guard.section_language(&row.get("librarySectionID").map(string_value).unwrap_or_default());
+                Some((key_of(&row)?, externals, language)).filter(|(_, externals, _)| !externals.is_empty())
             })
             .collect::<Vec<_>>();
         (guard.plex.clone(), unread)
@@ -2378,8 +2379,8 @@ pub(super) fn auto_collect(shared: &SharedRuntime, backfill: bool) {
         .map(|plex| {
             unread
                 .into_iter()
-                .filter_map(|(key, externals)| {
-                    let answer = crate::identify::plex_match(plex.as_ref(), "movie", &externals)?;
+                .filter_map(|(key, externals, language)| {
+                    let answer = crate::identify::plex_match(&plex.in_language(&language), "movie", &externals)?;
                     Some((key, metadata::collections_of(&answer.row)))
                 })
                 .collect::<Vec<_>>()

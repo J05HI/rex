@@ -29,6 +29,8 @@ pub(super) struct Library {
     pub key: String,
     pub kind: String,
     pub title: String,
+    /// What Plex's agent is asked in (`Runtime::section_language`).
+    pub language: String,
     pub plex: Option<Arc<plexmeta::PlexMeta>>,
 }
 
@@ -192,7 +194,8 @@ pub(super) fn identified_by(
 /// (`feed::number_unplaced`) names no episode of Plex's. A release named as the other kind of title
 /// than its library's, or not at all, stays unmatched for Fix Match: nothing is asked for it.
 pub(super) fn name_release(plan: &Library, arrivals: &mut [Arrival]) {
-    let plex = plan.plex.as_deref();
+    let plex = plan.plex.as_deref().map(|plex| plex.in_language(&plan.language));
+    let plex = plex.as_ref();
     let Some(first) = arrivals.first() else {
         return;
     };
@@ -786,7 +789,7 @@ impl Runtime {
         let parent = self.catalog.get(&parent_key)?.clone();
         let index = self.extras_of(&parent_key).into_iter().map(super::clip_index).max().unwrap_or(0) + 1;
         let section = parent.get("librarySectionID").map(string_value).unwrap_or_else(|| plan.key.clone());
-        let film = Library { key: section, kind: "movie".to_string(), title: plan.title.clone(), plex: None };
+        let film = Library { key: section, kind: "movie".to_string(), title: plan.title.clone(), language: plan.language.clone(), plex: None };
         let mut clip = self.leaf_for(&film, arrival, None)?;
         let object = clip.as_object_mut()?;
         for field in ["_identity", "year"] {
@@ -1459,6 +1462,7 @@ mod tests {
             key: "1".to_string(),
             kind: kind.to_string(),
             title: "x".to_string(),
+            language: "en-US".to_string(),
             plex: Some(Arc::new(plexmeta::PlexMeta::new(Arc::clone(&claim), dir.join("plex_cache.json")))),
         };
         let mut movie = vec![film()];

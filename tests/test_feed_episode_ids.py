@@ -51,6 +51,8 @@ class Provider(http.server.BaseHTTPRequestHandler):
         size = int(self.headers.get("Content-Length") or 0)
         body = body_of(self.rfile.read(size).decode()) if size else None
         path = self.path[len(PREFIX):] if self.path.startswith(PREFIX + "/") else None
+        # The library's language rides in an item GET's query (rex#9); the answers were recorded without it.
+        path = path and path.split("?")[0]
         start = int(self.headers.get("X-Plex-Container-Start") or 0)
         found = next((a["response"] for a in ANSWERS if path and a["method"] == self.command and a["path"] == path
                       and a["start"] == start and body_of(a["body"]) == body), None)

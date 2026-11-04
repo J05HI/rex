@@ -357,10 +357,11 @@ def fix_match_off_the_lock(bytes_port):
 
         def do_POST(self):
             self.rfile.read(int(self.headers.get("Content-Length") or 0))
-            asked.append(self.path)
+            path = self.path.split("?")[0]  # an item GET's query carries the library's language (rex#9)
+            asked.append(path)
             time.sleep(delay)
-            if self.path.endswith("/children"):
-                kind = "episode" if self.path.split("/")[-2].startswith("s") else "season"
+            if path.endswith("/children"):
+                kind = "episode" if path.split("/")[-2].startswith("s") else "season"
                 prefix = kind[0]
                 rows = [{"guid": "plex://%s/%s%023d" % (kind, prefix, index), "index": index, "type": kind,
                          "title": "%s %d" % (kind, index)} for index in range(1, 31)]

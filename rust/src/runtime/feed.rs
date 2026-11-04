@@ -1498,7 +1498,7 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
         let Some(plex) = guard.plex.clone() else {
             return 0;
         };
-        let wanted: Vec<(String, Value, i64, String, Map<String, Value>)> = guard
+        let wanted: Vec<(String, Value, i64, String, Map<String, Value>, String)> = guard
             .catalog
             .hot()
             .lazy()
@@ -1529,7 +1529,8 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
                         episode.pointer("/_identify/plex").and_then(Value::as_str).filter(|guid| guid.starts_with("plex://show/")).map(str::to_string)
                     })
                 })?;
-                Some((key, identity, index, named, artwork))
+                let language = guard.section_language(&season.get("librarySectionID").map(string_value).unwrap_or_default());
+                Some((key, identity, index, named, artwork, language))
             })
             .collect();
         (wanted, plex)
@@ -1538,15 +1539,17 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
         return 0;
     }
     // -- off the lock: the season each one's identity builds --------------------------------
-    let mut children: HashMap<String, HashMap<String, Value>> = HashMap::new();
+    let mut children: HashMap<(String, String), HashMap<String, Value>> = HashMap::new();
     let built: Vec<(String, Value)> = wanted
         .into_iter()
-        .filter_map(|(key, identity, index, show, artwork)| {
+        .filter_map(|(key, identity, index, show, artwork, language)| {
             let mut leaf = artwork;
             for (field, value) in [("_kind", json!("tv")), ("_tmdb_id", identity), ("_season", json!(index)), ("_episode", json!(0))] {
                 leaf.insert(field.to_string(), value);
             }
-            let seasons = children.entry(show.clone()).or_insert_with(|| crate::identify::plex_children_rows(plex.as_ref(), &show));
+            let seasons = children
+                .entry((show.clone(), language.clone()))
+                .or_insert_with(|| crate::identify::plex_children_rows(&plex.in_language(&language), &show));
             if let Some(season) = seasons.get(&index.to_string()) {
                 crate::metadata::season_hints(&mut leaf, season);
             }
@@ -2324,6 +2327,7 @@ impl Runtime {
             key: string_value(section.get("key").unwrap_or(&Value::Null)),
             kind: section.get("type").and_then(Value::as_str).unwrap_or_default().to_string(),
             title: string_value(section.get("title").unwrap_or(&Value::Null)),
+            language: self.section_language(&string_value(section.get("key").unwrap_or(&Value::Null))),
             plex: self.plex.clone(),
         };
         let playable = |section: &&Value| matches!(section.get("type").and_then(Field::as_str), Some("movie" | "show"));

@@ -16,7 +16,7 @@
 use super::feed::{held_key, lock, Counts, Item};
 use super::source::Source;
 use super::*;
-use crate::identify::{self, PlexSource};
+use crate::identify;
 use crate::{hierarchy, mediainfo, metadata};
 
 /// What a source may push as a track: the containers Plex's music scanner reads.
@@ -127,7 +127,7 @@ pub(super) fn upsert_tracks(
     retry: bool,
 ) {
     let mut plans: Vec<(Item, String, Plan)> = Vec::new();
-    let plex = {
+    let (plex, languages) = {
         let mut guard = lock(shared);
         let rows = guard.feed_rows(&source.name, items.iter().map(|item| item.id.as_str()));
         let mut albums: HashMap<String, Option<(String, String)>> = HashMap::new();
@@ -197,19 +197,23 @@ pub(super) fn upsert_tracks(
                 }
             }
         }
-        guard.plex.clone()
+        let languages: HashMap<String, String> = plans.iter().map(|(_, section, _)| (section.clone(), guard.section_language(section))).collect();
+        (guard.plex.clone(), languages)
     };
     if plans.is_empty() {
         return;
     }
+    // ponytail: an album or artist is asked once per push, in the language of the first library
+    // holding it; one album in two music libraries of different languages shows the first's.
+    let agent = |section: &String| plex.as_deref().map(|plex| plex.in_language(&languages[section]));
     // Off the lock: Plex's agent, once per album.
     let mut named: Named = HashMap::new();
-    for (item, _, _) in &plans {
+    for (item, section, _) in &plans {
         let ids = album_ids(item);
         if ids == (None, None) || named.contains_key(&ids) {
             continue;
         }
-        let answer = plex.as_deref().and_then(|p| identify::plex_album(p as &dyn PlexSource, ids.0.as_deref(), ids.1.as_deref()));
+        let answer = agent(section).and_then(|p| identify::plex_album(&p, ids.0.as_deref(), ids.1.as_deref()));
         let what = answer.as_ref().and_then(|(album, _)| album.get("guid")).map(string_value).unwrap_or_else(|| "nothing".to_string());
         info!("FEED identified album {:?} -> {what}", ids.0.as_deref().or(ids.1.as_deref()).unwrap_or_default());
         named.insert(ids, answer);
@@ -218,12 +222,12 @@ pub(super) fn upsert_tracks(
     // beside that artist's named albums, not under an artist of its displayed name (2026-11-02: rex-fun
     // drew Lawrence and Pentatonix twice, once for each kind of album).
     let mut artists: HashMap<String, Option<Value>> = HashMap::new();
-    for (item, _, _) in &plans {
+    for (item, section, _) in &plans {
         let Some(mbid) = artist_mbid(item) else { continue };
         if named.get(&album_ids(item)).is_some_and(Option::is_some) || artists.contains_key(&mbid) {
             continue;
         }
-        let answer = plex.as_deref().and_then(|p| identify::plex_artist(p as &dyn PlexSource, &mbid));
+        let answer = agent(section).and_then(|p| identify::plex_artist(&p, &mbid));
         let what = answer.as_ref().and_then(|artist| artist.get("guid")).map(string_value).unwrap_or_else(|| "nothing".to_string());
         info!("FEED identified artist {mbid:?} -> {what}");
         artists.insert(mbid, answer);

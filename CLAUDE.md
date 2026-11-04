@@ -673,6 +673,8 @@ python3 tests/test_feed_episode_ids.py      # a pushed `tmdb_episode` is Plex's 
 python3 tests/test_feed_retry_placed.py     # an episode its source placed that Plex's agent had not named is named by the ten-minute retry, without a push (Animaniacs), one of several releases placed alike too (Re:ZERO S1E79)
 python3 tests/test_feed_named_on_claim.py   # what a source placed before rex could ask Plex's agent is named the moment it is claimed, and once
                                             # the agent is back on the next push, its show included (a sponsor's 7,035 releases)
+python3 tests/test_metadata_language.py     # a library's language is what Plex's agent is asked in, where a PMS puts it (match headers,
+                                            # item GET query), music too; each language its own cache entry (rex#9)
 python3 tests/test_feed_versions_1017.py    # one row per episode whatever its guid, other files of one release apart, a trashed row folded or brought back (SpongeBob S10E64, Freakazoid)
 python3 tests/test_feed_parts.py            # an episode a source sends in `part`s is one row, one Media of several Parts, whatever its ids: each
                                             # Part streams, leaves and is deleted as its own file, a whole-episode row takes its second part, and an

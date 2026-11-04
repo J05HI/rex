@@ -2297,6 +2297,18 @@ impl Runtime {
             .find(|section| section.get("key").map(string_value).as_deref() == Some(key))
     }
 
+    /// The language a library's metadata is asked for in (its `language`, en-US as its section
+    /// answers one with none): what a real PMS sends Plex's agent for it (`plexmeta::localised`).
+    fn section_language(&self, key: &str) -> String {
+        let language = self.section(key).and_then(|section| section.get("language")).and_then(Value::as_str);
+        language.filter(|language| !language.is_empty()).unwrap_or("en-US").to_string()
+    }
+
+    /// `section_language` of the library a row is in.
+    fn row_language(&self, row: &Value) -> String {
+        self.section_language(&row.get("librarySectionID").map(string_value).unwrap_or_default())
+    }
+
     fn section_rows(&self, key: &str) -> Vec<Value> {
         self.section_row_refs(key).into_iter().map(|row| row.body().clone()).collect()
     }
@@ -20140,8 +20152,10 @@ impl Runtime {
             &["movie", "show"]
         };
         let asked = title.clone();
+        let language = self.row_language(row);
         let Some(answers) = self.agent_answer(format!("matches\u{1f}{kinds:?}\u{1f}{title}\u{1f}{year:?}"), move || {
-            Value::Array(kinds.iter().map(|kind| Value::Array(crate::identify::plex_search(plex.as_ref(), kind, &asked, year))).collect())
+            let plex = plex.in_language(&language);
+            Value::Array(kinds.iter().map(|kind| Value::Array(crate::identify::plex_search(&plex, kind, &asked, year))).collect())
         }) else {
             return Response::empty(200);
         };
@@ -20228,10 +20242,12 @@ impl Runtime {
             return Some((None, None));
         };
         let guid = guid.to_string();
+        let language = self.row_language(row);
         let answer = self.agent_answer(format!("children\u{1f}{guid}\u{1f}{season}\u{1f}{episode}"), move || {
-            let season = crate::identify::plex_children_rows(plex.as_ref(), &guid).remove(&season.to_string());
+            let plex = plex.in_language(&language);
+            let season = crate::identify::plex_children_rows(&plex, &guid).remove(&season.to_string());
             let episode = season.as_ref().and_then(|season| {
-                crate::identify::plex_children_rows(plex.as_ref(), season.get("guid")?.as_str()?).remove(&episode.to_string())
+                crate::identify::plex_children_rows(&plex, season.get("guid")?.as_str()?).remove(&episode.to_string())
             });
             json!([season, episode])
         })?;
@@ -20248,13 +20264,15 @@ impl Runtime {
             return Some(Value::Null);
         };
         let guid = guid.to_string();
+        let language = self.row_language(row);
         self.agent_answer(format!("tree\u{1f}{guid}"), move || {
+            let plex = plex.in_language(&language);
             let mut tree = Map::new();
-            for (index, season) in crate::identify::plex_children_rows(plex.as_ref(), &guid) {
+            for (index, season) in crate::identify::plex_children_rows(&plex, &guid) {
                 let episodes: Map<String, Value> = season
                     .get("guid")
                     .and_then(Value::as_str)
-                    .map(|season| crate::identify::plex_children_rows(plex.as_ref(), season).into_iter().collect())
+                    .map(|season| crate::identify::plex_children_rows(&plex, season).into_iter().collect())
                     .unwrap_or_default();
                 tree.insert(index, json!({"season": season, "episodes": episodes}));
             }
