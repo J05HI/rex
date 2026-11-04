@@ -62,6 +62,10 @@ def start():
     items = make_pictures(os.path.join(work, "media"))
     bytes_port, handler = M.range_server(os.path.join(work, "media"))
     agent_url, _ = M.agent_server([])
+    # A picture's createdAtTZOffset is the server's own offset: plexscratch ran in Europe/Amsterdam,
+    # 3600 when recorded (November), so rex runs at UTC+1 all year (POSIX's inverted Etc/GMT-1), or a
+    # UTC host (zen, CI) answers 0 and a summer run 7200.
+    os.environ["TZ"] = "Etc/GMT-1"
     rex = M.Rex(work, bytes_port, agent_url, extra_sections=SEEDED, music=False,
                 register={"directories": [{"name": "photos", "photos": "Photos"}]})
     return work, items, rex, handler
