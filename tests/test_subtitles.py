@@ -46,6 +46,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 FIXTURES = os.path.join(HERE, "fixtures")
 REFERENCE = json.load(open(os.path.join(FIXTURES, "subtitles", "plex_search_apply_s143.json")))
+# The provider's 400 for a search with no openSubtitlesHash, measured 2026-11-04.
+REFUSED = json.load(open(os.path.join(FIXTURES, "subtitles", "provider_matches_refusals.json")))["answers"][0]
 SHARED_TOKENS = json.load(open(os.path.join(FIXTURES, "plextv_access_tokens_shared_s1434.json")))["body"]
 CACHE = json.load(open(os.path.join(FIXTURES, "feed", "provider_cache.json")))
 LEGACY = json.load(open(os.path.join(FIXTURES, "feed", "legacy_scan_rows.json")))
@@ -218,6 +220,8 @@ class Stub:
                                           "application/json; charset=utf-8")
                 if path == "/metadata.provider.plex.tv/library/streams/matches":
                     q = dict(urllib.parse.parse_qsl(query))
+                    if not q.get("openSubtitlesHash"):
+                        return self.reply(REFUSED["status"], json.dumps(REFUSED["body"]).encode(), "application/json; charset=utf-8")
                     rows = stub.matches.get((q.get("filename"), q.get("lang")), [])
                     body = json.dumps({"MediaContainer": {"librarySectionID": "home", "librarySectionTitle": "Metadata",
                                                           "offset": 0, "totalSize": len(rows), "identifier": "tv.plex.provider.metadata",
@@ -709,6 +713,46 @@ def main():
         check("changed content hash invalidates adjusted cache and forces fresh source measurement",
               status == 200 and replaced_adjusted == audio_fixed
               and len([path for _, path, *_ in stub.seen if path.startswith("/dav/")]) > before_replacement_reads)
+
+        # -- no automatic search Plex's provider cannot answer (card 580) ------------------------
+        # rex-youtube's item (rex_youtube.py `item`): no ids, no size, so no plex:// guid and no
+        # OpenSubtitles hash. A real PMS sent no search on its own, and none without a guid
+        # (provider_matches_refusals.json's note).
+        log = lambda: open(os.path.join(work, "claimed", "server.log"), errors="replace").read().splitlines()
+        provider_asks = lambda: [query for path, query, _ in stub.subtitle_calls() if path.endswith("/streams/matches")]
+        youtube = {"id": "yt:abc123", "path": "youtube/some-channel/abc123.mkv", "file": "/zurg/youtube/some-channel/abc123.mkv",
+                   "name": "Some Channel", "release": "youtube:some-channel", "kind": "movie", "media_info": probe(film),
+                   "display": {"title": "Some Video", "date": "2026-11-01"}}
+        server.request("/rex/feed/zurg/items", "POST", {"items": [youtube]})
+        status, listed = server.request("/rex/feed/zurg/items")
+        youtube_key = {row["id"]: row["ratingKey"] for row in (listed or {}).get("items", [])}.get("yt:abc123")
+        stub.seen.clear()
+        for _ in range(2):
+            server.detail(youtube_key)
+            time.sleep(1.5)
+        check("an item with no plex:// guid starts no automatic search", youtube_key and provider_asks() == [],
+              (youtube_key, provider_asks()))
+        check("and logs no warning from Plex's provider",
+              not [line for line in log() if "WARNING" in line and "Plex's provider answered" in line],
+              [line for line in log() if "Plex's provider answered" in line])
+
+        # A matched episode whose bytes the source does not serve: no hash, so the provider's 400.
+        refused_file = SHOW["file"].replace("S05E07", "S05E09")
+        refused_key = server.push("episode", "shows/%s/%s" % (SHOW["release"], refused_file), show,
+                                  {"tmdb": 1433, "imdb": "tt0397306"}, season=5, episode=9)
+        stub.seen.clear()
+        server.detail(refused_key)
+        poll_until(lambda: provider_asks(), 20)
+        time.sleep(1.5)
+        server.detail(refused_key)
+        time.sleep(1.5)
+        asks = provider_asks()
+        check("a matched item's search the provider refuses is asked once",
+              len(asks) == 1 and dict(asks[0]).get("guid", "").startswith("plex://") and "openSubtitlesHash" not in dict(asks[0]),
+              asks)
+        refusals = [line for line in log() if "Plex's provider answered 400" in line]
+        check("and its 400 is logged once, at info", len(refusals) == 1 and "INFO" in refusals[0].split()
+              and "WARNING" not in refusals[0].split(), refusals)
     finally:
         server.stop()
         # What the meter read of each candidate, for whoever reads a failure.

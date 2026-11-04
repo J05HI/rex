@@ -759,9 +759,11 @@ fn hash_of(part: &PartInfo) -> Option<String> {
 }
 
 /// Plex's own search, the request a claimed PMS makes (`plex_search_apply_s143.json`'s
-/// outbound): `plexHash` left out, which still answers (measured 2026-10-20).
-fn provider_candidates(search: &Search, hash: Option<&str>) -> Vec<Candidate> {
-    let Some(agent) = &search.agent else { return Vec::new() };
+/// outbound): `plexHash` left out, which still answers (measured 2026-10-20). None when the
+/// provider refused the request (400), which asking again does not change: a search with no
+/// `openSubtitlesHash` is one (`provider_matches_refusals.json`, 2026-11-04).
+fn provider_candidates(search: &Search, hash: Option<&str>) -> Option<Vec<Candidate>> {
+    let Some(agent) = &search.agent else { return Some(Vec::new()) };
     let mut query = vec![("filename", search.part.file.clone())];
     query.extend(search.guid.clone().map(|guid| ("guid", guid)));
     query.push(("lang", provider_language(&search.language)));
@@ -775,22 +777,28 @@ fn provider_candidates(search: &Search, hash: Option<&str>) -> Vec<Candidate> {
     let url = super::plextv::plextv_url(&format!("{PROVIDER}/library/streams/matches?{}", encode(&query)));
     let answer = match polite(&url, &agent.headers()) {
         Ok((200, body)) => serde_json::from_slice::<Value>(&body).unwrap_or(Value::Null),
+        Ok((400, _)) => {
+            info!("SUBTITLE Plex's provider answered 400 for {} ({}), which asking again does not change", search.part.file, search.language);
+            return None;
+        }
         Ok((status, _)) => {
             warning!("SUBTITLE Plex's provider answered {status} for {} ({})", search.part.file, search.language);
-            return Vec::new();
+            return Some(Vec::new());
         }
         Err(error) => {
             warning!("SUBTITLE Plex's provider unreachable: {error}");
-            return Vec::new();
+            return Some(Vec::new());
         }
     };
-    answer
-        .pointer("/MediaContainer/Stream")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|row| provider_candidate(row, &search.language))
-        .collect()
+    Some(
+        answer
+            .pointer("/MediaContainer/Stream")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|row| provider_candidate(row, &search.language))
+            .collect(),
+    )
 }
 
 /// One of the provider's rows: `{codec, id, key, language, languageCode, providerTitle, score,
@@ -812,7 +820,7 @@ fn provider_candidate(row: &Value, language: &str) -> Option<Candidate> {
     })
 }
 
-fn search_all(search: &Search, hash: Option<&str>) -> Vec<Candidate> {
+fn search_all(search: &Search, hash: Option<&str>) -> Option<Vec<Candidate>> {
     provider_candidates(search, hash)
 }
 
@@ -1354,11 +1362,12 @@ fn spans(cues: &[(f64, f64)], starts: &[f64]) -> bool {
 
 // -- the jobs --------------------------------------------------------------------------------
 
-/// The subtitle jobs running, by item, and the automatic searches that found nothing.
+/// The subtitle jobs running, by item, and the automatic searches that found nothing: until
+/// when they are not run again, or None for one the provider refused, never again.
 #[derive(Debug, Default)]
 pub(crate) struct Jobs {
     running: Mutex<HashMap<String, usize>>,
-    misses: Mutex<HashMap<String, Instant>>,
+    misses: Mutex<HashMap<String, Option<Instant>>>,
     /// Automatic subtitles kept unchecked by a detail request (no text track to check against,
     /// and audio is read only for a play), by item and language: the stream a play checks.
     unchecked: Mutex<HashMap<String, i64>>,
@@ -1384,13 +1393,13 @@ impl Jobs {
     }
 
     fn missed(&self, what: &str) -> bool {
-        self.misses.lock().unwrap_or_else(PoisonError::into_inner).get(what).is_some_and(|at| at.elapsed() < MISS_FOR)
+        self.misses.lock().unwrap_or_else(PoisonError::into_inner).get(what).is_some_and(|until| until.is_none_or(|until| Instant::now() < until))
     }
 
-    fn miss(&self, what: String) {
+    fn miss(&self, what: String, refused: bool) {
         let mut misses = self.misses.lock().unwrap_or_else(PoisonError::into_inner);
-        misses.retain(|_, at| at.elapsed() < MISS_FOR);
-        misses.insert(what, Instant::now());
+        misses.retain(|_, until| until.is_none_or(|until| Instant::now() < until));
+        misses.insert(what, (!refused).then(|| Instant::now() + MISS_FOR));
     }
 
     fn unchecked(&self, what: &str) -> Option<i64> {
@@ -1456,12 +1465,13 @@ fn run(shared: &SharedRuntime, job: Job) {
     let _finish = Finish(Arc::clone(&job.jobs), job.key.clone());
     let Job { key, account, search, ffmpeg, audio_later, task, jobs } = job;
     let begun = Instant::now();
-    let (hash, candidates) = match &task {
-        Task::Apply { offer, .. } => (None, vec![offer.clone()]),
+    let (hash, candidates, refused) = match &task {
+        Task::Apply { offer, .. } => (None, vec![offer.clone()], false),
         Task::Automatic { .. } => {
             let hash = hash_of(&search.part);
             let found = search_all(&search, hash.as_deref());
-            (hash.filter(|_| search.part.hash.is_none()), found)
+            let refused = found.is_none();
+            (hash.filter(|_| search.part.hash.is_none()), found.unwrap_or_default(), refused)
         }
     };
     let windows = if candidates.is_empty() { None } else { reference(&search.part, ffmpeg.as_deref()) };
@@ -1519,9 +1529,11 @@ fn run(shared: &SharedRuntime, job: Job) {
         None if applied => warning!("SUBTITLE apply {key}: the subtitle could not be downloaded"),
         // The kept one stays as it was; it is not checked again.
         None if replaces.is_some() => jobs.set_unchecked(unchecked.clone(), None),
+        // Logged where the provider answered.
+        None if refused => jobs.miss(unchecked, true),
         None => {
             info!("SUBTITLE automatic {key}: nothing found in {}, not searched again for a day", search.language);
-            jobs.miss(format!("{key}\u{1f}{}", provider_language(&search.language)));
+            jobs.miss(unchecked, false);
         }
     }
     if let Task::Apply { mut activity, .. } = task {
@@ -1801,7 +1813,7 @@ impl Runtime {
         let asked = search.clone();
         let found = self.agent_answer(format!("subtitles\u{1f}{key}\u{1f}{language}"), move || {
             let hash = hash_of(&asked.part);
-            let candidates = search_all(&asked, hash.as_deref());
+            let candidates = search_all(&asked, hash.as_deref()).unwrap_or_default();
             json!({"hash": hash, "candidates": candidates.iter().map(Candidate::to_value).collect::<Vec<_>>()})
         });
         let Some(found) = found else {
@@ -1878,6 +1890,11 @@ impl Runtime {
         let prefs = if self.viewer.is_owner() { self.track_prefs.clone() } else { self.viewer.prefs.clone() };
         let Some(prefs) = prefs else { return };
         let row = crate::catalog::unpacked(row);
+        // Plex's provider places a release by its guid; a real PMS never searched without one
+        // (provider_matches_refusals.json's note). A search from the picker still runs.
+        if !row.get("guid").and_then(Field::as_str).is_some_and(|guid| guid.starts_with("plex://")) {
+            return;
+        }
         let streams = row
             .pointer("/Media/0/Part/0/Stream")
             .and_then(Value::as_array)
@@ -1934,6 +1951,22 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_search_the_provider_refused_is_not_run_again_the_next_day() {
+        let jobs = Jobs::default();
+        jobs.miss("empty".to_string(), false);
+        jobs.miss("refused".to_string(), true);
+        assert!(jobs.missed("empty") && jobs.missed("refused"));
+        // A day later.
+        for until in jobs.misses.lock().unwrap().values_mut().flatten() {
+            *until = Instant::now();
+        }
+        assert!(!jobs.missed("empty"));
+        assert!(jobs.missed("refused"));
+        jobs.miss("another".to_string(), false);
+        assert!(jobs.missed("refused"), "the day's expiry sweep keeps a refusal");
+    }
 
     #[test]
     fn opensubtitles_hash_is_size_plus_head_and_tail_words() {
@@ -2282,7 +2315,7 @@ mod tests {
                 year: field("year"),
                 part: part.clone(),
             };
-            let found = search_all(&search, hash.as_deref());
+            let found = search_all(&search, hash.as_deref()).unwrap_or_default();
             println!("{language}: {} from Plex's provider", found.len());
             assert!(!found.is_empty(), "the provider answers");
             {

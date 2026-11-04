@@ -13798,6 +13798,15 @@ verdicts, is `tests/fixtures/subtitles/sync_corpus.json.gz`.
   else keeps the first; it is stored as the account's (`userID`) and selected by the settings. A
   decision for that item waits up to 3 s for the job. A search that finds nothing is not run again
   for that item and language for a day. Without a reference only the first is downloaded.
+- No automatic search for a row with no `plex://` guid, as an item a source pushed with no ids
+  (rex-youtube's): every search plexlab's PMS sent to the provider from 2026-09-12 to 2026-11-04,
+  21 in `capture/outbound.jsonl`, carried one and came from a Search Subtitles request or a probe;
+  none went out on its own. The picker's search still runs for such a row. A provider 400 is a
+  refusal asking again does not change, so its automatic search is settled until rex restarts and
+  logged once, at INFO. Measured 2026-11-04 (`provider_matches_refusals.json`): a search with no
+  guid is answered (200); one with no `openSubtitlesHash` is the 400 ("Missing required param
+  openSubtitlesHash!"), which rex sends when it cannot read the Part's head and tail, as for an
+  item pushed with no size (card 580).
 - Only a play's job reads audio (Ben, 2026-10-20): a detail request with no text track to check
   against keeps the best-named candidate unchecked, and the play queue's job measures the
   candidates against the audio and puts the kept stream right in place, same id and key
