@@ -24547,13 +24547,15 @@ fn handle_connection<S: Read + Write + PollRead>(
             write_or_log(snapshot);
             let mut response = response;
             if let Some(start) = dash_start.as_mut() {
-                start.fit();
+                let fitted = start.fit();
                 // Read through TLS too, so close_notify is seen. Preserve a pipelined
                 // request's byte rather than mistaking readable data for a hang-up.
                 stream.poll_timeout(Some(std::time::Duration::from_millis(1)));
                 let mut byte = [0_u8; 1];
                 let closed = match stream.read(&mut byte) {
-                    Ok(0) => true,
+                    // EOF can be a write-side half-close; the client can still
+                    // receive its manifest. Only a failed write proves delivery failed.
+                    Ok(0) => false,
                     Ok(_) => { pending.extend_from_slice(&byte); false }
                     Err(error) => !matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted),
                 };
@@ -24563,7 +24565,13 @@ fn handle_connection<S: Read + Write + PollRead>(
                     start.cancel(&mut guard);
                     return Ok(());
                 }
-                response = start.start();
+                response = match fitted {
+                    Ok(()) => start.start(),
+                    Err(error) => {
+                        start.cancel(&mut guard);
+                        Response::error(400, &error)
+                    }
+                };
             }
             if let Some((jobs, artifact, seek, kind)) = artifact {
                 response = match jobs.resolve(&artifact) {

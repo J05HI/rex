@@ -12820,7 +12820,11 @@ slots were too short for its keyframes.
 For recorded Matroska files with video cues, rex now reads the SeekHead, Info,
 Tracks and Cues using bounded Range reads before starting DASH. The largest gap
 between video cues (including the beginning and tail) sets a minimum slot length,
-rounded up to seconds. Sparse cues conservatively lengthen slots. The same length
+rounded up to seconds. Sparse cues conservatively lengthen slots. Gaps above 20 s
+are refused before FFmpeg starts, limiting the two-chunk copy validation to a
+nominal 40 s against the 45 s segment wait. This limit applies to every
+server, so a sparse index never silently forces video conversion or a title-sized
+chunk. The same length
 drives the manifest, FFmpeg, segment lookup and seeks. Index reads occur outside
 the runtime lock. Other containers, missing indexes and live streams retain the
 existing behavior; this is not a universal prohibition on video conversion.
@@ -12829,7 +12833,9 @@ A DASH start registers a preparing session before releasing the runtime lock for
 those reads. Stop and newer starts invalidate that exact session. After reading,
 rex publishes the fitted plan only if the preparing session still owns the id;
 otherwise it answers 404 and starts no FFmpeg. After the reads, rex also checks
-that the client is still connected before launching FFmpeg. A failed manifest
+for a connection error before launching FFmpeg. Read-side EOF alone does not
+cancel the start: a client can half-close its write side and still receive the
+manifest. A failed manifest
 write stops only that request's session, leaving any replacement running.
 A preparing session exposes no
 manifest or segments. The generated-media suite delays the source's index reads

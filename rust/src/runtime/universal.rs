@@ -41,6 +41,9 @@ const COPY_SEGMENT: u32 = 10;
 /// only on the source's keyframes, so a segment shorter than its GOP would number
 /// segments out of step with time; a conversion uses `TRANSCODE_SEGMENT`.
 const DASH_COPY_SEGMENT: u32 = 5;
+/// Copy validation waits for two chunks before serving the first. Limit their
+/// nominal span to 40 s against the segment request's 45 s deadline.
+const MAX_DASH_COPY_SEGMENT: u32 = 20;
 /// How far production may run ahead of the player before ffmpeg is paused
 /// (`TranscoderThrottleBuffer`, whose default is 60 s), and where it resumes.
 const THROTTLE_AHEAD: f64 = 90.0;
@@ -582,16 +585,24 @@ impl Plan {
 
     /// Fixed DASH slots must be at least as long as the source's largest keyframe gap.
     /// Otherwise two slots can collapse into one video chunk while audio keeps counting.
-    fn fit_copy_segments(&mut self) {
-        if self.protocol != Protocol::Dash || self.live() { return; }
-        let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return };
+    fn fit_copy_segments(&mut self) -> Result<(), String> {
+        if self.protocol != Protocol::Dash || self.live() { return Ok(()); }
+        let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return Ok(()) };
         let read = |offset, length| read_range(&self.url, self.auth.as_deref(), offset, length);
         if let Ok(gap) = super::mkvsubs::video_gap(&read, video.index, self.duration_ms) {
-            let seconds = ((gap + 999) / 1000).max(i64::from(DASH_COPY_SEGMENT));
-            if let Ok(seconds) = u32::try_from(seconds) {
-                self.segment_length = Some(seconds);
-            }
+            self.fit_copy_gap(gap)?;
         }
+        Ok(())
+    }
+
+    fn fit_copy_gap(&mut self, gap_ms: i64) -> Result<(), String> {
+        if gap_ms > i64::from(MAX_DASH_COPY_SEGMENT) * 1000 {
+            // Do not clamp the slots or silently request video conversion: either
+            // loses the copy guarantee, including on an audio-only FFmpeg setup.
+            return Err(format!("rex: indexed video gap exceeds the {MAX_DASH_COPY_SEGMENT} s DASH copy limit"));
+        }
+        self.segment_length = Some(((gap_ms + 999) / 1000).max(i64::from(DASH_COPY_SEGMENT)) as u32);
+        Ok(())
     }
 
     pub fn segment_count(&self) -> i64 {
@@ -1685,8 +1696,8 @@ impl DashStart {
     }
 
     /// Read the source index outside the runtime lock before publishing its timing.
-    pub fn fit(&mut self) {
-        self.plan.fit_copy_segments();
+    pub fn fit(&mut self) -> Result<(), String> {
+        self.plan.fit_copy_segments()
     }
 
     /// Called with the runtime lock held again, before another route can stop the launch.
@@ -4166,6 +4177,21 @@ mod tests {
         let args = ffmpeg_args(&stream, Path::Software, &Hardware::software(), 42, std::path::Path::new("/tmp/s"));
         let at = args.iter().position(|arg| arg == "-output_ts_offset").unwrap();
         assert_eq!(args[at + 1], "42");
+    }
+
+    #[test]
+    fn fitted_copy_gaps_are_bounded_without_clamping_or_video_conversion() {
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        for (gap, seconds) in [(0, 5), (12_001, 13), (20_000, 20)] {
+            copy.fit_copy_gap(gap).unwrap();
+            assert_eq!(copy.segment_seconds(), seconds);
+        }
+        for gap in [20_001, 90_000, i64::MAX] {
+            assert!(copy.fit_copy_gap(gap).is_err());
+            assert_eq!(copy.segment_seconds(), 20);
+            assert!(copy.video.as_ref().unwrap().copy);
+        }
     }
 
     #[test]

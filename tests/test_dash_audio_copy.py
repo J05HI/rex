@@ -13,6 +13,7 @@ import queue
 import re
 import socket
 import socketserver
+import struct
 import subprocess
 import tempfile
 import threading
@@ -89,6 +90,16 @@ def run(scratch):
         item = file_row(key, codec + ".mkv", nt.probe(path)["streams"])
         item["duration"] = item["Media"][0]["duration"] = item["Media"][0]["Part"][0]["duration"] = 90000
         items.append(item)
+    path = os.path.join(scratch, "sparse.mkv")
+    nt.MEDIA["sparse.mkv"] = path
+    subprocess.run([
+        nt.FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=36",
+        "-f", "lavfi", "-i", "sine=d=36", "-c:v", "libx264", "-preset", "ultrafast",
+        "-g", "1000", "-sc_threshold", "0", "-c:a", "dca", "-strict", "-2", "-shortest", path,
+    ], check=True, stderr=subprocess.PIPE)
+    sparse = file_row("3", "sparse.mkv", nt.probe(path)["streams"])
+    sparse["duration"] = sparse["Media"][0]["duration"] = sparse["Media"][0]["Part"][0]["duration"] = 36000
+    items.append(sparse)
     catalog = os.path.join(scratch, "catalog.json")
     with open(catalog, "w") as f:
         json.dump({"machineIdentifier": "0000000000000000000000000000000000000009",
@@ -115,22 +126,46 @@ def run(scratch):
             assert any(s.get("streamType") == 2 and s.get("decision") == "transcode" for s in streams), media
             lookup = [("session", session)]
             authenticated = lookup + [("X-Plex-Token", token)]
-            # A disconnected start is removed; cancelling an older request must
-            # leave a newer session on the same id running.
+            # A reset connection cannot receive the manifest and must not launch FFmpeg.
+            entered, resume = threading.Event(), threading.Event()
+            source.pauses.put((entered, resume))
+            client = socket.create_connection(("127.0.0.1", port), timeout=10)
+            try:
+                target = START + "?" + urllib.parse.urlencode(query)
+                client.sendall(("GET %s HTTP/1.1\r\nHost: localhost\r\n\r\n" % target).encode())
+                assert entered.wait(10), "start did not read the index"
+                client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                                  struct.pack("hh" if os.name == "nt" else "ii", 1, 0))
+            finally:
+                client.close()
+                resume.set()
+            def removed():
+                status, _, body = nt.get(port, "/transcode/sessions", authenticated)
+                assert status == 200, body
+                return not json.loads(body)["MediaContainer"].get("TranscodeSession")
+            nt.poll_until(removed, 10)
+            assert "TRANSCODE %s run" % session not in open(log).read(), "reset start launched FFmpeg"
+            # A write-side half-close still receives a manifest. An older request
+            # replaced during index I/O receives 404 without stopping the winner.
             for replace in (False, True):
                 entered, resume = threading.Event(), threading.Event()
                 source.pauses.put((entered, resume))
                 client = socket.create_connection(("127.0.0.1", port), timeout=10)
                 try:
                     target = START + "?" + urllib.parse.urlencode(query)
-                    client.sendall(("GET %s HTTP/1.1\r\nHost: localhost\r\n\r\n" % target).encode())
+                    client.sendall(("GET %s HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" % target).encode())
                     assert entered.wait(10), "start did not read the index"
                     if replace:
                         status, _, winner = nt.get(port, START, query)
                         assert status == 200, winner
                     client.shutdown(socket.SHUT_WR)
                     resume.set()
-                    assert client.recv(1) == b"", "disconnected start returned a manifest"
+                    answer = bytearray()
+                    while data := client.recv(65536):
+                        answer.extend(data)
+                    assert answer.startswith(b"HTTP/1.1 404" if replace else b"HTTP/1.1 200"), answer
+                    if not replace:
+                        assert b"<MPD" in answer, answer
                 finally:
                     client.close()
                     resume.set()
@@ -138,10 +173,8 @@ def run(scratch):
                     assert nt.get(port, START, lookup)[2] == winner, "disconnect stopped the replacement"
                     assert nt.get(port, STOP, authenticated)[0] == 200
                 else:
-                    status, _, body = nt.get(port, "/transcode/sessions", authenticated)
-                    assert status == 200, body
-                    assert not json.loads(body)["MediaContainer"].get("TranscodeSession"), body
-                    assert "TRANSCODE %s run" % session not in open(log).read(), "disconnected start launched FFmpeg"
+                    assert nt.get(port, START, lookup)[0] == 200
+                    assert nt.get(port, STOP, authenticated)[0] == 200
                 assert nt.get(port, START, lookup)[0] == 400
             # A first start is stoppable while its source index is still being read.
             with pending_start(source, port, query) as cancelled:
@@ -220,6 +253,22 @@ def run(scratch):
             assert nt.get(port, START, lookup)[0] == 400
             assert nt.get(port, START, lookup, method="HEAD")[0] == 400
             print(codec + ": copied packets, converted audio, full playback and seek passed")
+        # A sparse index must fail before launch rather than creating one title-sized
+        # chunk or falling back to video conversion on an audio-only setup.
+        query = nt.dash_query("3", "sparse-index", directStream="1", directStreamAudio="0",
+                              **{"X-Plex-Client-Profile-Extra": extra, "X-Plex-Token": token})
+        assert nt.get(port, "/video/:/transcode/universal/decision", query)[0] == 200
+        status, _, body = nt.get(port, START, query)
+        assert status == 400, (status, body)
+        assert "indexed video gap exceeds the 20 s DASH copy limit" in open(log).read()
+        assert nt.get(port, START, [("session", "sparse-index")])[0] == 400
+        assert "TRANSCODE sparse-index run" not in open(log).read(), "oversized gap launched FFmpeg"
+        # The refusal releases the session id for a normal file.
+        query = [(k, "/library/metadata/1" if k == "path" else v) for k, v in query]
+        assert nt.get(port, "/video/:/transcode/universal/decision", query)[0] == 200
+        assert nt.get(port, START, query)[0] == 200
+        assert nt.get(port, STOP, [("session", "sparse-index"), ("X-Plex-Token", token)])[0] == 200
+        print("sparse index: refused before launch; session id remains reusable")
         # PMS returns an HLS session's master playlist even through start.mpd.
         session = "hls-reopen"
         query = nt.plex_web_query("1", session, **{"X-Plex-Token": token, "X-Plex-Incomplete-Segments": "1"})
