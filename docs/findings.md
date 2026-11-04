@@ -15476,3 +15476,66 @@ album's slideshow and a picture at the top (`tests/fixtures/photos/web-photos.js
   reachable there either; the separate Plex Photos app is the Android viewer, and is unmeasured.
 - **Plezy** (main, 2026-11-03) knows a `photo` kind for its icons and search labels and has no photo
   viewer in its tree; unmeasured on a device.
+
+## What Plex's agent says of a title, shown as a real PMS shows it (2026-11-04)
+
+rex described a title from Plex's agent's match (`metadata::describe`) and kept little of it: six
+people of each kind, no producer, no original title, no theme music, clear logo or square art. A
+read-only survey of the production rex's own kept answers (`plex_cache.db`) against its rows:
+232 of 352 shows had theme music, 2,531 of 2,648 films and 331 of 351 shows a clear logo, 2,546
+films square art, 2,632 a producer, 438 an original title and 347 shows a network; a median show's
+cast is 39. None of it was served. The note above ("deliberately NOT copied") declined clear logos
+because rex then had no artwork of its own to serve; it has fetched Plex's artwork since.
+
+Measured on plexlab (1.43.4, unclaimed since 2026-10-22, its library matched while claimed) for
+Plex Web's and Plex for Android's own requests (`tests/fixtures/agent_description_s1434.json`,
+`probes/record_agent_description.py`), against the same titles' agent answers (`feed/specials.json`'s
+Firefly, `provider/matches.json`'s Big Buck Bunny):
+
+- **A film's and a show's `Image` list is four**: `coverPoster`, `background`, `clearLogo`
+  (`/library/metadata/{rk}/clearLogo/{v}`) and `backgroundSquare` (`/library/metadata/{rk}/squareArt/{v}`),
+  each only when the agent has one (Cosmos Laundromat has no logo), on the detail row and the grid
+  row alike. A season's and an episode's carry their show's `clearLogo` and `backgroundSquare`
+  paths after their own poster, snapshot and background.
+- **A show names its theme** (`theme`, `/library/metadata/{rk}/theme/{v}`) on its detail and grid
+  rows; its seasons carry it as `parentTheme` (after `parentThumb`), its episodes as
+  `grandparentTheme` (after `grandparentArt`). The agent's `theme` is TVDB's
+  (`https://tvthemes.plexapp.com/78874.mp3`); films have none.
+- **The reads**: theme `audio/mpeg3`, logo and square art `image/jpeg` (Firefly's logo is a PNG),
+  `X-Plex-Local-Asset: 1`, `Cache-Control: no-cache`, `Accept-Ranges: bytes`; any version and the
+  bare leaf alike; a Range is a 206 (Plex Web's `<audio>` asks `bytes=0-`); HEAD a 200 with the
+  length. The bytes are the agent's file unchanged (Firefly's theme 962,175 bytes, its logo and square
+  art, and Big Buck Bunny's square art hash as plexlab's). A season borrowing its show's answers 404 at
+  its own `theme`, `clearLogo` and `squareArt`, and a film at `theme`.
+- **`squareArts`** (1.43.4's, 404 on 1.42.2, which rex no longer reports) lists the row's square art,
+  selected; a season's is empty.
+- **Every person the agent credits**: Firefly's 112 actors in the agent's order, each `tagKey` the
+  agent's person id; a show lists no director, writer or producer though its agent names them;
+  The Train Job its own 24 actors, director, writers and producers, none of its show's; Big Buck
+  Bunny its producer, director and writer. The 1.42.2 reference's library agrees (its database,
+  read-only): up to 200 actors on an item (21.4 on average), a producer on 1,471 of 1,541 matched
+  films and on no show, no director on any show, an original title the agent gives on 474 films and
+  169 of 463 shows (`KPop Demon Hunters` / `K-Pop Demon Hunters`, `Attack on Titan` / `進撃の巨人`),
+  and network tags on 451 shows.
+- **A show's networks are a filter and an axis, never a row field**: plexlab lists Firefly under
+  `By Network` FOX (`/library/sections/2/network`, `network=177`) and no row of it carries `Network`.
+
+rex now keeps all of it (`metadata::agent_fields`): a film's theme, logo and square art as
+`_theme_url`, `_clearLogo_url`, `_squareArt_url` (where an upload already kept its own, which stays),
+served at paths `restamp_artwork` mints for them (`artwork::ASSETS`) and fetched off the lock as
+their measured types; a show's ride on its episode's leaf (`hierarchy::SHOW_HINTS`). A row described
+before is given them at the next start from the answers it was described from, read from
+`plex_cache.db` alone (`feed::describe_again`, `plexmeta::Kept`): a film or show by the ids its
+source placed it with and only when they name its guid, an episode by its own guid among its
+season's episodes; a lock, an upload and a hand match stay. `tests/test_agent_description.py`.
+
+Not done, measured for whoever takes it: **reviews** (`includeReviews=1`, asked 846 times on the
+production rex) and **agent-hosted extras** (`includeExtras=1`, 928 times). plexlab's PMS asked the
+agent `GET /library/metadata/{id}?excludeElements=Collection&includeReviews=1` and `.../extras` with
+its claim's server token, and the agent answered both (its outbound capture, 2026-09-12 and
+2026-10-03: 20 Rotten Tomatoes reviews each for three films, Big Buck Bunny's IVA trailer with a
+`Media.url` on video.internetvideoarchive.net). PMS keeps the trailer as a clip row of its own
+(`primaryExtraKey`, `extraType` 1, `Media.premium`) whose Part key `/services/iva/assets/481939/video.mp4?fmt=4&bitrate=750`
+302s to an IVA url it signs itself, and stopped listing it once unclaimed (`hasPremiumPrimaryExtra`,
+`Extras` size 0): a Plex Pass extra. No film of plexlab's has a review, so the `Review` element's
+shape on a film is unrecorded.
