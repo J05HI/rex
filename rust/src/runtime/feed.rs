@@ -122,10 +122,13 @@ struct SourceSubtitle {
     forced: bool,
     hearing_impaired: bool,
     size: Option<u64>,
+    /// A VobSub's `.sub` (`sub`, with `sub_size`): the bitmaps its `.idx` (`path`) indexes,
+    /// read only when a conversion or a client asks for them.
+    sub: Option<(String, Option<u64>)>,
 }
 
 /// The fields an entry sets only sometimes: a stream rewritten without them drops them.
-const SUBTITLE_FIELDS: [&str; 6] = ["forced", "hearingImpaired", "language", "languageTag", "languageCode", "_sourceSize"];
+const SUBTITLE_FIELDS: [&str; 8] = ["forced", "hearingImpaired", "language", "languageTag", "languageCode", "_sourceSize", "_sourceSub", "_sourceSubSize"];
 
 /// The most text a sidecar subtitle may hold: a feature's SRT is 50-150 KB, an ASS with
 /// typesetting a few MB, and the text is kept on its row.
@@ -149,11 +152,30 @@ fn subtitle_entries(source: &str, id: &str, value: Option<&Value>) -> Option<Vec
         if path.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") {
             return Err(format!("subtitle {path}: path has an empty, . or .. segment"));
         }
-        let name = path.rsplit('/').next().unwrap_or(path);
-        let format = name.rsplit_once('.').map(|(_, extension)| extension.to_ascii_lowercase()).unwrap_or_default();
-        if !SUBTITLE_FORMATS.contains(&format.as_str()) {
-            return Err(format!("subtitle {path}: not a subtitle format an upload takes ({})", SUBTITLE_FORMATS.join(", ")));
+        let extension = |path: &str| {
+            let name = path.rsplit('/').next().unwrap_or(path);
+            name.rsplit_once('.').map(|(_, extension)| extension.to_ascii_lowercase()).unwrap_or_default()
+        };
+        let format = extension(path);
+        // A VobSub is two files, its index and its bitmaps; nothing else an upload takes is.
+        if format != "idx" && !SUBTITLE_FORMATS.contains(&format.as_str()) {
+            return Err(format!("subtitle {path}: not a subtitle format an upload takes ({}) or a VobSub's .idx", SUBTITLE_FORMATS.join(", ")));
         }
+        let sub = match (format.as_str(), entry.get("sub")) {
+            ("idx", Some(Value::String(sub))) => {
+                let sub = sub.trim_matches('/');
+                if sub.is_empty() || sub.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") || extension(sub) != "sub" {
+                    return Err(format!("subtitle {path}: sub must be the path of its .sub"));
+                }
+                let size = match entry.get("sub_size") {
+                    None | Some(Value::Null) => None,
+                    Some(size) => Some(size.as_u64().ok_or_else(|| format!("subtitle {path}: sub_size must be a whole number of bytes"))?),
+                };
+                Some((sub.to_string(), size))
+            }
+            ("idx", _) => return Err(format!("subtitle {path}: a VobSub's .idx needs its .sub (sub)")),
+            _ => None,
+        };
         let flag = |field: &str| match entry.get(field) {
             None | Some(Value::Null) => Ok(false),
             Some(Value::Bool(flag)) => Ok(*flag),
@@ -171,7 +193,7 @@ fn subtitle_entries(source: &str, id: &str, value: Option<&Value>) -> Option<Vec
         if size.is_some_and(|size| size > SUBTITLE_TEXT_CAP as u64) {
             return Err(format!("subtitle {path}: over {} bytes", SUBTITLE_TEXT_CAP));
         }
-        Ok(SourceSubtitle { path: path.to_string(), format, language, forced: flag("forced")?, hearing_impaired: flag("hearing_impaired")?, size })
+        Ok(SourceSubtitle { path: path.to_string(), format, language, forced: flag("forced")?, hearing_impaired: flag("hearing_impaired")?, size, sub })
     };
     let mut kept: Vec<SourceSubtitle> = Vec::new();
     for entry in entries {
@@ -1452,7 +1474,8 @@ impl SourceSubtitle {
     /// Whether `stream` is this entry as it stands: its text kept and every field it sets the
     /// same, none it no longer sets left over.
     fn shown_by(&self, stream: &Value) -> bool {
-        let fresh = self.stream(0, None);
+        // With the text it keeps: a VobSub's language is its `.idx`'s.
+        let fresh = self.stream(0, stream.get("_content").and_then(Value::as_str).map(str::to_string));
         self.kept_by(stream)
             && fresh.iter().all(|(field, value)| matches!(field.as_str(), "id" | "key") || stream.get(field) == Some(value))
             && SUBTITLE_FIELDS.iter().all(|field| fresh.contains_key(*field) || stream.get(*field).is_none())
@@ -1476,7 +1499,12 @@ impl SourceSubtitle {
             fields.insert("forced".to_string(), json!(true));
         }
         fields.insert("codec".to_string(), json!(self.format));
-        fields.extend(self.language.as_deref().map(mediainfo::code_language).unwrap_or_default());
+        // A VobSub is the language its `.idx` names, whatever the source read off its name: a real
+        // PMS lists `Movie.en.forced.idx` holding `id: de` as Deutsch Forced, and an `.idx` of four
+        // languages as one stream of its LAST (McBain's da, fi, no, sv: Svenska; plexscratch42's
+        // 1.42.2, 2026-11-04, `fixtures/subtitles/vobsub_s1422.json`).
+        let language = text.as_deref().filter(|_| self.sub.is_some()).and_then(idx_language);
+        fields.extend(language.as_deref().or(self.language.as_deref()).map(mediainfo::code_language).unwrap_or_default());
         if self.hearing_impaired {
             fields.insert("hearingImpaired".to_string(), json!(true));
         }
@@ -1489,8 +1517,21 @@ impl SourceSubtitle {
         if let Some(size) = self.size {
             fields.insert("_sourceSize".to_string(), json!(size));
         }
+        if let Some((sub, size)) = &self.sub {
+            fields.insert("_sourceSub".to_string(), json!(sub));
+            if let Some(size) = size {
+                fields.insert("_sourceSubSize".to_string(), json!(size));
+            }
+        }
         fields
     }
+}
+
+/// The language a VobSub `.idx` names last (`id: de, index: 0`): the one a real PMS lists it as.
+fn idx_language(idx: &str) -> Option<String> {
+    idx.lines()
+        .filter_map(|line| line.trim().strip_prefix("id:")?.split(',').next().map(str::trim).filter(|code| !code.is_empty() && *code != "--").map(str::to_string))
+        .last()
 }
 
 /// Seasons left as they were made from an unidentified first episode -- the local agent's
@@ -3017,6 +3058,8 @@ impl Runtime {
             for field in SUBTITLE_FIELDS {
                 merged.shift_remove(field);
             }
+            // A kept text still says what the stream is (a VobSub's language).
+            let text = text.or_else(|| merged.get("_content").and_then(Value::as_str).map(str::to_string));
             merged.extend(subtitle.stream(stream_id, text));
             fresh.push((subtitle.path.as_str(), Value::Object(merged)));
         }
@@ -3826,6 +3869,16 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_vobsub_is_the_language_its_idx_names_last() {
+        // Real ones (`fixtures/subtitles/vobsub/`): Samurai Champloo E20's forced track and McBain's four.
+        let read = |name: &str| String::from_utf8_lossy(&std::fs::read(format!("{}/../tests/fixtures/subtitles/vobsub/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()).into_owned();
+        assert_eq!(idx_language(&read("stars-samurai.champloo.e20.1080p-forced.idx")).as_deref(), Some("de"));
+        assert_eq!(idx_language(&read("mcbain.1080p-hd4u.idx")).as_deref(), Some("sv"));
+        assert_eq!(idx_language("# VobSub index file, v7\r\nid: --, index: 0\r\n"), None);
+        assert_eq!(idx_language(""), None);
+    }
 
     #[test]
     fn a_media_of_parts_takes_its_last_parts_bitrate_and_sorts_first() {

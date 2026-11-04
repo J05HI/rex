@@ -192,6 +192,7 @@ jobs:
             python3 tests/test_download_queue.py
             python3 tests/test_perf_artwork_save.py
             python3 tests/test_subtitles.py
+            python3 tests/test_vobsub_sidecars.py
             python3 tests/test_transcode_premium.py
             python3 tests/test_transcode_accounts.py
             python3 tests/test_analysis_processing.py

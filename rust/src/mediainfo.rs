@@ -498,10 +498,11 @@ pub fn subtitle_codec_label(row: &Row, external: &str) -> String {
     let codec = str_value(row, "codec")
         .unwrap_or_default()
         .to_ascii_uppercase();
-    let codec = if codec == "EIA_608" {
-        "Closed Captions".to_string()
-    } else {
-        codec
+    // A VobSub sidecar is its `.idx`, labelled as the bitmaps it is (`Deutsch (VOBSUB External)`).
+    let codec = match codec.as_str() {
+        "EIA_608" => "Closed Captions".to_string(),
+        "IDX" => "VOBSUB".to_string(),
+        _ => codec,
     };
     if !codec.is_empty()
         && str_value(row, "key")

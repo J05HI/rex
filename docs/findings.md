@@ -15539,3 +15539,38 @@ its claim's server token, and the agent answered both (its outbound capture, 202
 302s to an IVA url it signs itself, and stopped listing it once unclaimed (`hasPremiumPrimaryExtra`,
 `Extras` size 0): a Plex Pass extra. No film of plexlab's has a review, so the `Review` element's
 shape on a film is unrecorded.
+
+## VobSub sidecars (2026-11-04)
+
+fun's Usenet library carried 690 VobSub files (`.idx` + `.sub`) in 333 releases: 31 loose in 17,
+659 inside RAR/7z sets in 316, most of them STARS' and RSG's German anime and series. rex's feed
+refused every `.idx`, so none reached a client. Measured on a fresh, unclaimed 1.42.2.10156 (the
+build plexscratch42 runs; the listings checked on plexscratch42 itself) with real pairs read
+unchanged through fun's zurg beside generated 1080p black clips, each client's own request
+replayed (`tests/fixtures/subtitles/vobsub_s1422.json`, `probes/record_vobsub.py`):
+
+| What | A real PMS |
+|---|---|
+| The listing | one stream per pair: `codec` and `format` `idx`, `key` `/library/streams/{id}`, `Deutsch (VOBSUB External)` |
+| Its language | the `.idx`'s `id:` line, not the name: `X.en.forced.idx` holding `id: de` is `Deutsch Forced` (the forced flag IS the name's) |
+| An `.idx` of four languages (McBain: da fi no sv) | four streams until the part is analysed, then one: the first's id, the LAST language (Svenska). Reproduced on plexscratch42 with `PUT .../analyze` |
+| Which pairs | the video's name (`X.idx`, `X-forced.idx`, `X.en.forced.idx`), in a `Subs/` folder too, and in a folder of one video any name (RSG's `rsg-the-100-...idx`); an `.idx` without its `.sub` none |
+| `GET /library/streams/{id}` and `.idx` | the `.idx` bytes, `text/html` |
+| `.sub` | the `.sub` bytes, to the byte; with `encoding=utf-8` (Plezy's request) every byte over 0x7f dropped (28,672 B as 17,901) |
+| any other extension | 404 (`.srt`, `.vtt`, `.ass`, `.sup`, `.xyz`) |
+| An SRT or ASS sidecar | its own extension only (`.srt`, `.ass`); `.vtt` on an SRT a 404 |
+| An embedded track | the bare stream's answer by any extension: 501 |
+| Plex Web's conversion | burned: `burn: "1"`, codec `idx`, no `format`, `segments-av`; the bitmaps of the `.idx`'s FIRST track (McBain's da, the frame within 0.005 of FFmpeg's da and 0.8-1.2 of the others) |
+| Plex for Android's and iOS's Generic (Matroska targets listing `vobsub`) | muxed: codec and format `vobsub`, `transcode`, `segments-subs`; the segment carries a `dvd_subtitle` track (the first track's packets, tagged with the listed language: McBain's `swe`), the picture untouched |
+| An embedded VobSub there | copied (`copy`, `segments-av`, format `vobsub`); Plex Web burns it |
+| Plex Web's direct-play request | `mdeDecisionCode` 1000, the subtitle `ignore` |
+
+Traps: an offline Plex Movie agent adds no local subtitle at all (a Personal Media library does);
+an offline PMS answers every conversion's playlist 500 (`Decoder install failed: h264`: it
+downloads its codecs), and in that state it even planned `png` video for iOS's Generic profile;
+and PMS takes byte-identical files for one part ("Duplicate media part detected"), so each clip
+has to differ. rex now does the same (`feed.rs` `idx_language`, `subtitles.rs` `external_stream`
+and `vobsub_read`, `universal.rs` `VobSub`), except that rex lists no sidecar's `file` (it never
+has for an SRT) and does not write an embedded track's `headerCompression` (mkvmerge's zlib, which
+ffprobe does not report). rex still burns embedded PGS for Matroska targets: no copy of one was
+measured. `tests/test_vobsub_sidecars.py`.

@@ -1145,6 +1145,45 @@ impl Runtime {
     }
 }
 
+/// The most a VobSub's `.sub` may hold, read whole: the largest of fun's 690 real ones was McBain's
+/// 12.9 MB of four languages (2026-11-04).
+pub(crate) const VOBSUB_SUB_CAP: usize = 64 << 20;
+
+/// A VobSub's `.sub` a client asked for (`/library/streams/{id}.sub`): read off the lock from the
+/// source that pushed it.
+#[derive(Debug)]
+pub(crate) struct VobSubRead {
+    source: Arc<source::Source>,
+    path: String,
+    /// `encoding=` asked for: a real PMS answers the bitmaps with every byte over 0x7f dropped
+    /// (Champloo's 28,672 B as 17,901), and Plezy asks for `.sub?encoding=utf-8`.
+    ascii: bool,
+}
+
+/// The `.sub`'s bytes as a real PMS serves them: `text/html`, as its `.idx` and every sidecar.
+pub(crate) fn vobsub_read(read: VobSubRead) -> Response {
+    let body = match read.source.open(&read.path, &[]) {
+        Ok(response) if response.status == 404 => return Response::error(404, "rex: not found"),
+        Ok(mut response) if (200..300).contains(&response.status) => response.read_body(VOBSUB_SUB_CAP),
+        Ok(response) => Err(format!("the source answered {}", response.status)),
+        Err(error) => Err(error),
+    };
+    match body {
+        Ok(body) => Response {
+            status: 200,
+            content_type: "text/html".to_string(),
+            body: if read.ascii { body.into_iter().filter(|byte| *byte < 0x80).collect() } else { body },
+            headers: Vec::new(),
+            close: false,
+            doc: None,
+        },
+        Err(error) => {
+            warning!("VobSub {} not read: {error}", read.path);
+            Response::error(502, "rex: subtitle source could not be read")
+        }
+    }
+}
+
 fn subtitle_response(content: &str) -> Response {
     Response { status: 200, content_type: "text/html".to_string(), body: content.as_bytes().to_vec(), headers: Vec::new(), close: false, doc: None }
 }
@@ -1229,6 +1268,31 @@ impl Runtime {
     }
 
     /// A guessed stream id must not disclose even original content.
+    /// A read of `/library/streams/{id}.{extension}` on a sidecar or upload (one with a `key`):
+    /// `None` reads the stream as it is (its own format's extension, a VobSub's `.idx`, or any
+    /// extension on an embedded track), a VobSub's `.sub` is read from its source, and any other
+    /// extension is the 404 a real PMS answers.
+    pub(super) fn external_stream(&self, row: &Value, stream_id: i64, extension: &str, query: &HashMap<String, String>) -> Option<Result<VobSubRead, Response>> {
+        let row = crate::catalog::unpacked(row);
+        let (part, stream) = row.get("Media").and_then(Field::as_array).into_iter().flatten()
+            .flat_map(|media| media.get("Part").and_then(Value::as_array).into_iter().flatten())
+            .find_map(|part| Some((part, crate::catalog::part_streams(part).iter().find(|stream| stream.get("id").and_then(Field::as_i64) == Some(stream_id))?.clone())))?;
+        stream.get("key")?;
+        let own = stream.get("format").or_else(|| stream.get("codec")).and_then(Value::as_str).unwrap_or_default();
+        let Some(sub) = stream.get("_sourceSub").and_then(Value::as_str) else {
+            return (extension != own).then(|| Err(Response::error(404, "rex: not found")));
+        };
+        match extension {
+            "idx" => None,
+            "sub" if self.visible(&row) => {
+                let file = part.get("file").and_then(Value::as_str).unwrap_or_default();
+                let Some((source, _)) = self.part_source(&row, file) else { return Some(Err(Response::error(502, "rex: source unavailable"))) };
+                Some(Ok(VobSubRead { source, path: sub.to_string(), ascii: query.contains_key("encoding") }))
+            }
+            _ => Some(Err(Response::error(404, "rex: not found"))),
+        }
+    }
+
     pub(super) fn prepare_subtitle_read(&self, row: &Value, stream_id: i64, query: &HashMap<String, String>) -> Result<SubtitleRead, Response> {
         if !self.visible(row) {
             return Err(Response::error(404, "rex: not found"));

@@ -728,6 +728,8 @@ pub struct Runtime {
     /// thread of its own once the lock is released.
     pending_subtitle: Option<subtitles::Job>,
     pending_subtitle_read: Option<subtitles::ReadJob>,
+    /// A VobSub's `.sub` a stream read asked for: read off the lock from its source (`vobsub_read`).
+    pending_vobsub: Option<subtitles::VobSubRead>,
     analysis_jobs: Arc<analysis::Jobs>,
     blurs: Arc<blur::Blurs>,
     /// The subtitle jobs running, by item, and the searches that found nothing.
@@ -1059,6 +1061,7 @@ impl Runtime {
             pending_auto_collections: false,
             pending_subtitle: None,
             pending_subtitle_read: None,
+            pending_vobsub: None,
             analysis_jobs,
             blurs,
             subtitle_jobs: Arc::default(),
@@ -17005,15 +17008,20 @@ impl Runtime {
                 return Response::error(404, "rex: not found");
             }
             let raw_id = segments[2];
-            // Measured on both servers: `.srt` and `.vtt` are the sidecar extraction by
-            // extension, answered as the bare stream; any other dot stays in the id.
+            // Measured on both servers: `.srt` and `.vtt` on an embedded stream are the bare
+            // stream's answer; a write takes no other dot in the id.
             let bare_id = raw_id
                 .strip_suffix(".srt")
                 .or_else(|| raw_id.strip_suffix(".vtt"))
                 .unwrap_or(raw_id);
-            let stream_id = (!bare_id.is_empty() && bare_id.bytes().all(|b| b.is_ascii_digit()))
-                .then(|| bare_id.parse::<i64>().ok())
-                .flatten();
+            let numeric = |id: &str| (!id.is_empty() && id.bytes().all(|b| b.is_ascii_digit())).then(|| id.parse::<i64>().ok()).flatten();
+            // Measured on a 1.42.2 (`fixtures/subtitles/vobsub_s1422.json`): a read's `.{ext}` on a
+            // sidecar or upload is its own file only by its own format's extension (`.srt` on an
+            // SRT, `.ass` on an ASS, a VobSub's `.idx` and `.sub`) and a 404 by any other, `.vtt` on
+            // an SRT too; on an embedded track any extension is the bare stream's answer.
+            let extension = raw_id.split_once('.').map(|(_, extension)| extension);
+            let reading = matches!(request.method.as_str(), "GET" | "HEAD");
+            let stream_id = numeric(bare_id).or_else(|| raw_id.split_once('.').filter(|_| reading).and_then(|(digits, _)| numeric(digits)));
             let Some(stream_id) = stream_id else {
                 // Measured on the copy: a PUT to an id it does not have is a 400, and so
                 // is a DELETE of a NON-NUMERIC one -- `DELETE /library/streams/abc` is a
@@ -17034,6 +17042,16 @@ impl Runtime {
                 let Some(row) = row else { return Response::error(404, "rex: not found") };
                 if let Some(response) = self.music_lyrics(&row, stream_id, query, &request.headers) {
                     return response;
+                }
+                if let Some(extension) = extension {
+                    match self.external_stream(&row, stream_id, extension, query) {
+                        Some(Err(response)) => return response,
+                        Some(Ok(read)) => {
+                            self.pending_vobsub = Some(read);
+                            return Response::empty(200);
+                        }
+                        None => {}
+                    }
                 }
                 return match self.prepare_subtitle_read(&row, stream_id, query) {
                     Ok(subtitles::SubtitleRead::Ready(response)) => response,
@@ -24374,6 +24392,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             guard.pending_ultrablur = None;
             guard.pending_claim = None;
             guard.pending_subtitle_read = None;
+            guard.pending_vobsub = None;
             guard.refused_for_token = false;
             crate::filters::clear_refusal();
             take_unsupported_sort();
@@ -24399,6 +24418,11 @@ fn handle_connection<S: Read + Write + PollRead>(
                 guard.agent_answers.remove(&key);
             }
             guard.pending_agent = None;
+            if let Some(read) = guard.pending_vobsub.take() {
+                drop(guard);
+                response = subtitles::vobsub_read(read);
+                guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+            }
             if let Some(job) = guard.pending_subtitle_read.take() {
                 drop(guard);
                 let result = subtitles::read(job);

@@ -594,14 +594,17 @@ next to `Movie (2010).mkv`, is pushed with the item it belongs to:
 ```json
 "subtitles": [
   {"path": "movies/Sintel (2010)/Sintel (2010).en.srt", "language": "en", "size": 50},
-  {"path": "movies/Sintel (2010)/Sintel (2010).de.forced.srt", "language": "ger", "forced": true, "size": 1834}
+  {"path": "movies/Sintel (2010)/Sintel (2010).de.forced.srt", "language": "ger", "forced": true, "size": 1834},
+  {"path": "movies/Sintel (2010)/Subs/sintel.idx", "size": 1245, "sub": "movies/Sintel (2010)/Subs/sintel.sub", "sub_size": 28672}
 ]
 ```
 
 | Field | Required | Meaning |
 |---|---|---|
-| `path` | yes | Where its text is: `<source url>/<path>`, read as a Part's bytes are (the source's credentials, its redirects). Its extension, lower-cased, is its format: `srt`, `ass`, `ssa`, `smi`, `txt` or `psb`, what an upload takes |
-| `language` | no | ISO 639-1 (`en`) or 639-2 (`eng`, `ger` or `deu`), as the source read it. rex reads nothing off the file's name: without one the subtitle has no language, as an upload has none |
+| `path` | yes | Where its text is: `<source url>/<path>`, read as a Part's bytes are (the source's credentials, its redirects). Its extension, lower-cased, is its format: `srt`, `ass`, `ssa`, `smi`, `txt` or `psb`, what an upload takes, or `idx`, a VobSub's index (with `sub`) |
+| `sub` | with an `.idx` | A VobSub's `.sub`, the bitmaps its `.idx` indexes: where they are under the source's url, read as `path` is. An `.idx` without one is left out |
+| `sub_size` | recommended with `sub` | The `.sub`'s bytes |
+| `language` | no | ISO 639-1 (`en`) or 639-2 (`eng`, `ger` or `deu`), as the source read it. rex reads nothing off the file's name: without one the subtitle has no language, as an upload has none. A VobSub is the language its `.idx` names (`id: de`), the last when it names several, and this only when it names none |
 | `forced`, `hearing_impaired` | no | `true` flags it as the same flags on an embedded track do (`English Forced`, `English SDH`); a forced one is passed over when tracks are picked by language |
 | `size` | recommended | Bytes. The text is read when the path is new to the Part or its `size` changed, never otherwise; without a `size`, once |
 
@@ -610,7 +613,17 @@ several), in the shape a real PMS gives a subtitle file beside the video: `Engli
 (SRT External)`, a `/library/streams/{id}` key serving its text as UTF-8 (measured on a real
 1.43 library, `tests/fixtures/decisions/rows.json`). Clients list, pick, download and burn it in
 as they do an upload, and it is selected only where the account's track settings would select
-an embedded track.
+an embedded track. The key with its format's extension (`.srt`, `.ass`) is the same; with any
+other it is the 404 a real PMS answers.
+
+A VobSub pair is one subtitle whatever its `.idx` holds, as a real 1.42.2 lists one once it has
+analysed the file (`tests/fixtures/subtitles/vobsub_s1422.json`): codec and format `idx`,
+`Deutsch (VOBSUB External)`. Its `.idx` is read at the push, as a text is (4 MiB at most); its
+`.sub` (64 MiB at most) only when a client asks for it. The key and its `.idx` serve the `.idx`,
+its `.sub` the bitmaps as the source has them (with `encoding=`, every byte over 0x7f dropped, as
+a real PMS answers Plezy's `.sub?encoding=utf-8`). A conversion burns its first track into the
+picture, or muxes it as `dvd_subtitle` into the Matroska segments of a client whose target lists
+`vobsub` (Plex for Android, Plex for iOS), as the reference does.
 
 - **Absent keeps, `[]` removes.** A push without `subtitles`, or with `null`, leaves the row's
   as they are, as an absent `chapters` does; `[]` removes this item's. A source with none sends
@@ -620,8 +633,9 @@ an embedded track.
   its language and flags follow each push.
 - **Read off the lock.** The texts are read once the push is applied, without holding a Plex
   request, at most 4 MiB each.
-- **Nothing costs the item.** An entry with another extension, a field of the wrong type, a
-  path with an empty, `.` or `..` segment, or text over 4 MiB is left out and logged once with
+- **Nothing costs the item.** An entry with another extension, an `.idx` without its `.sub`, a
+  field of the wrong type, a path with an empty, `.` or `..` segment, or text over 4 MiB is left
+  out and logged once with
   why (`FEED myapp <id>: subtitle <path>: <why>; left out`); the item is taken. A text the source
   does not serve yet (`subtitle <path> not read: the source answered 404`) arrives with a later
   push, and one that fails to read again keeps the text it had.

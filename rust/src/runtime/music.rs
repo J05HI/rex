@@ -1444,6 +1444,7 @@ impl Runtime {
             text_subtitle: None,
             text_to_srt: false,
             sidecar: None,
+            vobsub: None,
             text_burn: None,
             incomplete_segments: false,
             copyts: false,

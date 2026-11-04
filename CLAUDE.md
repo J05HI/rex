@@ -650,6 +650,9 @@ python3 tests/test_feed_display.py          # what a source names itself (`displ
                                             # identifies, its show's and season's, updated by later pushes, a person's lock kept (Ms Rachel's channel)
 python3 tests/test_feed_subtitles.py        # a source's sidecar subtitles (`subtitles`): the measured on-disk external stream on the item's own
                                             # Part, its text read off the lock, one id per path, [] and absent, bad entries left out, uploads untouched
+python3 tests/test_vobsub_sidecars.py       # a source's VobSub pair (`.idx` + `sub`): the 1.42.2 reference's one stream (its .idx's language,
+                                            # VOBSUB External), its key's every extension, Plex Web's burn and Android's dvd_subtitle mux,
+                                            # an embedded VobSub copied into Matroska (real Samurai Champloo and McBain pairs); needs ffmpeg
 python3 tests/test_feed_collections.py      # a source's `collections`: each name a collection of the title's library (an episode's show), made as a
                                             # tag write makes one; a person's removal and own collections kept, [] and absent (rex-stremio's catalogs)
 python3 tests/test_feed_playlists.py       # a source's `playlists`: each title an owner's playlist in the pushed order, audio for tracks and video
