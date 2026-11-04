@@ -45,6 +45,9 @@ IDX = open(os.path.join(PAIRS, "stars-samurai.champloo.e20.1080p-forced.idx"), "
 SUB = open(os.path.join(PAIRS, "stars-samurai.champloo.e20.1080p-forced.sub"), "rb").read()
 FOUR = open(os.path.join(PAIRS, "mcbain.1080p-hd4u.idx"), "rb").read()
 SUBS_S1422 = json.load(open(os.path.join(FIXTURES, "transcode", "subtitles_s1422.json")))
+# Plex for Android 2026.19.1's own request below Original with a VobSub selected: its MDE asks the
+# server to burn it (`subtitles=burn`), and plexscratch42's 1.42.2 burns it, Matroska target or not.
+BURN = json.load(open(os.path.join(FIXTURES, "subtitles", "vobsub_burn_android_s1422.json")))
 RELEASE = "shows/Samurai.Champloo.E20.German.2004.ANiME.DL.1080p.BluRay.PROPER.x264-STARS/23TCfnhFTFruRnNrKEr75qWntwqz.part01.rar"
 VIDEO = RELEASE + "/stars-samurai.champloo.e20.1080p.mkv"
 PAIR = RELEASE + "/stars-samurai.champloo.e20.1080p-forced"
@@ -224,6 +227,29 @@ def conversion(shape, key, session):
              if name in ("session", "X-Plex-Session-Identifier", "X-Plex-Playback-Session-Id") else value) for name, value in pairs]
 
 
+def burned_on_request(server, work, title, key):
+    """Plex for Android's `subtitles=burn` request: the decision's row is the reference's burn and the
+    segment at the cue has the subtitle in its picture, no subtitle track (the app selects none)."""
+    theirs = next(stream for stream in BURN["decisions"][title]["decision"]["MediaContainer"]["Metadata"][0]["Media"][0]["Part"][0]["Stream"]
+                  if stream["streamType"] == 3)
+    session = "burn-%s" % key
+    query = [(name, "/library/metadata/%s" % key if name == "path" else session if name == "session" else value) for name, value in BURN["query"]]
+    status, body = server.request("/video/:/transcode/universal/decision?" + urllib.parse.urlencode(query))
+    container = (body or {}).get("MediaContainer", {}) if isinstance(body, dict) else {}
+    ours = next((stream for stream in container.get("Metadata", [{}])[0].get("Media", [{}])[0].get("Part", [{}])[0].get("Stream", [])
+                 if stream.get("streamType") == 3), {})
+    fields = ("burn", "codec", "format", "decision", "location")
+    check("%s, Plex for Android asking to burn it: the decision's row is the reference's burn" % title,
+          status == 200 and all(ours.get(field) == theirs.get(field) for field in fields),
+          ({field: ours.get(field) for field in fields}, {field: theirs.get(field) for field in fields}))
+    data, starts = segment(server, query, 107.6)
+    streams, lit = lit_frames(work, data or b"")
+    kinds = [stream.get("codec_name") for stream in streams if stream.get("codec_type") == "subtitle"]
+    check("%s, Plex for Android asking to burn it: its Matroska segment at the cue has it burned in, no subtitle track" % title,
+          data and lit > 0 and not kinds, (starts, lit, kinds))
+    server.request("/video/:/transcode/universal/stop?session=%s" % session)
+
+
 def main():
     if not FFMPEG or not FFPROBE:
         print("SKIP: no ffmpeg (set REX_TRANSCODER)")
@@ -359,6 +385,7 @@ def main():
                 check("Plex for Android's Matroska segment carries it as dvd_subtitle (deu), its picture untouched, as the reference's",
                       data and kinds == [("dvd_subtitle", "deu")] and lit == 0, (starts, lit, kinds))
             server.request("/video/:/transcode/universal/stop?session=%s" % session)
+        burned_on_request(server, work, "Vobsub Pair", key)
 
         part = server.row(embedded_key)["Media"][0]["Part"][0]["id"]
         server.request("/library/parts/%s?subtitleStreamID=%s&allParts=1" % (part, (embedded or [{}])[0].get("id")), "PUT")
@@ -382,6 +409,7 @@ def main():
                 check("Plex for Android's Matroska segment carries the embedded VobSub copied, as the reference's",
                       data and kinds == ["dvd_subtitle"] and lit == 0, (starts, lit, kinds))
             server.request("/video/:/transcode/universal/stop?session=%s" % session)
+        burned_on_request(server, work, "Vobsub Embedded", embedded_key)
     finally:
         server.stop()
         shutil.rmtree(work, ignore_errors=True)

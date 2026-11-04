@@ -3207,8 +3207,13 @@ impl Runtime {
         // A VobSub goes into Matroska segments that list it -- an embedded one copied, a source's
         // pair muxed from its `.idx` -- as the reference does for Plex for Android's and iOS's
         // Generic targets, and is burned for Plex Web (`fixtures/subtitles/vobsub_s1422.json`).
+        // A client that asks for it burned (`subtitles=burn`) gets it burned there too: Plex for
+        // Android's own request below Original does, and selects no muxed track
+        // (`vobsub_burn_android_s1422.json`, Pixel 6, 2026-11-04).
         // PGS is still burned everywhere: no Matroska copy of one was measured.
-        let muxes_vobsub = matroska && (names(&subtitle_codecs, "vobsub") || names(&subtitle_codecs, "dvd_subtitle"));
+        let muxes_vobsub = matroska
+            && query.get("subtitles").map(String::as_str) != Some("burn")
+            && (names(&subtitle_codecs, "vobsub") || names(&subtitle_codecs, "dvd_subtitle"));
         let subtitle = streams
             .iter()
             .filter(|_| burn)
