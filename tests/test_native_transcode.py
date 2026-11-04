@@ -1103,6 +1103,20 @@ def run(scratch):
         headed = plezy["plezy-ts"]["X-Plex-Client-Profile-Extra"].replace("audioCodec=aac%2Cac3%2Ceac3%2Cmp3", "audioCodec=dca%2Cac3")
         walk(port, scratch, "plezy-dca-head", "3", "transcode", "copy", (1280, 720), directStream="0",
              **{"X-Plex-Client-Profile-Name": plezy["plezy-ts"]["X-Plex-Client-Profile-Name"], "X-Plex-Client-Profile-Extra": headed})
+        # Plezy's quality (720p 2 Mbps) is no maxVideoBitrate but an `add-limitation` on video.bitrate in
+        # its extra; a real 1.42.2 converts at 2000 (`plezy_quality_limit_s1422.json`). rex ignored it and
+        # sent 4482k, twice what the phone asked for (Pixel 6, 2026-11-04).
+        limited = json.load(open(os.path.join(ROOT, "tests/fixtures/decisions/plezy_quality_limit_s1422.json")))
+        theirs = next(s for s in limited["decision"]["MediaContainer"]["Metadata"][0]["Media"][0]["Part"][0]["Stream"] if s["streamType"] == 1)
+        query = [(name, "/library/metadata/3" if name == "path" else "s-plezy-limit" if name in ("session", "X-Plex-Session-Identifier") else value)
+                 for name, value in limited["query"]]
+        status, _, body = get(port, "/video/:/transcode/universal/decision", query)
+        part = json.loads(body)["MediaContainer"].get("Metadata", [{}])[0].get("Media", [{}])[0].get("Part", [{}])[0] if status == 200 else {}
+        ours = next((s for s in part.get("Stream", []) if s.get("streamType") == 1), {})
+        check("plezy-limit: its add-limitation holds the video to the reference's %sk" % theirs["bitrate"],
+              status == 200 and ours.get("decision") == "transcode" and 0 < (ours.get("bitrate") or 0) <= theirs["bitrate"],
+              json.dumps({"status": status, "bitrate": ours.get("bitrate"), "decision": ours.get("decision")}))
+        get(port, "/video/:/transcode/universal/stop", [("session", "s-plezy-limit")])
         # A selected text subtitle was dropped from every conversion. The reference copies an
         # SRT into these apps' Matroska segments (`subtitles_s1422.json`).
         android = next(asked for asked in recorded["decisions"] if asked["label"] == "android-generic-target")

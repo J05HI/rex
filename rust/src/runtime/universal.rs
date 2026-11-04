@@ -3282,7 +3282,7 @@ impl Runtime {
             if !value.parse::<i64>().is_ok_and(|value| (0..=1_000_000).contains(&value)) { return None; }
         }
         let max_kbps = query.get("maxVideoBitrate").and_then(|value| value.parse::<i64>().ok()).filter(|value| *value > 0)
-            .into_iter().chain(self.stream_bitrate_limit(query)).min();
+            .into_iter().chain(self.stream_bitrate_limit(query)).chain(decision::video_bitrate_cap(profile)).min();
         let cap = query.get("videoResolution").and_then(|value| {
             let (w, h) = value.split_once('x')?;
             let (w, h) = (w.trim().parse::<f64>().ok()?, h.trim().parse::<f64>().ok()?);

@@ -382,6 +382,27 @@ fn limitation(limits: &[&Map<String, Value>], values: &HashMap<String, Value>) -
 /// The first codec-profile limitation `codec` breaks in `scope` (`VideoCodec`,
 /// `VideoAudioCodec`), with the `onlyTranscodes` ones included: those are exactly the
 /// rules for a stream a conversion copies rather than one the app plays directly.
+/// The video bitrate a conversion is held to by the profile: an `upperBound` on `video.bitrate` for
+/// any codec (`*`, which an extra's limitation arrives as an empty name) or H.264, which rex converts
+/// to. Plezy brings its quality as one in its extra (`add-limitation(scope=videoCodec&scopeName=*&
+/// type=upperBound&name=video.bitrate&value=2000)`) with no `maxVideoBitrate`, and a real 1.42.2
+/// converts at 2000 (`tests/fixtures/decisions/plezy_quality_limit_s1422.json`).
+pub fn video_bitrate_cap(profile: &Profile) -> Option<i64> {
+    entries(profile, "codecprofiles")
+        .into_iter()
+        .filter(|entry| text(entry.get("tag")) == Some("VideoCodec"))
+        .filter(|entry| {
+            let codecs = names(entry.get("name"));
+            codecs.is_empty() || codecs.iter().any(|name| *name == "*" || name.eq_ignore_ascii_case("h264"))
+        })
+        .flat_map(|entry| entries(entry, "limitations"))
+        .filter(|limit| text(limit.get("name")) == Some("video.bitrate") && text(limit.get("tag")).is_some_and(|tag| tag.eq_ignore_ascii_case("UpperBound")))
+        .filter_map(|limit| number(limit.get("value")))
+        .filter(|value| *value >= 1.0)
+        .map(|value| value as i64)
+        .min()
+}
+
 pub fn codec_limitation(profile: &Profile, scope: &str, codec: &str, media: &Value) -> Option<String> {
     let stream_list = streams(media);
     let values = measured_values(media, &stream_list, selected_audio(&stream_list));
