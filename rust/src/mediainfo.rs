@@ -1187,11 +1187,13 @@ pub fn build_media(
         .cloned()
         .collect();
     let video = videos.first();
+    // A probe with no duration (a raw `.avc`, `.m2v`, a `.fli`, `.nsv`, `.ty`) gives a Media and
+    // Part with none, as plexscratch42's 1.42.2 wrote them (`tests/fixtures/media/s42-1101-0.json`):
+    // a 0 there made Plex for Android end the direct play at 274 ms (Pixel 6, 2026-11-04).
     let duration_ms = fmt
         .and_then(|x| x.get("duration"))
         .and_then(float_any)
-        .map(|x| (x * 1000.0).round() as i64)
-        .unwrap_or(0);
+        .map(|x| (x * 1000.0).round() as i64);
     let bitrate = fmt
         .and_then(|x| x.get("bit_rate"))
         .and_then(int_any)
@@ -1247,7 +1249,9 @@ pub fn build_media(
     let mut part = map();
     put(&mut part, "id", part_id);
     put(&mut part, "key", part_key);
-    put(&mut part, "duration", duration_ms);
+    if let Some(duration) = duration_ms {
+        put(&mut part, "duration", duration);
+    }
     put(&mut part, "file", file_path);
     put(&mut part, "size", size);
     put(&mut part, "container", container.clone());
@@ -1256,7 +1260,9 @@ pub fn build_media(
     put(&mut part, "Stream", Value::Array(rows));
     let mut media = map();
     put(&mut media, "id", media_id);
-    put(&mut media, "duration", duration_ms);
+    if let Some(duration) = duration_ms {
+        put(&mut media, "duration", duration);
+    }
     put_opt(&mut media, "bitrate", bitrate);
     put_opt(&mut media, "width", width);
     put_opt(&mut media, "height", height);

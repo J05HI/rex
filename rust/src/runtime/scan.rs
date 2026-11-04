@@ -720,6 +720,9 @@ impl Runtime {
         if probe.is_none() {
             leaf["_probePending"] = json!(true);
         }
+        if media.get("duration").is_none() {
+            leaf.as_object_mut().map(|leaf| leaf.shift_remove("duration"));
+        }
         if let Some(hash) = arrival.entry.get("hash").and_then(Value::as_str) {
             leaf["_hash"] = json!(hash);
             leaf["Media"][0]["_hash"] = json!(hash);
@@ -956,7 +959,10 @@ impl Runtime {
                 mediainfo::select_media_tracks(&mut media, prefs);
             }
             if let Some(object) = self.catalog.get_mut(&key).and_then(Value::as_object_mut) {
-                object.insert("duration".to_string(), media.get("duration").cloned().unwrap_or(json!(0)));
+                match media.get("duration") {
+                    Some(duration) => object.insert("duration".to_string(), duration.clone()),
+                    None => object.shift_remove("duration"),
+                };
                 object.insert("Media".to_string(), json!([media]));
                 object.shift_remove("_probePending");
             }
