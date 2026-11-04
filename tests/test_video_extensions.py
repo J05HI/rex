@@ -210,7 +210,8 @@ def main():
         for extension, entry in sorted(wanted.items()):
             media = entry["media"]
             path = "movies/Videoext %s/Videoext %s.%s" % (extension, extension, extension)
-            items[path] = (extension, media["Media"]["container"], entry.get("contentType"))
+            items[path] = (extension, media["Media"]["container"], entry.get("contentType"),
+                           media["Media"]["Part"][0]["key"].rsplit("/", 1)[-1])
             source.files.add("/dav/" + path)
             body = pushed(path, media["probe"], media["Media"]["Part"][0]["size"])
             status, answer = server.feed("POST", "items", {"items": [body]})
@@ -218,7 +219,7 @@ def main():
                   status == 200 and not (answer or {}).get("rejected"), (status, answer))
         mk3d = MEASURED["mk3d"]
         path = "movies/%s/%s" % (mk3d["release"], mk3d["file"])
-        items[path] = ("mk3d", "mkv", "application/octet-stream")
+        items[path] = ("mk3d", "mkv", "application/octet-stream", None)
         source.files.add("/dav/" + path)
         status, answer = server.feed("POST", "items", {"items": [pushed(path, mk3d["probe"], mk3d["size"])]})
         check("a .mk3d file is a video, the Matroska it is", status == 200 and not (answer or {}).get("rejected"),
@@ -226,20 +227,23 @@ def main():
         # A DVD's title VOB in its VIDEO_TS folder, upper case as a disc names it: the TV scanner's Part.
         dvd = MEDIA[MEASURED["Plex TV Series"]["vob"]["media"]]
         path = "shows/Videoext Dvdshow/Season 01/VIDEO_TS/VTS_01_1.VOB"
-        items[path] = ("VOB", dvd["Media"]["container"], MEASURED["Plex TV Series"]["VIDEO_TS/VTS_01_1.VOB"]["contentType"])
+        items[path] = ("VOB", dvd["Media"]["container"], MEASURED["Plex TV Series"]["VIDEO_TS/VTS_01_1.VOB"]["contentType"], None)
         source.files.add("/dav/" + path)
         status, answer = server.feed("POST", "items", {"items": [pushed(path, dvd["probe"], dvd["Media"]["Part"][0]["size"])]})
         check("a VIDEO_TS folder's VTS_01_1.VOB is a video", status == 200 and not (answer or {}).get("rejected"),
               (status, answer))
 
         keys = server.keys()
-        for path, (extension, container, content_type) in sorted(items.items(), key=lambda pair: pair[1][0]):
+        for path, (extension, container, content_type, key_name) in sorted(items.items(), key=lambda pair: pair[1][0]):
             row = server.row(keys.get(path))
             media = (row.get("Media") or [{}])[0]
             part = (media.get("Part") or [{}])[0]
             check(".%s is the container %s PMS names" % (extension, container),
                   media.get("container") == container and part.get("container") == container,
                   (media.get("container"), part.get("container")))
+            if key_name:  # PMS keeps the file's own extension in the Part key, `.dvr-ms` too
+                check(".%s's Part key ends in %s, as PMS's does" % (extension, key_name),
+                      (part.get("key") or "").endswith("/" + key_name), part.get("key"))
             if content_type:
                 answer = read(server, part.get("key", "/none"))
                 check(".%s is read as %s" % (extension, content_type), answer == (206, content_type), answer)

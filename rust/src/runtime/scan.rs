@@ -51,10 +51,12 @@ pub(super) struct Arrival {
     pub numbers: Option<(i64, i64)>,
 }
 
+/// A Part key's extension: the file's own, as PMS keeps it -- `.dvr-ms`'s six letters too
+/// (plexscratch42's `file.dvr-ms`, `tests/fixtures/media/s42-1105-0.json`).
 pub(super) fn extension(file: &str) -> String {
     file.rsplit_once('.')
         .map(|(_, extension)| extension.to_ascii_lowercase())
-        .filter(|extension| (2..=5).contains(&extension.len()))
+        .filter(|extension| (2..=6).contains(&extension.len()))
         .unwrap_or_else(|| "mkv".to_string())
 }
 
