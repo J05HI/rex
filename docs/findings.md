@@ -13667,6 +13667,16 @@ or selected tracks. An omitted chapter array preserves saved timings; an
 explicit empty array clears them. Sources must include `-show_chapters` in their
 probe to supply this data; rex does not read media bytes to obtain it.
 
+**They do arrive (rex-fun, 2026-11-04).** A survey counting rows that hold `"Chapter"` found 2
+of 47,047 and read it as chapters lost on the way; rex keeps them on each version as
+`Media[]._chapters`, and 21,086 episodes, 3,452 movies and 315 clips hold some. go-ffprobe has
+always passed `-show_chapters`, so every probe on fun's four zurgs carries a `chapters` array, and
+each file whose probe lists chapters has them in rex (joined by file name and size). Two cases stay
+open, neither measured on a PMS: 22 versions (12 RD, 10 Usenet; `[neko-kBaraka] Boku no Hero
+Academia` among them) whose probe gives every chapter `end_time` equal to `start_time`, which
+`build_chapters` drops, and ~160 that lose some chapters that way; and 3,045 rows with chapters
+only on a version other than the first, which the projection does not show.
+
 ## Closing the open audit items (2026-10-20)
 
 Measured on an isolated PMS 1.43.4 and rex 441dbe22, never by writing to plexlab or a
