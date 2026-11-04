@@ -1069,6 +1069,29 @@ def run(scratch):
             if asked["label"].endswith("generic-target"):
                 walk(port, scratch, asked["label"], "3", "transcode", "copy", (1280, 720), directStream="0", muxer="mkv",
                      **{name: asked["req_headers"][name] for name in ("X-Plex-Client-Profile-Name", "X-Plex-Client-Profile-Extra")})
+        # Plezy joins its codec lists with an encoded comma (`audioCodec=aac%2Cac3%2Ceac3%2Cmp3`), which a
+        # real 1.42.2 reads as the plain list, the AC3 copied (`plezy_codec_lists_s1422.json`). rex took it
+        # for one codec and handed it to FFmpeg as the encoder: every segment 500 (rex#18).
+        plezy = {asked["label"]: dict(asked["query"]) for asked in
+                 json.load(open(os.path.join(ROOT, "tests/fixtures/decisions/plezy_codec_lists_s1422.json")))["decisions"]}
+        names = ("X-Plex-Client-Profile-Name", "X-Plex-Client-Profile-Extra")
+        walk(port, scratch, "plezy-ts", "3", "transcode", "copy", (1280, 720), directStream="0",
+             **{name: plezy["plezy-ts"][name] for name in names})
+        # Its video list too: at Original quality the HEVC is copied, as it is for `hevc,h264`.
+        status, container = decision(port, "3", "s-plezy-original", **{name: plezy["plezy-mp4-original"][name] for name in names})
+        part = container.get("Metadata", [{}])[0].get("Media", [{}])[0].get("Part", [{}])[0]
+        streams = {s.get("streamType"): s.get("decision") for s in part.get("Stream", [])}
+        check("plezy-mp4-original: hevc%2Ch264 copies the HEVC and AC3", (streams.get(1), streams.get(2)) == ("copy", "copy"),
+              json.dumps(streams))
+        get(port, "/video/:/transcode/universal/stop", [("session", "s-plezy-original")])
+        # A codec rex has no encoder for is refused, not handed to FFmpeg. Not measured: rex's own
+        # encoder-less refusal, for a list that still reads as one unknown name once decoded.
+        unknown = plezy["plezy-ts"]["X-Plex-Client-Profile-Extra"].replace("audioCodec=aac%2Cac3%2Ceac3%2Cmp3", "audioCodec=aac%252Cac3")
+        status, container = decision(port, "3", "s-plezy-unknown", directStream="0",
+                                     **{"X-Plex-Client-Profile-Name": "Generic", "X-Plex-Client-Profile-Extra": unknown})
+        check("an unknown audio encoder is refused (2000/4005), not converted to",
+              container.get("generalDecisionCode") == 2000 and container.get("transcodeDecisionCode") == 4005,
+              json.dumps({k: v for k, v in container.items() if "Decision" in k}))
         # A selected text subtitle was dropped from every conversion. The reference copies an
         # SRT into these apps' Matroska segments (`subtitles_s1422.json`).
         android = next(asked for asked in recorded["decisions"] if asked["label"] == "android-generic-target")

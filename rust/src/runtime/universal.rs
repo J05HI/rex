@@ -675,14 +675,24 @@ pub(crate) fn ladder(plan: &Plan, hardware: &Hardware) -> Vec<Path> {
 /// The FFmpeg encoder for a codec a client profile names. FFmpeg's own `opus` and `vorbis`
 /// encoders are experimental and refused without `-strict -2`, and `pcm` names no encoder:
 /// a target listing one of them first (Plex Desktop's `opus,vorbis,flac`) failed every
-/// path of the ladder. The others are FFmpeg's names already (`mp3` is libmp3lame).
-fn audio_encoder(codec: &str) -> &str {
-    match codec {
+/// path of the ladder. The others are FFmpeg's names already (`mp3` is libmp3lame). The codec
+/// is the client's word, so any other name is `None` and never reaches FFmpeg: Plezy's
+/// undecoded `aac%2cac3%2ceac3%2cmp3` was "Unknown encoder" on every segment (rex#18).
+fn audio_encoder(codec: &str) -> Option<&'static str> {
+    Some(match codec {
         "opus" => "libopus",
         "vorbis" => "libvorbis",
         "pcm" => "pcm_s16le",
-        other => other,
-    }
+        "aac" => "aac",
+        "ac3" => "ac3",
+        "eac3" => "eac3",
+        "mp3" => "mp3",
+        "mp2" => "mp2",
+        "flac" => "flac",
+        "alac" => "alac",
+        "wmav2" => "wmav2",
+        _ => return None,
+    })
 }
 
 /// The FFmpeg command line for one run of a session, starting at `start` (a segment).
@@ -926,7 +936,8 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
             push(&mut args, &["-c:a", "copy"]);
         } else {
             push(&mut args, &[
-                "-c:a", audio_encoder(&audio.codec), "-ac", &audio.channels.to_string(), "-b:a", &format!("{}k", audio.bitrate),
+                // ponytail: `transcode_plan` refuses a codec with no encoder, so this fallback is never taken.
+                "-c:a", audio_encoder(&audio.codec).unwrap_or("aac"), "-ac", &audio.channels.to_string(), "-b:a", &format!("{}k", audio.bitrate),
                 "-ar", &audio.sampling_rate.to_string(),
                 "-af", &audio_filter(plan),
             ]);
@@ -3185,6 +3196,8 @@ impl Runtime {
         if query.get("videoResolution").is_some_and(|value| !value.is_empty()) && cap.is_none() { return None; }
         if audio_stream.is_some_and(|stream| stream.get("channels").and_then(Value::as_i64).is_some_and(|channels| !(1..=64).contains(&channels))) { return None; }
         if video_stream.is_some_and(|stream| ["width", "height"].iter().any(|name| number_of(stream.get(*name)).is_some_and(|size| !(2.0..=16384.0).contains(&size)))) { return None; }
+        let out = if names(&audio_codecs, "aac") || audio_codecs.is_empty() { "aac".to_string() } else { audio_codecs[0].clone() };
+        if audio_stream.is_some() && audio_encoder(&out).is_none() { return None; }
         let mut audio = audio_stream.map(|stream| {
             let codec = stream.get("codec").map(string_value).unwrap_or_default().to_ascii_lowercase();
             let channels = stream.get("channels").and_then(Value::as_i64).unwrap_or(2).max(1);
@@ -3199,7 +3212,6 @@ impl Runtime {
                 && names(&audio_codecs, &codec)
                 && !(matroska && adts)
                 && decision::codec_limitation(profile, "VideoAudioCodec", &codec, media).is_none();
-            let out = if names(&audio_codecs, "aac") || audio_codecs.is_empty() { "aac".to_string() } else { audio_codecs[0].clone() };
             let ordinal = streams.iter().filter(|other| kind(other) == Some(2)).position(|other| other.get("index") == stream.get("index")).unwrap_or(0) as i64;
             if copy {
                 AudioPlan { index: stream.get("index").and_then(Value::as_i64).unwrap_or(-1), ordinal, copy, source_codec: codec.clone(), codec, convert_to: out, channels, bitrate: source_bitrate, sampling_rate }
@@ -3877,6 +3889,15 @@ mod tests {
             boost_dialog: false,
             normalize_loudness: false,
         }
+    }
+
+    #[test]
+    fn an_audio_codec_rex_has_no_encoder_for_is_refused_not_handed_to_ffmpeg() {
+        assert_eq!(audio_encoder("aac%2cac3%2ceac3%2cmp3"), None);
+        assert_eq!(audio_encoder("-i"), None);
+        assert_eq!(audio_encoder("dca"), None);
+        assert_eq!(audio_encoder("opus"), Some("libopus"));
+        assert_eq!(audio_encoder("ac3"), Some("ac3"));
     }
 
     #[test]
