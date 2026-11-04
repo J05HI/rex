@@ -1188,8 +1188,9 @@ pub fn build_media(
         .collect();
     let video = videos.first();
     // A probe with no duration (a raw `.avc`, `.m2v`, a `.fli`, `.nsv`, `.ty`) gives a Media and
-    // Part with none, as plexscratch42's 1.42.2 wrote them (`tests/fixtures/media/s42-1101-0.json`):
-    // a 0 there made Plex for Android end the direct play at 274 ms (Pixel 6, 2026-11-04).
+    // Part with none, as plexscratch42's 1.42.2 wrote them (`tests/fixtures/media/s42-1101-0.json`),
+    // not 0. Plex for Android still ends a raw `.avc`'s direct play at once either way (Pixel 6,
+    // 2026-11-04): a real PMS gives it the same "Direct play OK".
     let duration_ms = fmt
         .and_then(|x| x.get("duration"))
         .and_then(float_any)
