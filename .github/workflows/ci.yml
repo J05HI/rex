@@ -11,8 +11,8 @@ name: CI
 #
 # A nightly builds every platform and publishes a prerelease tagged YYYY.MM.DD.HHMM-nightly
 # beside zurg's, with the commits since the previous release as its notes and a `nightly`
-# image. It is dispatched with nightly=true from dmm at 00:40 Berlin by the same
-# /home/ben/zurg-nightly-dispatch.sh that fires zurg's (see zurg's build.yml for why the
+# image. It is dispatched with nightly=true from dmm at 01:10 Berlin, ten minutes after zurg's,
+# by the same /home/ben/zurg-nightly-dispatch.sh that fires zurg's (see zurg's build.yml for why the
 # clock lives there), and the cron below is its fallback for a night dmm is down. `gate`
 # skips a nightly when main has nothing the last one did not carry, or when tonight's went out.
 #
@@ -35,7 +35,8 @@ on:
   push:
     tags: ['v*']
   schedule:
-    - cron: '19 1 * * *'
+    # 03:19 UTC, after tonight's dispatch (01:10 Berlin, up to ~1.5h) has published.
+    - cron: '19 3 * * *'
   workflow_dispatch:
     inputs:
       nightly:
