@@ -1,0 +1,160 @@
+{
+ "source": "plexscratch42, Plex Media Server 1.42.2, ratingKey 1111, Media 0; a real nsv file from samples.ffmpeg.org (nsv/64vp3.nsv); probed with ffprobe 8.1.2 over the server's own part URL, 2026-11-04",
+ "extension": "nsv",
+ "probe": {
+  "streams": [
+   {
+    "index": 0,
+    "codec_name": "vp3",
+    "codec_long_name": "On2 VP3",
+    "codec_type": "video",
+    "codec_tag_string": "VP31",
+    "codec_tag": "0x31335056",
+    "width": 240,
+    "height": 192,
+    "coded_width": 240,
+    "coded_height": 192,
+    "has_b_frames": 0,
+    "pix_fmt": "yuv420p",
+    "level": -99,
+    "chroma_location": "center",
+    "r_frame_rate": "5/1",
+    "avg_frame_rate": "0/0",
+    "time_base": "1/5",
+    "start_pts": 0,
+    "start_time": "0.000000",
+    "duration_ts": 0,
+    "duration": "0.000000",
+    "disposition": {
+     "default": 0,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    }
+   },
+   {
+    "index": 1,
+    "codec_name": "mp3",
+    "codec_long_name": "MP3 (MPEG audio layer 3)",
+    "codec_type": "audio",
+    "codec_tag_string": "MP3 ",
+    "codec_tag": "0x2033504d",
+    "mime_codec_string": "mp4a.40.34",
+    "sample_fmt": "fltp",
+    "sample_rate": "22050",
+    "channels": 1,
+    "channel_layout": "mono",
+    "bits_per_sample": 0,
+    "initial_padding": 0,
+    "r_frame_rate": "0/0",
+    "avg_frame_rate": "0/0",
+    "time_base": "1/5000",
+    "start_pts": 0,
+    "start_time": "0.000000",
+    "duration_ts": 0,
+    "duration": "0.000000",
+    "bit_rate": "16000",
+    "disposition": {
+     "default": 0,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    }
+   }
+  ],
+  "format": {
+   "filename": "file.nsv",
+   "nb_streams": 2,
+   "nb_programs": 0,
+   "nb_stream_groups": 0,
+   "format_name": "nsv",
+   "format_long_name": "Nullsoft Streaming Video",
+   "start_time": "0.000000",
+   "size": "257283",
+   "probe_score": 100
+  }
+ },
+ "Media": {
+  "id": 251,
+  "width": 240,
+  "height": 192,
+  "aspectRatio": 1.33,
+  "audioChannels": 1,
+  "audioCodec": "mp3",
+  "videoCodec": "vp3",
+  "videoResolution": "sd",
+  "container": "nsv",
+  "Part": [
+   {
+    "id": 251,
+    "key": "/library/parts/251/1793753092/file.nsv",
+    "file": "/data2/videoext-movies/Videoext Probe nsv (2020)/Videoext Probe nsv (2020).nsv",
+    "size": 257283,
+    "container": "nsv",
+    "Stream": [
+     {
+      "id": 472,
+      "streamType": 1,
+      "codec": "vp3",
+      "index": 0,
+      "frameRate": 5.0,
+      "height": 192,
+      "refFrames": 1,
+      "width": 240,
+      "displayTitle": "SD",
+      "extendedDisplayTitle": "SD (VP3)"
+     },
+     {
+      "id": 473,
+      "streamType": 2,
+      "selected": true,
+      "codec": "mp3",
+      "index": 1,
+      "channels": 1,
+      "bitrate": 16,
+      "audioChannelLayout": "mono",
+      "samplingRate": 22050,
+      "streamIdentifier": "1",
+      "displayTitle": "Unknown (MP3 Mono)",
+      "extendedDisplayTitle": "Unknown (MP3 Mono)"
+     }
+    ]
+   }
+  ]
+ },
+ "webDisplayTitles": {
+  "0": "SD (VP3)",
+  "1": "Unknown (MP3 Mono)"
+ },
+ "shallow": true
+}

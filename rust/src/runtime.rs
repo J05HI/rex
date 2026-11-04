@@ -28219,11 +28219,16 @@ fn part_content_type(part: &Value) -> String {
         .to_ascii_lowercase()
         .as_str()
     {
+        // By extension, not container (plexscratch42, 2026-11-04): `.qt` is an mp4 Part read as
+        // quicktime, `.xvid` an avi read as x-msvideo where a `.bivx` avi is an octet-stream, and
+        // `.wtv` is `video/wtv`. Every other video extension `is_video` added then is an
+        // octet-stream, `.vob` too, and so is `.mk3d`: no string of the binary names it.
         "mkv" => "video/x-matroska",
         "mp4" | "m4v" => "video/mp4",
         "webm" => "video/webm",
-        "avi" | "divx" => "video/x-msvideo",
-        "mov" => "video/quicktime",
+        "avi" | "divx" | "xvid" => "video/x-msvideo",
+        "mov" | "qt" => "video/quicktime",
+        "wtv" => "video/wtv",
         "ts" => "video/MP2T",
         "mpg" | "mpeg" => "video/mpeg",
         "flv" => "video/x-flv",

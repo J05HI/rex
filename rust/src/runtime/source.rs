@@ -102,15 +102,25 @@ fn quote_segment(segment: &str) -> String {
 }
 
 /// The extensions taken as media; anything else in a release (subtitles, nfo, samples'
-/// images) is not a Part.
+/// images) is not a Part. Each is one a real PMS makes a playable Part of, measured on
+/// plexscratch42 (1.42.2) one file per extension (2026-11-04,
+/// `tests/fixtures/video_extensions_s1422.json`): its Plex Movie scanner's, and `.vob`, which
+/// only its Plex TV Series scanner takes. `.mk3d` is Matroska that neither scanner takes, kept
+/// because a source pushes it as the video it is. Listed by the legacy scanner but left out: the
+/// playlists (asx, sdp, strm, xsp), Parts with no stream every decision answers 400; `.bup`,
+/// one of those too; `.viv`, whose video no decoder names; and `.iso`, never a Part, which
+/// ffprobe reads as Invalid data off a Blu-ray image's head.
 pub(super) fn is_video(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    [
-        ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".ts", ".m2ts", ".mts", ".webm", ".wmv",
-        ".mpg", ".mpeg", ".flv", ".divx", ".iso",
-    ]
-    .iter()
-    .any(|extension| lower.ends_with(extension))
+    let name = path.rsplit('/').next().unwrap_or(path);
+    name.rsplit_once('.').is_some_and(|(_, extension)| {
+        [
+            "3g2", "3gp", "asf", "avc", "avi", "avs", "bivx", "divx", "dv", "dvr-ms", "evo", "fli",
+            "flv", "m2t", "m2ts", "m2v", "m4v", "mk3d", "mkv", "mov", "mp4", "mpeg", "mpg", "mts",
+            "nsv", "nuv", "ogm", "ogv", "pva", "qt", "rm", "rmvb", "svq3", "tp", "ts", "ty", "vdr",
+            "vob", "vp3", "webm", "wmv", "wtv", "xvid",
+        ]
+        .contains(&extension.to_ascii_lowercase().as_str())
+    })
 }
 
 fn trimmed_mount(mount: &str) -> String {

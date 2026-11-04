@@ -1,0 +1,183 @@
+{
+ "source": "plexscratch42, Plex Media Server 1.42.2, ratingKey 1126, Media 0; a synthetic webm file made with ffmpeg 4.4.2 on the lab host (Videoext Probe); probed with ffprobe 8.1.2 over the server's own part URL, 2026-11-04",
+ "extension": "webm",
+ "probe": {
+  "streams": [
+   {
+    "index": 0,
+    "codec_name": "vp9",
+    "codec_long_name": "Google VP9",
+    "profile": "Profile 0",
+    "codec_type": "video",
+    "codec_tag_string": "[0][0][0][0]",
+    "codec_tag": "0x0000",
+    "mime_codec_string": "vp09.00.31.08",
+    "width": 1280,
+    "height": 720,
+    "coded_width": 1280,
+    "coded_height": 720,
+    "has_b_frames": 0,
+    "sample_aspect_ratio": "1:1",
+    "display_aspect_ratio": "16:9",
+    "pix_fmt": "yuv420p",
+    "level": -99,
+    "color_range": "tv",
+    "field_order": "progressive",
+    "r_frame_rate": "24/1",
+    "avg_frame_rate": "24/1",
+    "time_base": "1/1000",
+    "start_pts": 7,
+    "start_time": "0.007000",
+    "disposition": {
+     "default": 1,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    },
+    "tags": {
+     "ENCODER": "Lavc58.134.100 libvpx-vp9",
+     "DURATION": "00:00:10.007000000"
+    }
+   },
+   {
+    "index": 1,
+    "codec_name": "opus",
+    "codec_long_name": "Opus (Opus Interactive Audio Codec)",
+    "codec_type": "audio",
+    "codec_tag_string": "[0][0][0][0]",
+    "codec_tag": "0x0000",
+    "mime_codec_string": "opus",
+    "sample_fmt": "fltp",
+    "sample_rate": "48000",
+    "channels": 1,
+    "channel_layout": "mono",
+    "bits_per_sample": 0,
+    "initial_padding": 312,
+    "r_frame_rate": "0/0",
+    "avg_frame_rate": "0/0",
+    "time_base": "1/1000",
+    "start_pts": 0,
+    "start_time": "0.000000",
+    "extradata_size": 19,
+    "disposition": {
+     "default": 1,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    },
+    "tags": {
+     "ENCODER": "Lavc58.134.100 libopus",
+     "DURATION": "00:00:10.008000000"
+    }
+   }
+  ],
+  "format": {
+   "filename": "file.webm",
+   "nb_streams": 2,
+   "nb_programs": 0,
+   "nb_stream_groups": 0,
+   "format_name": "matroska,webm",
+   "format_long_name": "Matroska / WebM",
+   "start_time": "0.000000",
+   "duration": "10.008000",
+   "size": "950791",
+   "bit_rate": "760024",
+   "probe_score": 100,
+   "tags": {
+    "ENCODER": "Lavf58.76.100"
+   }
+  }
+ },
+ "Media": {
+  "id": 266,
+  "duration": 10008,
+  "bitrate": 760,
+  "width": 1280,
+  "height": 720,
+  "aspectRatio": 1.78,
+  "audioChannels": 1,
+  "audioCodec": "opus",
+  "videoCodec": "vp9",
+  "videoResolution": "720",
+  "container": "mkv",
+  "videoFrameRate": "24p",
+  "videoProfile": "profile 0",
+  "Part": [
+   {
+    "id": 266,
+    "key": "/library/parts/266/1793753090/file.webm",
+    "duration": 10008,
+    "file": "/data2/videoext-movies/Videoext Probe webm (2020)/Videoext Probe webm (2020).webm",
+    "size": 950791,
+    "container": "mkv",
+    "videoProfile": "profile 0",
+    "Stream": [
+     {
+      "id": 500,
+      "streamType": 1,
+      "default": true,
+      "codec": "vp9",
+      "index": 0,
+      "bitrate": 760,
+      "frameRate": 24.0,
+      "height": 720,
+      "profile": "profile 0",
+      "refFrames": 1,
+      "scanType": "progressive",
+      "width": 1280,
+      "displayTitle": "720p",
+      "extendedDisplayTitle": "720p (VP9)"
+     },
+     {
+      "id": 501,
+      "streamType": 2,
+      "selected": true,
+      "default": true,
+      "codec": "opus",
+      "index": 1,
+      "channels": 1,
+      "audioChannelLayout": "mono",
+      "samplingRate": 48000,
+      "displayTitle": "Unknown (OPUS Mono)",
+      "extendedDisplayTitle": "Unknown (OPUS Mono)"
+     }
+    ]
+   }
+  ]
+ },
+ "webDisplayTitles": {
+  "0": "720p (VP9)",
+  "1": "Unknown (OPUS Mono)"
+ },
+ "shallow": true
+}

@@ -1,0 +1,191 @@
+{
+ "source": "plexscratch42, Plex Media Server 1.42.2, ratingKey 1127, Media 0; a synthetic wtv file made with ffmpeg 4.4.2 on the lab host (Videoext Probe); probed with ffprobe 8.1.2 over the server's own part URL, 2026-11-04",
+ "extension": "wtv",
+ "probe": {
+  "streams": [
+   {
+    "index": 0,
+    "codec_name": "mpeg2video",
+    "codec_long_name": "MPEG-2 video",
+    "profile": "Main",
+    "codec_type": "video",
+    "codec_tag_string": "mpg2",
+    "codec_tag": "0x3267706d",
+    "width": 720,
+    "height": 576,
+    "coded_width": 0,
+    "coded_height": 0,
+    "has_b_frames": 1,
+    "sample_aspect_ratio": "1:1",
+    "display_aspect_ratio": "5:4",
+    "pix_fmt": "yuv420p",
+    "level": 8,
+    "color_range": "tv",
+    "chroma_location": "left",
+    "field_order": "progressive",
+    "id": "0x2",
+    "r_frame_rate": "25/1",
+    "avg_frame_rate": "25/1",
+    "time_base": "1/10000000",
+    "start_pts": 400000,
+    "start_time": "0.040000",
+    "duration_ts": 100139792,
+    "duration": "10.013979",
+    "extradata_size": 22,
+    "disposition": {
+     "default": 0,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    },
+    "side_data_list": [
+     {
+      "side_data_type": "CPB properties",
+      "max_bitrate": 0,
+      "min_bitrate": 0,
+      "avg_bitrate": 0,
+      "buffer_size": 573440,
+      "vbv_delay": -1
+     }
+    ]
+   },
+   {
+    "index": 1,
+    "codec_name": "mp2",
+    "codec_long_name": "MP2 (MPEG audio layer 2)",
+    "codec_type": "audio",
+    "codec_tag_string": "P[0][0][0]",
+    "codec_tag": "0x0050",
+    "mime_codec_string": "mp4a.40.33",
+    "sample_fmt": "s16p",
+    "sample_rate": "48000",
+    "channels": 1,
+    "channel_layout": "mono",
+    "bits_per_sample": 0,
+    "initial_padding": 0,
+    "id": "0x3",
+    "r_frame_rate": "0/0",
+    "avg_frame_rate": "0/0",
+    "time_base": "1/10000000",
+    "start_pts": 299792,
+    "start_time": "0.029979",
+    "bit_rate": "192000",
+    "extradata_size": 22,
+    "disposition": {
+     "default": 0,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    }
+   }
+  ],
+  "format": {
+   "filename": "file.wtv",
+   "nb_streams": 2,
+   "nb_programs": 0,
+   "nb_stream_groups": 0,
+   "format_name": "wtv",
+   "format_long_name": "Windows Television (WTV)",
+   "start_time": "0.029979",
+   "duration": "10.024000",
+   "size": "2936832",
+   "bit_rate": "2343840",
+   "probe_score": 100,
+   "tags": {
+    "encoder": "Lavf58.76.100"
+   }
+  }
+ },
+ "Media": {
+  "id": 267,
+  "duration": 10024,
+  "bitrate": 2344,
+  "width": 720,
+  "height": 576,
+  "aspectRatio": 1.33,
+  "audioChannels": 1,
+  "audioCodec": "mp2",
+  "videoCodec": "mpeg2video",
+  "videoResolution": "576",
+  "container": "wtv",
+  "videoFrameRate": "PAL",
+  "Part": [
+   {
+    "id": 267,
+    "key": "/library/parts/267/1793753087/file.wtv",
+    "duration": 10024,
+    "file": "/data2/videoext-movies/Videoext Probe wtv (2020)/Videoext Probe wtv (2020).wtv",
+    "size": 2936832,
+    "container": "wtv",
+    "Stream": [
+     {
+      "id": 502,
+      "streamType": 1,
+      "codec": "mpeg2video",
+      "index": 0,
+      "bitrate": 2152,
+      "codedHeight": 576,
+      "codedWidth": 720,
+      "frameRate": 25.0,
+      "height": 576,
+      "refFrames": 1,
+      "scanType": "progressive",
+      "streamIdentifier": "2",
+      "width": 720,
+      "displayTitle": "480p",
+      "extendedDisplayTitle": "480p (MPEG2VIDEO)"
+     },
+     {
+      "id": 503,
+      "streamType": 2,
+      "selected": true,
+      "codec": "mp2",
+      "index": 1,
+      "channels": 1,
+      "bitrate": 192,
+      "audioChannelLayout": "mono",
+      "samplingRate": 48000,
+      "streamIdentifier": "3",
+      "displayTitle": "Unknown (MP2 Mono)",
+      "extendedDisplayTitle": "Unknown (MP2 Mono)"
+     }
+    ]
+   }
+  ]
+ },
+ "webDisplayTitles": {
+  "0": "480p (MPEG2VIDEO)",
+  "1": "Unknown (MP2 Mono)"
+ },
+ "shallow": true
+}

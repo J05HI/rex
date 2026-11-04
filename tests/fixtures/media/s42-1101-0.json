@@ -1,0 +1,113 @@
+{
+ "source": "plexscratch42, Plex Media Server 1.42.2, ratingKey 1101, Media 0; a synthetic avc file made with ffmpeg 4.4.2 on the lab host (Videoext Probe); probed with ffprobe 8.1.2 over the server's own part URL, 2026-11-04",
+ "extension": "avc",
+ "probe": {
+  "streams": [
+   {
+    "index": 0,
+    "codec_name": "h264",
+    "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+    "profile": "High",
+    "codec_type": "video",
+    "codec_tag_string": "[0][0][0][0]",
+    "codec_tag": "0x0000",
+    "mime_codec_string": "avc1.64001f",
+    "width": 1280,
+    "height": 720,
+    "coded_width": 1280,
+    "coded_height": 720,
+    "has_b_frames": 2,
+    "sample_aspect_ratio": "1:1",
+    "display_aspect_ratio": "16:9",
+    "pix_fmt": "yuv420p",
+    "level": 31,
+    "chroma_location": "left",
+    "field_order": "progressive",
+    "is_avc": "false",
+    "nal_length_size": "0",
+    "r_frame_rate": "48/1",
+    "avg_frame_rate": "25/1",
+    "time_base": "1/1200000",
+    "bits_per_raw_sample": "8",
+    "extradata_size": 37,
+    "disposition": {
+     "default": 0,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    }
+   }
+  ],
+  "format": {
+   "filename": "file.avc",
+   "nb_streams": 1,
+   "nb_programs": 0,
+   "nb_stream_groups": 0,
+   "format_name": "h264",
+   "format_long_name": "raw H.264 video",
+   "size": "998937",
+   "probe_score": 51
+  }
+ },
+ "Media": {
+  "id": 241,
+  "width": 1280,
+  "height": 720,
+  "aspectRatio": 1.78,
+  "videoCodec": "h264",
+  "videoResolution": "720",
+  "container": "h264",
+  "videoFrameRate": "24p",
+  "videoProfile": "high",
+  "Part": [
+   {
+    "id": 241,
+    "key": "/library/parts/241/1793753083/file.avc",
+    "file": "/data2/videoext-movies/Videoext Probe avc (2020)/Videoext Probe avc (2020).avc",
+    "size": 998937,
+    "container": "h264",
+    "videoProfile": "high",
+    "Stream": [
+     {
+      "id": 455,
+      "streamType": 1,
+      "selected": true,
+      "codec": "h264",
+      "index": 0,
+      "codedHeight": 720,
+      "codedWidth": 1280,
+      "frameRate": 24.0,
+      "hasScalingMatrix": false,
+      "height": 720,
+      "level": 31,
+      "profile": "high",
+      "refFrames": 1,
+      "scanType": "progressive",
+      "width": 1280,
+      "displayTitle": "720p",
+      "extendedDisplayTitle": "720p (H.264)"
+     }
+    ]
+   }
+  ]
+ },
+ "webDisplayTitles": {
+  "0": "720p (H.264)"
+ },
+ "shallow": true
+}

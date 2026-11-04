@@ -198,6 +198,7 @@ jobs:
             python3 tests/test_webhooks.py
             python3 tests/test_cinema_playback.py
             python3 tests/test_feed_playlists.py
+            python3 tests/test_video_extensions.py
             export REX_TEST_FFMPEG="$d/ffmpeg" REX_THUMBNAIL_TEST_FFMPEG="$d/ffmpeg" REX_TEST_FONT=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
             cargo test --release --locked --manifest-path rust/Cargo.toml runtime::markers::tests -- --ignored
             cargo test --release --locked --manifest-path rust/Cargo.toml thumbnails::tests::ffmpeg_images_and_roku_index -- --ignored

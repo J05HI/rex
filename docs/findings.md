@@ -15268,3 +15268,101 @@ position inside the Part it converts.
   plays first: a real PMS gives no Media a default.
 - **Now Playing named the first Part while the second played**: the conversion's Media was built
   from the row's first Media and Part with the plan's duration; it is now the Part being converted.
+
+## Which files are videos: every extension a real PMS makes a Part of (2026-11-04)
+
+rex took fifteen extensions as video (`runtime/source.rs` `is_video`), chosen by hand: `.iso`
+among them, and `.3gp`, `.asf` and `.ogv` not, though cycle 54 had measured a Part of each. A
+source pushing anything else got `not a video file`, and zurg has fed `.mk3d` since 2026-08-31.
+Measured on plexscratch42 (1.42.2) with one small file per extension of the legacy scanner's
+`video_exts` (fun's `Scanners.bundle/.../VideoFiles.py`, 48 names) plus `.mk3d`, `.ifo`, `.iso` and
+a DVD's VIDEO_TS folder, in a section of each kind made for it (`videoext-movies`, Plex Movie;
+`videoext-shows`, Plex TV Series). ffmpeg 4.4.2 wrote every container it has a muxer for, dvdauthor
+the DVD and genisoimage its image, samples.ffmpeg.org gave real files of the rest, and the
+playlists are text. Each Part was read with `Range: bytes=0-9` and driven through the 78 profiles'
+plain-form decisions after its first audio stream was chosen (the corpus's `selected` state), and
+through Plex for Android (Mobile)'s own conversion request
+(`generic_transcode_target_s1422.json`'s last row, its path pointed at the item).
+`tests/fixtures/video_extensions_s1422.json` keeps the table, `tests/fixtures/media/s42-1099-0` to
+`s42-1140-0` each Part's probe and Media, and `tests/fixtures/decisions/` the 2,028 new cells.
+
+| Extension | Plex Movie | Plex TV Series | Container | Part read | 78 profiles: direct / convert / neither / 400 | Plex for Android's conversion | rex |
+|---|---|---|---|---|---|---|---|
+| .3g2 | Part | Part | mp4 | application/octet-stream | 47 / 16 / 15 / 0 | 1001 | takes |
+| .asx | Part, no stream | not tried | - | application/octet-stream | 0 / 0 / 0 / 78 | 400 | refuses |
+| .avc | Part | Part | h264 | application/octet-stream | 0 / 38 / 40 / 0 | 1001 | takes |
+| .avs | Part | not tried | mpeg | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .bivx | Part | not tried | avi | application/octet-stream | 17 / 29 / 32 / 0 | 1001 | takes |
+| .bup | no Part | Part, no stream (in VIDEO_TS) | - | application/octet-stream | 400 for the 3 tried | - | refuses |
+| .dv | Part | not tried | dv | application/octet-stream | 1 / 38 / 38 / 1 | 1001 | takes |
+| .dvr-ms | Part | not tried | asf | application/octet-stream | 5 / 33 / 39 / 1 | 1001 | takes |
+| .evo | Part | not tried | mpeg | application/octet-stream | 7 / 33 / 37 / 1 | 1001 | takes |
+| .f4v | no Part | not tried | - | - | - | - | refuses |
+| .fli | Part | not tried | flic | application/octet-stream | 0 / 38 / 40 / 0 | 1001 | takes |
+| .ifo | no Part | no Part (in VIDEO_TS) | - | - | - | - | refuses |
+| .iso | no Part (a DVD image) | not tried | - | - | - | - | refuses |
+| .m2t | Part | not tried | mpegts | application/octet-stream | 13 / 28 / 36 / 1 | 1001 | takes |
+| .m2v | Part | not tried | mpegvideo | application/octet-stream | 0 / 38 / 40 / 0 | 1001 | takes |
+| .mk3d | no Part | no Part | (mkv, ffprobe's matroska) | (octet-stream: no mk3d in the binary) | - | - | takes, rex's own |
+| .mkv (control) | Part | Part | mkv | video/x-matroska | 25 / 19 / 33 / 1 | 1001 | takes |
+| .mp4v | no Part | not tried | - | - | - | - | refuses |
+| .nsv | Part | not tried | nsv | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .nuv | Part | not tried | nuv | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .ogm | Part | not tried | ogg | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .pva | Part | not tried | pva | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .qt | Part | not tried | mp4 | video/quicktime | 45 / 15 / 18 / 0 | 1001 | takes |
+| .rm | Part | Part | rm | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .rmvb | Part | not tried | rm | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .sdp | Part, no stream | not tried | - | application/octet-stream | 0 / 0 / 0 / 78 | 400 | refuses |
+| .strm | Part, no stream | not tried | - | 301 to its URL | 0 / 0 / 0 / 78 | 400 | refuses |
+| .svq3 | Part | not tried | mp4 | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .tp | Part | not tried | mpegts | application/octet-stream | 12 / 29 / 36 / 1 | 1001 | takes |
+| .ty | Part | not tried | ty | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .vdr | Part | not tried | mpeg | application/octet-stream | 11 / 29 / 37 / 1 | 1001 | takes |
+| .viv | Part | not tried | vivo | application/octet-stream | 0 / 1 / 76 / 1 | 4007 | refuses |
+| .vob | no Part | Part (loose, `.VOB` and in VIDEO_TS) | mpeg | application/octet-stream | 7 / 33 / 37 / 1 | 1001 | takes |
+| .vp3 | Part | not tried | mgsts | application/octet-stream | 0 / 38 / 40 / 0 | 1001 | takes |
+| .webm | Part | not tried | mkv | video/webm | 0 / 38 / 39 / 1 | 1001 | takes |
+| .wtv | Part | Part | wtv | video/wtv | 0 / 38 / 39 / 1 | 1001 | takes |
+| .xsp | Part, no stream | not tried | - | application/octet-stream | 0 / 0 / 0 / 78 | 400 | refuses |
+| .xvid | Part | not tried | avi | video/x-msvideo | 17 / 29 / 32 / 0 | 1001 | takes |
+
+- **The two native scanners do not agree on `.vob`.** Plex Movie makes nothing of one, loose or in
+  VIDEO_TS, upper case or lower, while an `.mpg` of the same bytes is a Part; Plex TV Series takes
+  a loose one and, of a season's VIDEO_TS folder, makes one episode ("Episode 1", read off
+  `VTS_01`) of two Media, `VTS_01_1.VOB` (mpeg) and `VTS_01_0.BUP` (no container, no stream, a
+  400 to every profile tried). Neither takes `.mk3d`, `.ifo`, `.f4v` or `.mp4v`.
+- **Listed is not playable.** The playlists (`.asx`, `.sdp`, `.strm`, `.xsp`) are Parts with no
+  stream that every profile's decision answers 400; a `.strm` part read is a 301 to the URL inside
+  it. `.viv` has a Part whose video PMS names `none`, and every conversion of it answers 4007,
+  "Implementation for video decoder 'none' not found."; ffprobe 8.1.2 names no codec for it either.
+- **The Content-Type is the extension's**, over the table cycle 54 found: `.qt` is `video/quicktime`
+  though its container is `mp4`, `.xvid` `video/x-msvideo` though `.bivx` (the same avi) is an
+  octet-stream, `.wtv` `video/wtv`, and every other new one, `.vob` included, an octet-stream.
+  The binary's MIME strings are exactly that set; no string of it is `mk3d`.
+- **Containers come out of ffprobe's first format name**, as rex already named them: `.3g2`, `.qt`
+  and `.svq3` `mp4` (only `.mov` is `mov`), `.avc` `h264`, `.m2v` `mpegvideo`, `.fli` `flic`,
+  `.viv` `vivo`, `.vp3` `mgsts`, `.dvr-ms` `asf`, `.ogm` `ogg`, `.rmvb` `rm`, the MPEG-PS family
+  `mpeg` and `.m2t`/`.tp` `mpegts` with `packetLength` 188. The 27 new media fixtures pass
+  `test_mediainfo`'s container and packet-length checks on the unfixed binary: records, not
+  regressions.
+- **Xbox 360's asf-only transcode target is a 400 only for a Media with audio.** The four rows with
+  no audio stream (`.avc`, `.fli`, `.m2v`, `.vp3`, the corpus's first) answer 3000/2000/4007,
+  "Implementation for video encoder 'wmv2' not found."; the model refused them with the 400
+  (`decision::conversion`).
+- **An ISO is no video for any source.** PMS makes no Part of a DVD image, ffprobe reads the first
+  8 MiB of a real UHD Blu-ray ISO (fun's Usenet library) as "Invalid data found", so a source
+  can push no probe and rex would hold it for ever, and a real DVD ISO sniffs as MPEG-PS from its
+  menu VOB on.
+
+rex now takes the extensions a scanner makes a Part of with a stream something can decode, `.vob`
+the TV scanner's, and `.mk3d`, the Matroska no scanner takes (served as the octet-stream the
+binary's table would answer); it refuses the rest, `.iso` now included. Each new container
+converts through `REX_TRANSCODER` to a first segment that decodes as H.264 for Plex Web's own
+request: FFmpeg-written clips in `tests/test_video_extensions.py`, and once by hand the eleven real
+files FFmpeg cannot write (fli, nsv, nuv, pva, ty, vp3, svq3, rmvb, ogm, avs, dvr-ms). zurg feeds
+none of the new ones: fun's Real-Debrid library holds no file of any of them, its VIDEO_TS discs
+are Usenet RAR members (zurg serves a member VOB's bytes, `00 00 01 BA`), and the Movie scanner a
+disc rip lands in ignores VOBs. Not measured: which of these Plex for Android or Plezy plays
+direct on a device, since Android decides direct play in its own engine (`hasMDE=1`) and Plezy asks
+no decision at all.

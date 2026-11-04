@@ -643,6 +643,9 @@ python3 tests/test_feed_placement.py        # a file its source placed (`kind`, 
 python3 tests/test_feed_delete.py           # a delete removes the files at the source first, as a real PMS's does (zurg's WebDAV DELETE)
 python3 tests/test_delete_last_episode.py   # deleting a show's last episode removes its season and the show, with the reference's three frames; one of two leaves them (1.43.4)
 python3 tests/test_feed_rejected.py         # every item the feed rejects is logged with its reason (a real snapshot's sample)
+python3 tests/test_video_extensions.py      # which files are videos, by extension, as plexscratch42's two scanners took them:
+                                            # each Part's container and part-read type, the rest refused, .mk3d taken; with
+                                            # an FFmpeg each container FFmpeg writes converts for Plex Web to a decoded segment
 python3 tests/test_feed_display.py          # what a source names itself (`display`): titles, summaries, dates and artwork of a row nothing
                                             # identifies, its show's and season's, updated by later pushes, a person's lock kept (Ms Rachel's channel)
 python3 tests/test_feed_subtitles.py        # a source's sidecar subtitles (`subtitles`): the measured on-disk external stream on the item's own
@@ -705,7 +708,7 @@ python3 tests/test_collection_logos.py      # python-plexapi's logo, theme and o
 python3 tests/parallel_suites.py --workers 4 test_cli test_feed ...
                                             # several suites at once, as CI runs them: each gets its own
                                             # REX_TEST_PORTS range (tests/test_ports.py), output kept per suite
-cargo test --manifest-path rust/Cargo.toml  # the Rust unit tests: the decision corpus (1,872 measured decisions),
+cargo test --manifest-path rust/Cargo.toml  # the Rust unit tests: the decision corpus (4,368 measured decisions),
                                             # GDM against four real servers, the subtitle sync corpus (rex's pick against Plex's
                                             # first result on 122 real releases)
 ```

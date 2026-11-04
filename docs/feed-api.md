@@ -405,7 +405,10 @@ What the fields do:
   addressable: the listing names every id on the row's key, a push updates its own Part, a
   part read streams from its own source and path. A row of several releases is not re-identified by one of them.
 - **Only video, or a track.** An item whose file is not a video (by extension) or is a sample is rejected,
-  as Plex's scanners skip them. An `.m3u8` file is a video when its `media_info` is an HLS
+  as Plex's scanners skip them. The videos are the extensions a real PMS makes a playable Part of
+  (findings, "Which files are videos"): `3g2 3gp asf avc avi avs bivx divx dv dvr-ms evo fli flv
+  m2t m2ts m2v m4v mkv mov mp4 mpeg mpg mts nsv nuv ogm ogv pva qt rm rmvb svq3 tp ts ty vdr vob vp3
+  webm wmv wtv xvid`, and `mk3d`; never a playlist, a DVD's `.ifo`/`.bup` or an `.iso`. An `.m3u8` file is a video when its `media_info` is an HLS
   probe (`format_name` `hls`): a source that serves a playlist (a YouTube relay) names it
   so. Such a Part is never direct played; a client's read of it is sent to a conversion.
   One whose probe has no duration is a live channel (a Stremio addon's TV): its conversion's
