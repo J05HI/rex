@@ -15102,7 +15102,7 @@ section (`probes/record_music_conversion.py`, `record_music_lyrics.py`, `record_
 ## Music for Plezy and python-plexapi, measured on plexav (2026-11-04)
 
 Replayed on plexav (PMS 1.43.4) from the clients' own source: Plezy 38c48f14
-(`probes/record_plezy_music_http.py`; `tests/fixtures/music/`).
+(`probes/record_plezy_music_http.py`, `record_music_axes.py`; `tests/fixtures/music/`).
 
 - **Plezy's music quality presets.** Below original quality Plezy asks for one MP3: `directPlay=0`,
   `directStream=0`, `protocol=http`, `musicBitrate` 320/192/128 and the target
@@ -15113,6 +15113,13 @@ Replayed on plexav (PMS 1.43.4) from the clients' own source: Plezy 38c48f14
   `start.mp3` is `audio/mpeg`, `Accept-Ranges: none`, `Connection: close`, chunked, an ID3v2.4 tag
   first, and its session row `protocol` `http`, `container` `mp3`. rex answered 4005 and a 400, so
   Plezy played the original FLAC at every preset (`plezy_http_mp3.json`).
+- **Filter values.** Plezy opens a music filter at the key `/all?includeMeta=1` names
+  (`/library/sections/1/mood?type=9`). plexav answers the rows' own tags, each `{fastKey, key: tag
+  id, title}` in title order: `mood` of artists (8), albums (9) and tracks (10), `style` of artists
+  and albums, `format` of albums (`Album`); `subformat` and `source` are empty there too. An album's
+  `Mood` is the agent's merged with its tracks', so `mood?type=9` is the albums' and their tracks'
+  moods (99: the union of the albums' 37 and the tracks' 86). rex answered a video library's empty cross-type axis
+  (`axes.json`).
 
 ## Music: a track's Part read per audio format (2026-11-01)
 

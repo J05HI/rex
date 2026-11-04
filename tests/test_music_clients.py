@@ -5,7 +5,8 @@ plexav's PMS 1.43.4 answered these clients on 2026-10-31 (`fixtures/music/<clien
 `probes/record_music_fixtures.py`); `music_rig.py` pushes the same 46 files to rex placed by their
 albums' MusicBrainz ids. Each recorded request is reissued with plexav's keys swapped for rex's and
 its answer compared as `harness/scripts/replay.py` compares: element structure, attribute presence
-and values, the per-server fields left out.
+and values, the per-server fields left out. Plezy's filter values (`axes.json`) were recorded from
+its own requests on 2026-11-04.
 
 What is left out, by design and named: no `Stations` (rex runs no sonic analysis, so a library
 of music has no Stations shelf and an artist none), no `UltraBlurColors`/`thumbBlurHash` (the
@@ -98,6 +99,26 @@ def main():
         replay(rex, "droid-music-browse", mapping, parts, ignore=STATE, only=lambda record: not record["path"].startswith("/hubs/"))
         replay(rex, "plexamp-browse", mapping, parts, ignore=STATE + ("totalSize", "size", "Metadata"),
                only=lambda record: "/library/metadata/" in record["path"] and "history" not in record["path"])
+
+        # -- Plezy's music filter values (`axes.json`): rex answered each one empty -------------------
+        for recorded in json.load(open(os.path.join(M.FIXTURES, "axes.json")))["exchanges"]:
+            status, _, body = rex.request(recorded["path"], raw=True)
+            theirs = json.loads(recorded["body"])["MediaContainer"].get("Directory") or []
+            ours = (json.loads(body).get("MediaContainer") or {}).get("Directory") or [] if status == 200 else []
+            leaf = recorded["path"].split("/")[4].split("?")[0]
+            differences = M.compare(recorded["body"], body.decode(), ignore=("Directory",))
+            check("Plezy's %s is plexav's %d values in its order, each keyed by its tag" % (recorded["path"], len(theirs)),
+                  status == recorded["status"] and [e["title"] for e in ours] == [e["title"] for e in theirs] and not differences
+                  and all(sorted(e) == ["fastKey", "key", "title"] and e["fastKey"] == "/library/sections/1/all?%s=%s" % (leaf, e["key"])
+                          for e in ours),
+                  (status, len(ours), [e["title"] for e in ours][:6], differences[:4]))
+            if ours:
+                # Plezy then lists the library by the value's key (`libraryFilterValueId`).
+                kind = recorded["path"].rsplit("=", 1)[1]
+                status, listed = rex.request("/library/sections/1/all?type=%s&%s=%s" % (kind, leaf, ours[0]["key"]))
+                check("  and its first value, %s, lists rows of type %s" % (ours[0]["title"], kind),
+                      status == 200 and (listed.get("MediaContainer") or {}).get("size", 0) > 0, (status, str(listed)[:200]))
+
 
         # -- Plex Web plays In Rainbows -------------------------------------------------------------
         web = {r["path"] + "?" + "&".join(k for k, _ in r["query"]): r for r in M.load("web-music-play")}
