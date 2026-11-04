@@ -1,0 +1,1946 @@
+[
+ {
+  "file": "/data/formats/Format Test/ac3.ac3",
+  "size": 120372,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 3134,
+     "duration_time": "0.034822",
+     "size": "834",
+     "pos": "0",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "ac3",
+     "codec_long_name": "ATSC A/52A (AC-3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "dmix_mode": "-1",
+     "ltrt_cmixlev": "-1.000000",
+     "ltrt_surmixlev": "-1.000000",
+     "loro_cmixlev": "-1.000000",
+     "loro_surmixlev": "-1.000000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/90000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 451395,
+     "duration": "5.015500",
+     "bit_rate": "192000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "ac3",
+    "format_long_name": "raw AC-3",
+    "start_time": "0.000000",
+    "duration": "5.015500",
+    "size": "120372",
+    "bit_rate": "192000",
+    "probe_score": 51
+   }
+  },
+  "track": {
+   "ratingKey": "119",
+   "key": "/library/metadata/119",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://119",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "ac3",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 5016,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 85,
+     "duration": 5016,
+     "bitrate": 192,
+     "audioChannels": 2,
+     "audioCodec": "ac3",
+     "container": "ac3",
+     "Part": [
+      {
+       "id": 85,
+       "key": "/library/parts/85/1793753183/file.ac3",
+       "duration": 5016,
+       "file": "/data/formats/Format Test/ac3.ac3",
+       "size": 120372,
+       "container": "ac3",
+       "Stream": [
+        {
+         "id": 113,
+         "streamType": 2,
+         "selected": true,
+         "codec": "ac3",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 192,
+         "audioChannelLayout": "stereo",
+         "samplingRate": 44100,
+         "displayTitle": "AC3 (Stereo)",
+         "extendedDisplayTitle": "AC3 (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/dsd.dsd",
+  "size": 1417308,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 4096,
+     "duration_time": "0.011610",
+     "size": "8192",
+     "pos": "92",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "dsd_lsbf_planar",
+     "codec_long_name": "DSD (Direct Stream Digital), least significant bit first, planar",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "352800",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 8,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/352800",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 708608,
+     "duration": "2.008526",
+     "bit_rate": "5644800",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "dsf",
+    "format_long_name": "DSD Stream File (DSF)",
+    "start_time": "0.000000",
+    "duration": "2.008526",
+    "size": "1417308",
+    "bit_rate": "5645166",
+    "probe_score": 100
+   }
+  },
+  "track": {
+   "ratingKey": "120",
+   "key": "/library/metadata/120",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://120",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "dsd",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 2009,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 86,
+     "duration": 2009,
+     "bitrate": 5645,
+     "audioChannels": 2,
+     "audioCodec": "dsd_lsbf_planar",
+     "container": "dsf",
+     "Part": [
+      {
+       "id": 86,
+       "key": "/library/parts/86/1793753183/file.dsd",
+       "duration": 2009,
+       "file": "/data/formats/Format Test/dsd.dsd",
+       "size": 1417308,
+       "container": "dsf",
+       "Stream": [
+        {
+         "id": 114,
+         "streamType": 2,
+         "selected": true,
+         "codec": "dsd_lsbf_planar",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 5645,
+         "audioChannelLayout": "stereo",
+         "samplingRate": 352800,
+         "displayTitle": "DSD_LSBF_PLANAR (Stereo)",
+         "extendedDisplayTitle": "DSD_LSBF_PLANAR (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/dsf.dsf",
+  "size": 1417308,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 4096,
+     "duration_time": "0.011610",
+     "size": "8192",
+     "pos": "92",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "dsd_lsbf_planar",
+     "codec_long_name": "DSD (Direct Stream Digital), least significant bit first, planar",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "352800",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 8,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/352800",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 708608,
+     "duration": "2.008526",
+     "bit_rate": "5644800",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "dsf",
+    "format_long_name": "DSD Stream File (DSF)",
+    "start_time": "0.000000",
+    "duration": "2.008526",
+    "size": "1417308",
+    "bit_rate": "5645166",
+    "probe_score": 100
+   }
+  },
+  "track": {
+   "ratingKey": "121",
+   "key": "/library/metadata/121",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://121",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "dsf",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 2009,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 87,
+     "duration": 2009,
+     "bitrate": 5645,
+     "audioChannels": 2,
+     "audioCodec": "dsd_lsbf_planar",
+     "container": "dsf",
+     "Part": [
+      {
+       "id": 87,
+       "key": "/library/parts/87/1793753183/file.dsf",
+       "duration": 2009,
+       "file": "/data/formats/Format Test/dsf.dsf",
+       "size": 1417308,
+       "container": "dsf",
+       "Stream": [
+        {
+         "id": 115,
+         "streamType": 2,
+         "selected": true,
+         "codec": "dsd_lsbf_planar",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 5645,
+         "audioChannelLayout": "stereo",
+         "samplingRate": 352800,
+         "displayTitle": "DSD_LSBF_PLANAR (Stereo)",
+         "extendedDisplayTitle": "DSD_LSBF_PLANAR (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/dts.dts",
+  "size": 882688,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 1044,
+     "duration_time": "0.011600",
+     "size": "2048",
+     "pos": "0",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "dts",
+     "codec_long_name": "DCA (DTS Coherent Acoustics)",
+     "profile": "DTS",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/90000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 450351,
+     "duration": "5.003900",
+     "bit_rate": "1411200",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "dts",
+    "format_long_name": "raw DTS",
+    "start_time": "0.000000",
+    "duration": "5.003900",
+    "size": "882688",
+    "bit_rate": "1411200",
+    "probe_score": 51
+   }
+  },
+  "track": {
+   "ratingKey": "122",
+   "key": "/library/metadata/122",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://122",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 88,
+     "container": "dts",
+     "Part": [
+      {
+       "id": 88,
+       "key": "/library/parts/88/1793753183/file.dts",
+       "file": "/data/formats/Format Test/dts.dts",
+       "size": 882688,
+       "container": "dts",
+       "Stream": [
+        {
+         "id": 112,
+         "streamType": 2,
+         "selected": true,
+         "codec": "dca",
+         "index": 0,
+         "profile": "dts",
+         "samplingRate": 44100,
+         "displayTitle": "DTS",
+         "extendedDisplayTitle": "DTS"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/flac.flac",
+  "size": 70087,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 4608,
+     "duration_time": "0.104490",
+     "size": "1288",
+     "pos": "8288",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "flac",
+     "codec_long_name": "FLAC (Free Lossless Audio Codec)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "s16",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/44100",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 220500,
+     "duration": "5.000000",
+     "bits_per_raw_sample": "16",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "flac",
+    "format_long_name": "raw FLAC",
+    "start_time": "0.000000",
+    "duration": "5.000000",
+    "size": "70087",
+    "bit_rate": "112139",
+    "probe_score": 100,
+    "tags": {
+     "encoder": "Lavf58.76.100"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "123",
+   "key": "/library/metadata/123",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://123",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "flac",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 5000,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 89,
+     "duration": 5000,
+     "audioChannels": 2,
+     "audioCodec": "flac",
+     "container": "flac",
+     "Part": [
+      {
+       "id": 89,
+       "key": "/library/parts/89/1793753183/file.flac",
+       "duration": 5000,
+       "file": "/data/formats/Format Test/flac.flac",
+       "size": 70087,
+       "container": "flac",
+       "Stream": [
+        {
+         "id": 116,
+         "streamType": 2,
+         "selected": true,
+         "codec": "flac",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 112,
+         "audioChannelLayout": "stereo",
+         "bitDepth": 16,
+         "samplingRate": 44100,
+         "displayTitle": "FLAC (Stereo)",
+         "extendedDisplayTitle": "FLAC (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/flac"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/m4b.m4b",
+  "size": 41084,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": -1024,
+     "pts_time": "-0.023220",
+     "dts": -1024,
+     "dts_time": "-0.023220",
+     "duration": 1024,
+     "duration_time": "0.023220",
+     "size": "140",
+     "pos": "44",
+     "flags": "KD",
+     "side_data_list": [
+      {
+       "side_data_type": "Skip Samples",
+       "skip_samples": 1024,
+       "discard_padding": 0,
+       "skip_reason": 0,
+       "discard_reason": 0
+      }
+     ]
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "aac",
+     "codec_long_name": "AAC (Advanced Audio Coding)",
+     "profile": "LC",
+     "codec_type": "audio",
+     "codec_tag_string": "mp4a",
+     "codec_tag": "0x6134706d",
+     "sample_fmt": "fltp",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/44100",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 220500,
+     "duration": "5.000000",
+     "bit_rate": "63054",
+     "nb_frames": "217",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 1,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "und",
+      "handler_name": "SoundHandler",
+      "vendor_id": "[0][0][0][0]"
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+    "format_long_name": "QuickTime / MOV",
+    "start_time": "0.000000",
+    "duration": "5.000000",
+    "size": "41084",
+    "bit_rate": "65734",
+    "probe_score": 100,
+    "tags": {
+     "major_brand": "M4A ",
+     "minor_version": "512",
+     "compatible_brands": "M4A isomiso2",
+     "encoder": "Lavf58.76.100"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "124",
+   "key": "/library/metadata/124",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://124",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "m4b",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 5000,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 90,
+     "duration": 5000,
+     "bitrate": 63,
+     "audioChannels": 2,
+     "audioCodec": "aac",
+     "container": "mp4",
+     "optimizedForStreaming": 1,
+     "audioProfile": "lc",
+     "has64bitOffsets": false,
+     "Part": [
+      {
+       "id": 90,
+       "key": "/library/parts/90/1793753183/file.m4b",
+       "duration": 5000,
+       "file": "/data/formats/Format Test/m4b.m4b",
+       "size": 41084,
+       "audioProfile": "lc",
+       "container": "mp4",
+       "has64bitOffsets": false,
+       "optimizedForStreaming": true,
+       "Stream": [
+        {
+         "id": 119,
+         "streamType": 2,
+         "selected": true,
+         "default": true,
+         "codec": "aac",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 63,
+         "audioChannelLayout": "stereo",
+         "profile": "lc",
+         "samplingRate": 44100,
+         "streamIdentifier": "1",
+         "displayTitle": "AAC (Stereo)",
+         "extendedDisplayTitle": "AAC (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/mp+.mp+",
+  "size": 249701,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 1,
+     "duration_time": "0.026122",
+     "size": "16",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "musepack7",
+     "codec_long_name": "Musepack SV7",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "s16p",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "32/1225",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 456,
+     "duration": "11.911837",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mpc",
+    "format_long_name": "Musepack",
+    "start_time": "0.000000",
+    "duration": "11.911837",
+    "size": "249701",
+    "bit_rate": "167699",
+    "probe_score": 100,
+    "tags": {
+     "Title": "inside",
+     "Artist": "lossless-audio"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "125",
+   "key": "/library/metadata/125",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://125",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "inside",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "originalTitle": "lossless-audio",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 11912,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 91,
+     "duration": 11912,
+     "audioChannels": 2,
+     "audioCodec": "musepack7",
+     "container": "mpc",
+     "Part": [
+      {
+       "id": 91,
+       "key": "/library/parts/91/1793753183/file.mp+",
+       "duration": 11912,
+       "file": "/data/formats/Format Test/mp+.mp+",
+       "size": 249701,
+       "container": "mpc",
+       "Stream": [
+        {
+         "id": 117,
+         "streamType": 2,
+         "selected": true,
+         "codec": "musepack7",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 168,
+         "audioChannelLayout": "stereo",
+         "samplingRate": 44100,
+         "displayTitle": "MUSEPACK7 (Stereo)",
+         "extendedDisplayTitle": "MUSEPACK7 (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/mp2.mp2",
+  "size": 240744,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 368640,
+     "duration_time": "0.026122",
+     "size": "1253",
+     "pos": "0",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "mp2",
+     "codec_long_name": "MP2 (MPEG audio layer 2)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/14112000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 70778736,
+     "duration": "5.015500",
+     "bit_rate": "384000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mp3",
+    "format_long_name": "MP2/3 (MPEG audio layer 2/3)",
+    "start_time": "0.000000",
+    "duration": "5.015500",
+    "size": "240744",
+    "bit_rate": "384000",
+    "probe_score": 51
+   }
+  },
+  "track": {
+   "ratingKey": "126",
+   "key": "/library/metadata/126",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://126",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "mp2",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 5016,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 92,
+     "duration": 5016,
+     "bitrate": 384,
+     "audioChannels": 2,
+     "audioCodec": "mp2",
+     "container": "mp3",
+     "Part": [
+      {
+       "id": 92,
+       "key": "/library/parts/92/1793753183/file.mp2",
+       "duration": 5016,
+       "file": "/data/formats/Format Test/mp2.mp2",
+       "size": 240744,
+       "container": "mp3",
+       "Stream": [
+        {
+         "id": 120,
+         "streamType": 2,
+         "selected": true,
+         "codec": "mp2",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 384,
+         "audioChannelLayout": "stereo",
+         "samplingRate": 44100,
+         "displayTitle": "MP2 (Stereo)",
+         "extendedDisplayTitle": "MP2 (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/mpeg"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/mpa.mpa",
+  "size": 240744,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 368640,
+     "duration_time": "0.026122",
+     "size": "1253",
+     "pos": "0",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "mp2",
+     "codec_long_name": "MP2 (MPEG audio layer 2)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/14112000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 70778736,
+     "duration": "5.015500",
+     "bit_rate": "384000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mp3",
+    "format_long_name": "MP2/3 (MPEG audio layer 2/3)",
+    "start_time": "0.000000",
+    "duration": "5.015500",
+    "size": "240744",
+    "bit_rate": "384000",
+    "probe_score": 51
+   }
+  },
+  "track": {
+   "ratingKey": "127",
+   "key": "/library/metadata/127",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://127",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "mpa",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 5016,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 93,
+     "duration": 5016,
+     "bitrate": 384,
+     "audioChannels": 2,
+     "audioCodec": "mp2",
+     "container": "mp3",
+     "Part": [
+      {
+       "id": 93,
+       "key": "/library/parts/93/1793753183/file.mpa",
+       "duration": 5016,
+       "file": "/data/formats/Format Test/mpa.mpa",
+       "size": 240744,
+       "container": "mp3",
+       "Stream": [
+        {
+         "id": 121,
+         "streamType": 2,
+         "selected": true,
+         "codec": "mp2",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 384,
+         "audioChannelLayout": "stereo",
+         "samplingRate": 44100,
+         "displayTitle": "MP2 (Stereo)",
+         "extendedDisplayTitle": "MP2 (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/mpeg"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/mpc.mpc",
+  "size": 243306,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 1,
+     "duration_time": "1.671837",
+     "size": "29688",
+     "pos": "50",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "musepack8",
+     "codec_long_name": "Musepack SV8",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "s16p",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "2048/1225",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 7,
+     "duration": "11.702857",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mpc8",
+    "format_long_name": "Musepack SV8",
+    "start_time": "0.000000",
+    "duration": "11.702857",
+    "size": "243306",
+    "bit_rate": "166322",
+    "probe_score": 100
+   }
+  },
+  "track": {
+   "ratingKey": "128",
+   "key": "/library/metadata/128",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://128",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "mpc",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 11703,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 94,
+     "duration": 11703,
+     "audioChannels": 2,
+     "audioCodec": "musepack8",
+     "container": "mpc8",
+     "Part": [
+      {
+       "id": 94,
+       "key": "/library/parts/94/1793753183/file.mpc",
+       "duration": 11703,
+       "file": "/data/formats/Format Test/mpc.mpc",
+       "size": 243306,
+       "container": "mpc8",
+       "Stream": [
+        {
+         "id": 122,
+         "streamType": 2,
+         "selected": true,
+         "codec": "musepack8",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 166,
+         "audioChannelLayout": "stereo",
+         "samplingRate": 44100,
+         "displayTitle": "MUSEPACK8 (Stereo)",
+         "extendedDisplayTitle": "MUSEPACK8 (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/mpp.mpp",
+  "size": 249701,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 1,
+     "duration_time": "0.026122",
+     "size": "16",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "musepack7",
+     "codec_long_name": "Musepack SV7",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "s16p",
+     "sample_rate": "44100",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "32/1225",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 456,
+     "duration": "11.911837",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mpc",
+    "format_long_name": "Musepack",
+    "start_time": "0.000000",
+    "duration": "11.911837",
+    "size": "249701",
+    "bit_rate": "167699",
+    "probe_score": 100,
+    "tags": {
+     "Title": "inside",
+     "Artist": "lossless-audio"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "129",
+   "key": "/library/metadata/129",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://129",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "inside",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "originalTitle": "lossless-audio",
+   "summary": "",
+   "parentIndex": 1,
+   "duration": 11912,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 95,
+     "duration": 11912,
+     "audioChannels": 2,
+     "audioCodec": "musepack7",
+     "container": "mpc",
+     "Part": [
+      {
+       "id": 95,
+       "key": "/library/parts/95/1793753183/file.mpp",
+       "duration": 11912,
+       "file": "/data/formats/Format Test/mpp.mpp",
+       "size": 249701,
+       "container": "mpc",
+       "Stream": [
+        {
+         "id": 118,
+         "streamType": 2,
+         "selected": true,
+         "codec": "musepack7",
+         "index": 0,
+         "channels": 2,
+         "bitrate": 168,
+         "audioChannelLayout": "stereo",
+         "samplingRate": 44100,
+         "displayTitle": "MUSEPACK7 (Stereo)",
+         "extendedDisplayTitle": "MUSEPACK7 (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/rm.rm",
+  "size": 8299,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 20,
+     "duration_time": "0.020000",
+     "size": "20",
+     "pos": "271",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "ra_144",
+     "codec_long_name": "RealAudio 1.0 (14.4K)",
+     "codec_type": "audio",
+     "codec_tag_string": "lpcJ",
+     "codec_tag": "0x4a63706c",
+     "sample_fmt": "s16",
+     "sample_rate": "8000",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 0,
+     "duration": "0.000000",
+     "bit_rate": "8000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "rm",
+    "format_long_name": "RealMedia",
+    "start_time": "0.000000",
+    "duration": "0.000000",
+    "size": "8299",
+    "probe_score": 100
+   }
+  },
+  "track": {
+   "ratingKey": "130",
+   "key": "/library/metadata/130",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://130",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "rm",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 96,
+     "bitrate": 8,
+     "audioChannels": 1,
+     "audioCodec": "ra_144",
+     "container": "rm",
+     "Part": [
+      {
+       "id": 96,
+       "key": "/library/parts/96/1793753183/file.rm",
+       "file": "/data/formats/Format Test/rm.rm",
+       "size": 8299,
+       "container": "rm",
+       "Stream": [
+        {
+         "id": 123,
+         "streamType": 2,
+         "selected": true,
+         "codec": "ra_144",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 8,
+         "audioChannelLayout": "mono",
+         "samplingRate": 8000,
+         "displayTitle": "RA_144 (Mono)",
+         "extendedDisplayTitle": "RA_144 (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/rma.rma",
+  "size": 8299,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 20,
+     "duration_time": "0.020000",
+     "size": "20",
+     "pos": "271",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "ra_144",
+     "codec_long_name": "RealAudio 1.0 (14.4K)",
+     "codec_type": "audio",
+     "codec_tag_string": "lpcJ",
+     "codec_tag": "0x4a63706c",
+     "sample_fmt": "s16",
+     "sample_rate": "8000",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 0,
+     "duration": "0.000000",
+     "bit_rate": "8000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "rm",
+    "format_long_name": "RealMedia",
+    "start_time": "0.000000",
+    "duration": "0.000000",
+    "size": "8299",
+    "probe_score": 100
+   }
+  },
+  "track": {
+   "ratingKey": "131",
+   "key": "/library/metadata/131",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://131",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "rma",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 97,
+     "bitrate": 8,
+     "audioChannels": 1,
+     "audioCodec": "ra_144",
+     "container": "rm",
+     "Part": [
+      {
+       "id": 97,
+       "key": "/library/parts/97/1793753183/file.rma",
+       "file": "/data/formats/Format Test/rma.rma",
+       "size": 8299,
+       "container": "rm",
+       "Stream": [
+        {
+         "id": 124,
+         "streamType": 2,
+         "selected": true,
+         "codec": "ra_144",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 8,
+         "audioChannelLayout": "mono",
+         "samplingRate": 8000,
+         "displayTitle": "RA_144 (Mono)",
+         "extendedDisplayTitle": "RA_144 (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/shn.shn",
+  "size": 1048576,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "size": "1024",
+     "pos": "0",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "shorten",
+     "codec_long_name": "Shorten",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "s16p",
+     "sample_rate": "44100",
+     "channels": 2,
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/90000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "shn",
+    "format_long_name": "raw Shorten",
+    "start_time": "0.000000",
+    "size": "1048576",
+    "probe_score": 51
+   }
+  },
+  "track": {
+   "ratingKey": "132",
+   "key": "/library/metadata/132",
+   "parentRatingKey": "118",
+   "grandparentRatingKey": "117",
+   "guid": "local://132",
+   "parentGuid": "local://118",
+   "grandparentGuid": "mbid://89ad4ac3-39f7-470e-963a-56509c546377",
+   "type": "track",
+   "title": "shn",
+   "grandparentKey": "/library/metadata/117",
+   "parentKey": "/library/metadata/118",
+   "librarySectionTitle": "Formats",
+   "librarySectionID": 5,
+   "librarySectionKey": "/library/sections/5",
+   "grandparentTitle": "Various Artists",
+   "parentTitle": "[Unknown Album]",
+   "summary": "",
+   "parentIndex": 1,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 98,
+     "audioChannels": 2,
+     "audioCodec": "shorten",
+     "container": "shn",
+     "Part": [
+      {
+       "id": 98,
+       "key": "/library/parts/98/1793753183/file.shn",
+       "file": "/data/formats/Format Test/shn.shn",
+       "size": 1048576,
+       "container": "shn",
+       "Stream": [
+        {
+         "id": 125,
+         "streamType": 2,
+         "selected": true,
+         "codec": "shorten",
+         "index": 0,
+         "channels": 2,
+         "samplingRate": 44100,
+         "displayTitle": "SHORTEN (Stereo)",
+         "extendedDisplayTitle": "SHORTEN (Stereo)"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/formats/Format Test/tak.tak",
+  "size": 1010411,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 11025,
+     "duration_time": "0.250000",
+     "size": "17940",
+     "pos": "110",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "tak",
+     "codec_long_name": "TAK (Tom's lossless Audio Kompressor)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "s16p",
+     "sample_rate": "44100",
+     "channels": 2,
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/44100",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 418950,
+     "duration": "9.500000",
+     "bits_per_raw_sample": "16",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "tak",
+    "format_long_name": "raw TAK",
+    "start_time": "0.000000",
+    "duration": "9.500000",
+    "size": "1010411",
+    "bit_rate": "850872",
+    "probe_score": 50,
+    "tags": {
+     "key": "value"
+    }
+   }
+  },
+  "track": null,
+  "read": null
+ }
+]

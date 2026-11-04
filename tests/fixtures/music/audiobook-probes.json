@@ -1,0 +1,1427 @@
+[
+ {
+  "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (m4b)/SelectedPoemsGordon_LibriVox.m4b",
+  "size": 2797358,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "video",
+     "stream_index": 2,
+     "size": "149512",
+     "pos": "56971",
+     "flags": "K_"
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "aac",
+     "codec_long_name": "AAC (Advanced Audio Coding)",
+     "profile": "LC",
+     "codec_type": "audio",
+     "codec_tag_string": "mp4a",
+     "codec_tag": "0x6134706d",
+     "sample_fmt": "fltp",
+     "sample_rate": "44100",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/44100",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 14094238,
+     "duration": "319.597234",
+     "bit_rate": "64841",
+     "nb_frames": "13771",
+     "disposition": {
+      "default": 1,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "und",
+      "handler_name": "SoundHandler",
+      "vendor_id": "[0][0][0][0]"
+     }
+    },
+    {
+     "index": 1,
+     "codec_name": "bin_data",
+     "codec_long_name": "binary data",
+     "codec_type": "data",
+     "codec_tag_string": "text",
+     "codec_tag": "0x74786574",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 319574,
+     "duration": "319.574000",
+     "bit_rate": "5",
+     "nb_frames": "6",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "eng",
+      "handler_name": "SubtitleHandler"
+     }
+    },
+    {
+     "index": 2,
+     "codec_name": "png",
+     "codec_long_name": "PNG (Portable Network Graphics) image",
+     "codec_type": "video",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "width": 300,
+     "height": 300,
+     "coded_width": 300,
+     "coded_height": 300,
+     "closed_captions": 0,
+     "has_b_frames": 0,
+     "pix_fmt": "rgb24",
+     "level": -99,
+     "color_range": "pc",
+     "refs": 1,
+     "r_frame_rate": "90000/1",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/90000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 28763820,
+     "duration": "319.598000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 1,
+      "timed_thumbnails": 0
+     }
+    }
+   ],
+   "chapters": [
+    {
+     "id": 0,
+     "time_base": "1/1000",
+     "start": 0,
+     "start_time": "0.000000",
+     "end": 72585,
+     "end_time": "72.585000",
+     "tags": {
+      "title": " Chapter 001  - 00:01:12"
+     }
+    },
+    {
+     "id": 1,
+     "time_base": "1/1000",
+     "start": 72585,
+     "start_time": "72.585000",
+     "end": 116180,
+     "end_time": "116.180000",
+     "tags": {
+      "title": " Chapter 002  - 00:00:43"
+     }
+    },
+    {
+     "id": 2,
+     "time_base": "1/1000",
+     "start": 116180,
+     "start_time": "116.180000",
+     "end": 168274,
+     "end_time": "168.274000",
+     "tags": {
+      "title": " Chapter 003  - 00:00:52"
+     }
+    },
+    {
+     "id": 3,
+     "time_base": "1/1000",
+     "start": 168274,
+     "start_time": "168.274000",
+     "end": 219903,
+     "end_time": "219.903000",
+     "tags": {
+      "title": " Chapter 004  - 00:00:51"
+     }
+    },
+    {
+     "id": 4,
+     "time_base": "1/1000",
+     "start": 219903,
+     "start_time": "219.903000",
+     "end": 264984,
+     "end_time": "264.984000",
+     "tags": {
+      "title": " Chapter 005  - 00:00:45"
+     }
+    },
+    {
+     "id": 5,
+     "time_base": "1/1000",
+     "start": 264984,
+     "start_time": "264.984000",
+     "end": 319574,
+     "end_time": "319.574000",
+     "tags": {
+      "title": " Chapter 006  - 00:00:54"
+     }
+    }
+   ],
+   "format": {
+    "nb_streams": 3,
+    "nb_programs": 0,
+    "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+    "format_long_name": "QuickTime / MOV",
+    "start_time": "0.000000",
+    "duration": "319.598000",
+    "size": "2797358",
+    "bit_rate": "70021",
+    "probe_score": 100,
+    "tags": {
+     "major_brand": "M4A ",
+     "minor_version": "512",
+     "compatible_brands": "M4A isomiso2",
+     "title": "Selected Poems (Gordon)",
+     "artist": "Edythe Mae Gordon",
+     "composer": "Newgatenovelist",
+     "album": "Selected Poems (Gordon)",
+     "date": "2025",
+     "encoder": "Lavf61.1.100",
+     "comment": "https://archive.org/details/selectedpoemsgordon_2509_librivox",
+     "genre": "speech",
+     "media_type": "2",
+     "track": "1"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "116",
+   "key": "/library/metadata/116",
+   "parentRatingKey": "115",
+   "grandparentRatingKey": "107",
+   "guid": "local://116",
+   "parentGuid": "local://115",
+   "grandparentGuid": "local://107",
+   "type": "track",
+   "title": "Selected Poems (Gordon)",
+   "grandparentKey": "/library/metadata/107",
+   "parentKey": "/library/metadata/115",
+   "librarySectionTitle": "Audiobooks",
+   "librarySectionID": 4,
+   "librarySectionKey": "/library/sections/4",
+   "grandparentTitle": "Edythe Mae Gordon",
+   "parentTitle": "Selected Poems (Gordon)",
+   "summary": "",
+   "index": 1,
+   "parentIndex": 1,
+   "parentYear": 2025,
+   "thumb": "/library/metadata/115/thumb/1793753192",
+   "parentThumb": "/library/metadata/115/thumb/1793753192",
+   "duration": 319597,
+   "addedAt": 1793753183,
+   "chapterSource": "media",
+   "Media": [
+    {
+     "id": 84,
+     "duration": 319597,
+     "bitrate": 65,
+     "audioChannels": 1,
+     "audioCodec": "aac",
+     "container": "mp4",
+     "optimizedForStreaming": 1,
+     "audioProfile": "lc",
+     "has64bitOffsets": false,
+     "Part": [
+      {
+       "id": 84,
+       "key": "/library/parts/84/1793753183/file.m4b",
+       "duration": 319597,
+       "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (m4b)/SelectedPoemsGordon_LibriVox.m4b",
+       "size": 2797358,
+       "audioProfile": "lc",
+       "container": "mp4",
+       "has64bitOffsets": false,
+       "hasThumbnail": "1",
+       "optimizedForStreaming": true,
+       "Stream": [
+        {
+         "id": 111,
+         "streamType": 2,
+         "selected": true,
+         "default": true,
+         "codec": "aac",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 65,
+         "albumGain": "3.83",
+         "albumPeak": "0.494457",
+         "albumRange": "6.769168",
+         "audioChannelLayout": "mono",
+         "gain": "3.83",
+         "loudness": "-21.83",
+         "lra": "6.77",
+         "peak": "0.494457",
+         "profile": "lc",
+         "samplingRate": 44100,
+         "streamIdentifier": "2",
+         "displayTitle": "AAC (Mono)",
+         "extendedDisplayTitle": "AAC (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "Image": [
+    {
+     "alt": "Selected Poems (Gordon)",
+     "type": "coverPoster",
+     "url": "/library/metadata/115/thumb/1793753192"
+    }
+   ],
+   "Chapter": [
+    {
+     "id": 436,
+     "filter": "thumb=436",
+     "tag": " Chapter 001  - 00:01:12",
+     "index": 1,
+     "startTimeOffset": 0,
+     "endTimeOffset": 72585
+    },
+    {
+     "id": 437,
+     "filter": "thumb=437",
+     "tag": " Chapter 002  - 00:00:43",
+     "index": 2,
+     "startTimeOffset": 72585,
+     "endTimeOffset": 116180
+    },
+    {
+     "id": 438,
+     "filter": "thumb=438",
+     "tag": " Chapter 003  - 00:00:52",
+     "index": 3,
+     "startTimeOffset": 116180,
+     "endTimeOffset": 168274
+    },
+    {
+     "id": 439,
+     "filter": "thumb=439",
+     "tag": " Chapter 004  - 00:00:51",
+     "index": 4,
+     "startTimeOffset": 168274,
+     "endTimeOffset": 219903
+    },
+    {
+     "id": 440,
+     "filter": "thumb=440",
+     "tag": " Chapter 005  - 00:00:45",
+     "index": 5,
+     "startTimeOffset": 219903,
+     "endTimeOffset": 264984
+    },
+    {
+     "id": 441,
+     "filter": "thumb=441",
+     "tag": " Chapter 006  - 00:00:54",
+     "index": 6,
+     "startTimeOffset": 264984,
+     "endTimeOffset": 319574
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "application/octet-stream"
+  }
+ },
+ {
+  "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_01_gordon_64kb.mp3",
+  "size": 583213,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 368640,
+     "duration_time": "0.026122",
+     "size": "208",
+     "pos": "2041",
+     "flags": "K_",
+     "side_data_list": [
+      {
+       "side_data_type": "Skip Samples",
+       "skip_samples": 1105,
+       "discard_padding": 0,
+       "skip_reason": 0,
+       "discard_reason": 0
+      }
+     ]
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "mp3",
+     "codec_long_name": "MP3 (MPEG audio layer 3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "22050",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/14112000",
+     "start_pts": 707200,
+     "start_time": "0.050113",
+     "duration_ts": 1025187840,
+     "duration": "72.646531",
+     "bit_rate": "64000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "encoder": "LAME3.100"
+     },
+     "side_data_list": [
+      {
+       "side_data_type": "Replay Gain"
+      }
+     ]
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mp3",
+    "format_long_name": "MP2/3 (MPEG audio layer 2/3)",
+    "start_time": "0.050113",
+    "duration": "72.646531",
+    "size": "583213",
+    "bit_rate": "64224",
+    "probe_score": 51,
+    "tags": {
+     "title": "01 - I Understand",
+     "artist": "Edythe Mae Gordon",
+     "track": "1",
+     "album": "Selected Poems (Gordon)",
+     "genre": "speech",
+     "TLEN": "72.62",
+     "comment": "https://archive.org/details/selectedpoemsgordon_2509_librivox"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "109",
+   "key": "/library/metadata/109",
+   "parentRatingKey": "108",
+   "grandparentRatingKey": "107",
+   "guid": "local://109",
+   "parentGuid": "local://108",
+   "grandparentGuid": "local://107",
+   "type": "track",
+   "title": "01 - I Understand",
+   "grandparentKey": "/library/metadata/107",
+   "parentKey": "/library/metadata/108",
+   "librarySectionTitle": "Audiobooks",
+   "librarySectionID": 4,
+   "librarySectionKey": "/library/sections/4",
+   "grandparentTitle": "Edythe Mae Gordon",
+   "parentTitle": "Selected Poems (Gordon)",
+   "summary": "",
+   "index": 1,
+   "parentIndex": 1,
+   "thumb": "/library/metadata/108/thumb/1793753191",
+   "parentThumb": "/library/metadata/108/thumb/1793753191",
+   "duration": 72647,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 78,
+     "duration": 72647,
+     "bitrate": 64,
+     "audioChannels": 1,
+     "audioCodec": "mp3",
+     "container": "mp3",
+     "Part": [
+      {
+       "id": 78,
+       "key": "/library/parts/78/1793753183/file.mp3",
+       "duration": 72647,
+       "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_01_gordon_64kb.mp3",
+       "size": 583213,
+       "container": "mp3",
+       "Stream": [
+        {
+         "id": 105,
+         "streamType": 2,
+         "selected": true,
+         "codec": "mp3",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 64,
+         "albumGain": "7.01",
+         "albumPeak": "0.322113",
+         "albumRange": "7.149377",
+         "audioChannelLayout": "mono",
+         "gain": "7.01",
+         "loudness": "-25.14",
+         "lra": "6.38",
+         "peak": "0.322113",
+         "samplingRate": 22050,
+         "displayTitle": "MP3 (Mono)",
+         "extendedDisplayTitle": "MP3 (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "Image": [
+    {
+     "alt": "01 - I Understand",
+     "type": "coverPoster",
+     "url": "/library/metadata/108/thumb/1793753191"
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/mpeg"
+  }
+ },
+ {
+  "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_02_gordon_64kb.mp3",
+  "size": 351019,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 368640,
+     "duration_time": "0.026122",
+     "size": "208",
+     "pos": "1815",
+     "flags": "K_",
+     "side_data_list": [
+      {
+       "side_data_type": "Skip Samples",
+       "skip_samples": 1105,
+       "discard_padding": 0,
+       "skip_reason": 0,
+       "discard_reason": 0
+      }
+     ]
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "mp3",
+     "codec_long_name": "MP3 (MPEG audio layer 3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "22050",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/14112000",
+     "start_pts": 707200,
+     "start_time": "0.050113",
+     "duration_ts": 615997440,
+     "duration": "43.650612",
+     "bit_rate": "64000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "encoder": "LAME3.100"
+     },
+     "side_data_list": [
+      {
+       "side_data_type": "Replay Gain"
+      }
+     ]
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mp3",
+    "format_long_name": "MP2/3 (MPEG audio layer 2/3)",
+    "start_time": "0.050113",
+    "duration": "43.650612",
+    "size": "351019",
+    "bit_rate": "64332",
+    "probe_score": 51,
+    "tags": {
+     "title": "02 - One Summer’s Day",
+     "artist": "Edythe Mae Gordon",
+     "track": "2",
+     "album": "Selected Poems (Gordon)",
+     "genre": "speech",
+     "TLEN": "43.62",
+     "comment": "https://archive.org/details/selectedpoemsgordon_2509_librivox"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "110",
+   "key": "/library/metadata/110",
+   "parentRatingKey": "108",
+   "grandparentRatingKey": "107",
+   "guid": "local://110",
+   "parentGuid": "local://108",
+   "grandparentGuid": "local://107",
+   "type": "track",
+   "title": "02 - One Summer’s Day",
+   "grandparentKey": "/library/metadata/107",
+   "parentKey": "/library/metadata/108",
+   "librarySectionTitle": "Audiobooks",
+   "librarySectionID": 4,
+   "librarySectionKey": "/library/sections/4",
+   "grandparentTitle": "Edythe Mae Gordon",
+   "parentTitle": "Selected Poems (Gordon)",
+   "summary": "",
+   "index": 2,
+   "parentIndex": 1,
+   "thumb": "/library/metadata/108/thumb/1793753191",
+   "parentThumb": "/library/metadata/108/thumb/1793753191",
+   "duration": 43651,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 79,
+     "duration": 43651,
+     "bitrate": 64,
+     "audioChannels": 1,
+     "audioCodec": "mp3",
+     "container": "mp3",
+     "Part": [
+      {
+       "id": 79,
+       "key": "/library/parts/79/1793753183/file.mp3",
+       "duration": 43651,
+       "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_02_gordon_64kb.mp3",
+       "size": 351019,
+       "container": "mp3",
+       "Stream": [
+        {
+         "id": 106,
+         "streamType": 2,
+         "selected": true,
+         "codec": "mp3",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 64,
+         "albumGain": "7.01",
+         "albumPeak": "0.322113",
+         "albumRange": "7.149377",
+         "audioChannelLayout": "mono",
+         "gain": "7.01",
+         "loudness": "-25.05",
+         "lra": "6.66",
+         "peak": "0.312958",
+         "samplingRate": 22050,
+         "displayTitle": "MP3 (Mono)",
+         "extendedDisplayTitle": "MP3 (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "Image": [
+    {
+     "alt": "02 - One Summer’s Day",
+     "type": "coverPoster",
+     "url": "/library/metadata/108/thumb/1793753191"
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/mpeg"
+  }
+ },
+ {
+  "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_03_gordon_64kb.mp3",
+  "size": 419204,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 368640,
+     "duration_time": "0.026122",
+     "size": "208",
+     "pos": "1872",
+     "flags": "K_",
+     "side_data_list": [
+      {
+       "side_data_type": "Skip Samples",
+       "skip_samples": 1105,
+       "discard_padding": 0,
+       "skip_reason": 0,
+       "discard_reason": 0
+      }
+     ]
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "mp3",
+     "codec_long_name": "MP3 (MPEG audio layer 3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "22050",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/14112000",
+     "start_pts": 707200,
+     "start_time": "0.050113",
+     "duration_ts": 736174080,
+     "duration": "52.166531",
+     "bit_rate": "64000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "encoder": "LAME3.100"
+     },
+     "side_data_list": [
+      {
+       "side_data_type": "Replay Gain"
+      }
+     ]
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mp3",
+    "format_long_name": "MP2/3 (MPEG audio layer 2/3)",
+    "start_time": "0.050113",
+    "duration": "52.166531",
+    "size": "419204",
+    "bit_rate": "64287",
+    "probe_score": 51,
+    "tags": {
+     "title": "03 - Tribute",
+     "artist": "Edythe Mae Gordon",
+     "track": "3",
+     "album": "Selected Poems (Gordon)",
+     "genre": "speech",
+     "TLEN": "52.14",
+     "comment": "https://archive.org/details/selectedpoemsgordon_2509_librivox"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "111",
+   "key": "/library/metadata/111",
+   "parentRatingKey": "108",
+   "grandparentRatingKey": "107",
+   "guid": "local://111",
+   "parentGuid": "local://108",
+   "grandparentGuid": "local://107",
+   "type": "track",
+   "title": "03 - Tribute",
+   "grandparentKey": "/library/metadata/107",
+   "parentKey": "/library/metadata/108",
+   "librarySectionTitle": "Audiobooks",
+   "librarySectionID": 4,
+   "librarySectionKey": "/library/sections/4",
+   "grandparentTitle": "Edythe Mae Gordon",
+   "parentTitle": "Selected Poems (Gordon)",
+   "summary": "",
+   "index": 3,
+   "parentIndex": 1,
+   "thumb": "/library/metadata/108/thumb/1793753191",
+   "parentThumb": "/library/metadata/108/thumb/1793753191",
+   "duration": 52167,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 80,
+     "duration": 52167,
+     "bitrate": 64,
+     "audioChannels": 1,
+     "audioCodec": "mp3",
+     "container": "mp3",
+     "Part": [
+      {
+       "id": 80,
+       "key": "/library/parts/80/1793753183/file.mp3",
+       "duration": 52167,
+       "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_03_gordon_64kb.mp3",
+       "size": 419204,
+       "container": "mp3",
+       "Stream": [
+        {
+         "id": 107,
+         "streamType": 2,
+         "selected": true,
+         "codec": "mp3",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 64,
+         "albumGain": "7.01",
+         "albumPeak": "0.322113",
+         "albumRange": "7.149377",
+         "audioChannelLayout": "mono",
+         "gain": "7.01",
+         "loudness": "-25.01",
+         "lra": "5.12",
+         "peak": "0.311615",
+         "samplingRate": 22050,
+         "displayTitle": "MP3 (Mono)",
+         "extendedDisplayTitle": "MP3 (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "Image": [
+    {
+     "alt": "03 - Tribute",
+     "type": "coverPoster",
+     "url": "/library/metadata/108/thumb/1793753191"
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/mpeg"
+  }
+ },
+ {
+  "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_04_gordon_64kb.mp3",
+  "size": 415438,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 368640,
+     "duration_time": "0.026122",
+     "size": "208",
+     "pos": "1868",
+     "flags": "K_",
+     "side_data_list": [
+      {
+       "side_data_type": "Skip Samples",
+       "skip_samples": 1105,
+       "discard_padding": 0,
+       "skip_reason": 0,
+       "discard_reason": 0
+      }
+     ]
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "mp3",
+     "codec_long_name": "MP3 (MPEG audio layer 3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "22050",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/14112000",
+     "start_pts": 707200,
+     "start_time": "0.050113",
+     "duration_ts": 729538560,
+     "duration": "51.696327",
+     "bit_rate": "64000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "encoder": "LAME3.100"
+     },
+     "side_data_list": [
+      {
+       "side_data_type": "Replay Gain"
+      }
+     ]
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mp3",
+    "format_long_name": "MP2/3 (MPEG audio layer 2/3)",
+    "start_time": "0.050113",
+    "duration": "51.696327",
+    "size": "415438",
+    "bit_rate": "64288",
+    "probe_score": 51,
+    "tags": {
+     "title": "04 - Love Me",
+     "artist": "Edythe Mae Gordon",
+     "track": "4",
+     "album": "Selected Poems (Gordon)",
+     "genre": "speech",
+     "TLEN": "51.67",
+     "comment": "https://archive.org/details/selectedpoemsgordon_2509_librivox"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "112",
+   "key": "/library/metadata/112",
+   "parentRatingKey": "108",
+   "grandparentRatingKey": "107",
+   "guid": "local://112",
+   "parentGuid": "local://108",
+   "grandparentGuid": "local://107",
+   "type": "track",
+   "title": "04 - Love Me",
+   "grandparentKey": "/library/metadata/107",
+   "parentKey": "/library/metadata/108",
+   "librarySectionTitle": "Audiobooks",
+   "librarySectionID": 4,
+   "librarySectionKey": "/library/sections/4",
+   "grandparentTitle": "Edythe Mae Gordon",
+   "parentTitle": "Selected Poems (Gordon)",
+   "summary": "",
+   "index": 4,
+   "parentIndex": 1,
+   "thumb": "/library/metadata/108/thumb/1793753191",
+   "parentThumb": "/library/metadata/108/thumb/1793753191",
+   "duration": 51696,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 81,
+     "duration": 51696,
+     "bitrate": 64,
+     "audioChannels": 1,
+     "audioCodec": "mp3",
+     "container": "mp3",
+     "Part": [
+      {
+       "id": 81,
+       "key": "/library/parts/81/1793753183/file.mp3",
+       "duration": 51696,
+       "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_04_gordon_64kb.mp3",
+       "size": 415438,
+       "container": "mp3",
+       "Stream": [
+        {
+         "id": 108,
+         "streamType": 2,
+         "selected": true,
+         "codec": "mp3",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 64,
+         "albumGain": "7.01",
+         "albumPeak": "0.322113",
+         "albumRange": "7.149377",
+         "audioChannelLayout": "mono",
+         "gain": "7.01",
+         "loudness": "-25.64",
+         "lra": "6.49",
+         "peak": "0.292480",
+         "samplingRate": 22050,
+         "displayTitle": "MP3 (Mono)",
+         "extendedDisplayTitle": "MP3 (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "Image": [
+    {
+     "alt": "04 - Love Me",
+     "type": "coverPoster",
+     "url": "/library/metadata/108/thumb/1793753191"
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/mpeg"
+  }
+ },
+ {
+  "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_05_gordon_64kb.mp3",
+  "size": 362934,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 368640,
+     "duration_time": "0.026122",
+     "size": "208",
+     "pos": "1818",
+     "flags": "K_",
+     "side_data_list": [
+      {
+       "side_data_type": "Skip Samples",
+       "skip_samples": 1105,
+       "discard_padding": 0,
+       "skip_reason": 0,
+       "discard_reason": 0
+      }
+     ]
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "mp3",
+     "codec_long_name": "MP3 (MPEG audio layer 3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "22050",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/14112000",
+     "start_pts": 707200,
+     "start_time": "0.050113",
+     "duration_ts": 637009920,
+     "duration": "45.139592",
+     "bit_rate": "64000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "encoder": "LAME3.100"
+     },
+     "side_data_list": [
+      {
+       "side_data_type": "Replay Gain"
+      }
+     ]
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mp3",
+    "format_long_name": "MP2/3 (MPEG audio layer 2/3)",
+    "start_time": "0.050113",
+    "duration": "45.139592",
+    "size": "362934",
+    "bit_rate": "64322",
+    "probe_score": 51,
+    "tags": {
+     "title": "05 - I See You",
+     "artist": "Edythe Mae Gordon",
+     "track": "5",
+     "album": "Selected Poems (Gordon)",
+     "genre": "speech",
+     "TLEN": "45.11",
+     "comment": "https://archive.org/details/selectedpoemsgordon_2509_librivox"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "113",
+   "key": "/library/metadata/113",
+   "parentRatingKey": "108",
+   "grandparentRatingKey": "107",
+   "guid": "local://113",
+   "parentGuid": "local://108",
+   "grandparentGuid": "local://107",
+   "type": "track",
+   "title": "05 - I See You",
+   "grandparentKey": "/library/metadata/107",
+   "parentKey": "/library/metadata/108",
+   "librarySectionTitle": "Audiobooks",
+   "librarySectionID": 4,
+   "librarySectionKey": "/library/sections/4",
+   "grandparentTitle": "Edythe Mae Gordon",
+   "parentTitle": "Selected Poems (Gordon)",
+   "summary": "",
+   "index": 5,
+   "parentIndex": 1,
+   "thumb": "/library/metadata/108/thumb/1793753191",
+   "parentThumb": "/library/metadata/108/thumb/1793753191",
+   "duration": 45140,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 82,
+     "duration": 45140,
+     "bitrate": 64,
+     "audioChannels": 1,
+     "audioCodec": "mp3",
+     "container": "mp3",
+     "Part": [
+      {
+       "id": 82,
+       "key": "/library/parts/82/1793753183/file.mp3",
+       "duration": 45140,
+       "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_05_gordon_64kb.mp3",
+       "size": 362934,
+       "container": "mp3",
+       "Stream": [
+        {
+         "id": 109,
+         "streamType": 2,
+         "selected": true,
+         "codec": "mp3",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 64,
+         "albumGain": "7.01",
+         "albumPeak": "0.322113",
+         "albumRange": "7.149377",
+         "audioChannelLayout": "mono",
+         "gain": "7.01",
+         "loudness": "-25.71",
+         "lra": "7.34",
+         "peak": "0.306335",
+         "samplingRate": 22050,
+         "displayTitle": "MP3 (Mono)",
+         "extendedDisplayTitle": "MP3 (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "Image": [
+    {
+     "alt": "05 - I See You",
+     "type": "coverPoster",
+     "url": "/library/metadata/108/thumb/1793753191"
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/mpeg"
+  }
+ },
+ {
+  "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_06_gordon_64kb.mp3",
+  "size": 439080,
+  "probe": {
+   "packets": [
+    {
+     "codec_type": "audio",
+     "stream_index": 0,
+     "pts": 0,
+     "pts_time": "0.000000",
+     "dts": 0,
+     "dts_time": "0.000000",
+     "duration": 368640,
+     "duration_time": "0.026122",
+     "size": "208",
+     "pos": "1895",
+     "flags": "K_",
+     "side_data_list": [
+      {
+       "side_data_type": "Skip Samples",
+       "skip_samples": 1105,
+       "discard_padding": 0,
+       "skip_reason": 0,
+       "discard_reason": 0
+      }
+     ]
+    }
+   ],
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "mp3",
+     "codec_long_name": "MP3 (MPEG audio layer 3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "22050",
+     "channels": 1,
+     "channel_layout": "mono",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/14112000",
+     "start_pts": 707200,
+     "start_time": "0.050113",
+     "duration_ts": 771194880,
+     "duration": "54.648163",
+     "bit_rate": "64000",
+     "nb_read_packets": "1",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "encoder": "LAME3.100"
+     },
+     "side_data_list": [
+      {
+       "side_data_type": "Replay Gain"
+      }
+     ]
+    }
+   ],
+   "chapters": [],
+   "format": {
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "format_name": "mp3",
+    "format_long_name": "MP2/3 (MPEG audio layer 2/3)",
+    "start_time": "0.050113",
+    "duration": "54.648163",
+    "size": "439080",
+    "bit_rate": "64277",
+    "probe_score": 51,
+    "tags": {
+     "title": "06 - Young Love",
+     "artist": "Edythe Mae Gordon",
+     "track": "6",
+     "album": "Selected Poems (Gordon)",
+     "genre": "speech",
+     "TLEN": "54.62",
+     "comment": "https://archive.org/details/selectedpoemsgordon_2509_librivox"
+    }
+   }
+  },
+  "track": {
+   "ratingKey": "114",
+   "key": "/library/metadata/114",
+   "parentRatingKey": "108",
+   "grandparentRatingKey": "107",
+   "guid": "local://114",
+   "parentGuid": "local://108",
+   "grandparentGuid": "local://107",
+   "type": "track",
+   "title": "06 - Young Love",
+   "grandparentKey": "/library/metadata/107",
+   "parentKey": "/library/metadata/108",
+   "librarySectionTitle": "Audiobooks",
+   "librarySectionID": 4,
+   "librarySectionKey": "/library/sections/4",
+   "grandparentTitle": "Edythe Mae Gordon",
+   "parentTitle": "Selected Poems (Gordon)",
+   "summary": "",
+   "index": 6,
+   "parentIndex": 1,
+   "thumb": "/library/metadata/108/thumb/1793753191",
+   "parentThumb": "/library/metadata/108/thumb/1793753191",
+   "duration": 54648,
+   "addedAt": 1793753183,
+   "Media": [
+    {
+     "id": 83,
+     "duration": 54648,
+     "bitrate": 64,
+     "audioChannels": 1,
+     "audioCodec": "mp3",
+     "container": "mp3",
+     "Part": [
+      {
+       "id": 83,
+       "key": "/library/parts/83/1793753183/file.mp3",
+       "duration": 54648,
+       "file": "/data/audiobooks/Edythe Mae Gordon/Selected Poems (mp3)/selectedpoems_06_gordon_64kb.mp3",
+       "size": 439080,
+       "container": "mp3",
+       "Stream": [
+        {
+         "id": 110,
+         "streamType": 2,
+         "selected": true,
+         "codec": "mp3",
+         "index": 0,
+         "channels": 1,
+         "bitrate": 64,
+         "albumGain": "7.01",
+         "albumPeak": "0.322113",
+         "albumRange": "7.149377",
+         "audioChannelLayout": "mono",
+         "gain": "7.01",
+         "loudness": "-25.45",
+         "lra": "6.39",
+         "peak": "0.317841",
+         "samplingRate": 22050,
+         "displayTitle": "MP3 (Mono)",
+         "extendedDisplayTitle": "MP3 (Mono)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "Image": [
+    {
+     "alt": "06 - Young Love",
+     "type": "coverPoster",
+     "url": "/library/metadata/108/thumb/1793753191"
+    }
+   ]
+  },
+  "read": {
+   "range": "bytes=0-99",
+   "status": 206,
+   "contentType": "audio/mpeg"
+  }
+ }
+]

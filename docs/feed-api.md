@@ -428,8 +428,10 @@ What the fields do:
 
 ## Tracks
 
-Music is pushed as tracks: `"kind": "track"`, an audio file (`flac`, `mp3`, `m4a`, `aac`, `ogg`,
-`oga`, `opus`, `wav`, `alac`, `aif`, `aiff`, `wma`, `ape`, `wv`, `dsf`, `mka`) and its ffprobe JSON in
+Music is pushed as tracks: `"kind": "track"`, an audio file (`flac`, `mp3`, `m4a`, `m4b`, `aac`, `ogg`,
+`oga`, `opus`, `wav`, `alac`, `aif`, `aiff`, `wma`, `ape`, `wv`, `dsf`, `dsd`, `mka`, `ac3`, `dts`,
+`mp2`, `mpa`, `mpc`, `mp+`, `mpp`, `rm`, `rma`, `shn`: every extension plexav's PMS 1.43.4 made a
+track of, one small file each, 2026-11-04; it made none of a `.tak`) and its ffprobe JSON in
 `media_info`, as for a video. rex places it in a music library (one of type `artist`) as a real
 PMS shows one: artist, album, track (Plex's types 8, 9 and 10), measured on plexav, a PMS 1.43.4
 with a four-album library, through Plex Web, Plex for Android and Plexamp
@@ -489,6 +491,14 @@ with a four-album library, through Plex Web, Plex for Android and Plexamp
   quality below original) gets a conversion through rex's FFmpeg, as PMS converts: AAC in MP4 over
   DASH (Plex Web), MP3 over HLS (Plex for Android, in Matroska segments), at 95% of the asked
   bitrate, one-second segments. Without an FFmpeg that request is refused.
+- **Audiobooks are albums.** Plex has no audiobook library: audiobook players (Chronicle, Plexamp)
+  read a music library whose albums are books, a chaptered `.m4b` a track of its own or a book in
+  one file per chapter. Send an `.m4b`'s chapters as a video's, in `media_info.chapters` (ffprobe's
+  `-show_chapters`): they are its `Chapter`s, plexav's titles, indexes and millisecond offsets,
+  where a client asks with `includeChapters=1` (`tests/fixtures/music/chronicle.jsonl`). A track
+  keeps a resume point only in a library whose "Store track progress" (`enableTrackOffsets`, an
+  advanced setting of the library, off by default) is on, as PMS keeps one; an album's scrobble
+  marks each of its tracks played.
 - **What rex does not do.** No sonic analysis (no Stations, radio, mixes or sonically similar
   tracks), and no analysis of its own of any file: loudness and lyrics are what the source pushes.
 

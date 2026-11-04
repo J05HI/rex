@@ -669,6 +669,9 @@ python3 tests/test_music_part_reads.py      # a track's Part read per audio form
 python3 tests/test_music_lyrics.py          # a source's sidecar `lyrics`: plexav's lyrics stream and its JSON, XML and raw answers
 python3 tests/test_music_loudness.py        # a source's `loudness`: plexav's stream fields, `/levels` per subsample and the play-queue ramps
 python3 tests/test_music_library_declared.py # a source's `directories` `music` makes the music library its tracks go to
+python3 tests/test_music_audiobooks.py      # every audio extension plexav makes a track of, and Chronicle's sync and play of a
+                                            # LibriVox book (.m4b chapters, .mp3s) replayed: its refused decision and play queue,
+                                            # Store track progress, scrobbles; Android's, Plexamp's and Web's chapters
 python3 tests/test_artwork_blur.py          # thumbBlurHash, artBlurHash and UltraBlurColors as plexav answers them for rex's own synthetic
                                             # covers: which rows carry which, the hash and corners within tolerance, kept by --state
 python3 tests/test_match_show_children.py  # a show Fix Matched takes the picked show's episodes by its rows' TMDB episode ids, by number only where every season's count is Plex's (a real library's Ben 10: Omniverse); one matched onto a show the library holds merges into it, its episodes kept; both listed for the source with the show's ids until Unmatch

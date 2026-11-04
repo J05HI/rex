@@ -15366,3 +15366,67 @@ are Usenet RAR members (zurg serves a member VOB's bytes, `00 00 01 BA`), and th
 disc rip lands in ignores VOBs. Not measured: which of these Plex for Android or Plezy plays
 direct on a device, since Android decides direct play in its own engine (`hasMDE=1`) and Plezy asks
 no decision at all.
+
+## Audiobooks, and every audio file PMS makes a track of (2026-11-04)
+
+Plex has no audiobook library: Chronicle (Android, `local.oss.chronicle`, github.com/fabiogermann/chronicle
+at 747e68e9), Prologue and Plexamp's audiobook view read a music library whose albums are books.
+Measured on plexav (PMS 1.43.4, Plex Music agent) with a library `Audiobooks` of one LibriVox
+recording (public domain, archive.org `selectedpoemsgordon_2509_librivox`) as its chaptered `.m4b`
+and its six per-chapter `.mp3`s, replaying every request Chronicle makes, read off its
+`PlexService.kt` and `PlexInterceptor.kt` (exact paths, parameter order, `X-Plex-*` headers and its
+`X-Plex-Client-Profile-Extra` direct-play profile), then Plex for Android's, Plexamp's and Plex Web's
+own recorded play-queue and detail requests pointed at the `.m4b` (`probes/record_audiobooks.py`,
+`tests/fixtures/music/chronicle.jsonl`, `tests/test_music_audiobooks.py`). A second library `Formats`
+held one small file of each audio extension (`probes/record_audio_formats.py`,
+`tests/fixtures/music/audio-formats.json`).
+
+| Extension | PMS 1.43.4 | Media `container` / `audioCodec` | Part read `Content-Type` | rex before |
+|---|---|---|---|---|
+| `.m4b` | track | `mp4` / `aac`, `audioProfile` `lc`, `optimizedForStreaming` 1 | `application/octet-stream` | refused |
+| `.ac3` | track | `ac3` / `ac3` | octet-stream | refused |
+| `.dts` | track | `dts` / (none: its analysis read no stream of FFmpeg's DTS) | octet-stream | refused |
+| `.dsd` | track | `dsf` / `dsd_lsbf_planar` (a DSF file) | octet-stream | refused |
+| `.mp2`, `.mpa` | track | `mp3` / `mp2` | `audio/mpeg` | refused |
+| `.mpc` | track | `mpc8` / `musepack8` | octet-stream | refused |
+| `.mp+`, `.mpp` | track | `mpc` / `musepack7` | octet-stream | refused |
+| `.rm`, `.rma` | track | `rm` / `ra_144` | octet-stream | refused |
+| `.shn` | track | `shn` / `shorten` | octet-stream | refused |
+| `.tak` | **no track** | | | refused (kept) |
+
+- **Chapters.** An `.m4b`'s QuickTime chapters are its track's `Chapter`s (`id`, `filter`
+  `thumb=<id>`, `tag` exactly as tagged, leading space included, `index` from 1, `startTimeOffset`,
+  `endTimeOffset` in ms) only with `includeChapters=1`, and `chapterSource="media"` on every read;
+  per-chapter `.mp3`s carry none. Plex for Android's and Plex Web's play queues ask for chapters and
+  get them, Plexamp's does not. rex already built them from `media_info.chapters`; it leaves out
+  `filter`, since it makes no chapter picture.
+- **An MP4-family track is `optimizedForStreaming`** (Media 1, Part true) whatever its atoms' order:
+  FFmpeg's `.m4b` with `moov` last as LibriVox's with it first. An AAC's `audioProfile` `lc` (and a
+  WAV's `pcm_s16le`) is on its Media and Part; rex dropped both.
+- **Chronicle's decision is refused.** `GET /music/:/transcode/universal/decision?...&hasMDE=1&
+  directPlay=1&directStream=1&musicBitrate=320&maxAudioBitrate=320` with no `mediaIndex` is a 400
+  ("MDE: hasMDE was specified along with directPlay without specifying a valid media and part
+  index" in PMS's log), music and video alike: `hasMDE=1` without `directPlay=0` needs a valid
+  `mediaIndex` (absent, empty, -1, out of range or a word: 400; `partIndex` alone does not help;
+  `hasMDE=0` or empty, or `directPlay=0`: 200). Chronicle then plays the listing's Part key. rex
+  answered 200 to both; it now answers the 400.
+- **Chronicle's play queue is refused too**: Retrofit writes `repeat=false&own=true&includeChapters=true`,
+  and PMS answers `repeat=false` 400 (`repeat=0` with the other words is 200), so Chronicle's
+  timelines carry `playQueueItemID=-1`. rex already answered the 400.
+- **Store track progress.** A track's `/:/timeline` keeps a resume point only while the library's
+  `enableTrackOffsets` (off by default) is on: with it off a paused beat at 95 s shows no
+  `viewOffset` on the track; on, it shows 95000, and a stop at 125 s 125000. The album never has
+  one. The play stamps `lastViewedAt` on the track and its album either way. The first
+  beat answers `{"size":0,"playbackState":"ignore"}`; later ones carry `skipCount`, `viewCount` 0
+  and `viewOffset` (-1 under a minute). rex kept every track's position and named the counts only
+  once a play or skip was counted. Not done: with the setting off PMS still answers the paused
+  beat's 95000 though no row shows it; rex keeps none, so answers -1.
+- **Scrobbles.** `/:/scrobble?key=<track>` plays the track (`viewCount` 1, its position gone) and
+  counts it on its album; `?key=<album>` plays every track of it, which rex did only for shows and
+  seasons; `/:/unscrobble` takes them back.
+- **Not done: an MP3's bytes.** PMS serves an MP3 Part without its ID3v2 tag (this book's first
+  file is 583,213 bytes and read as 581,380: its 1,833-byte tag gone; plexav's One More Time 187),
+  while its listed `size` counts the tag. rex serves the source's bytes as they are.
+- **Untagged files.** PMS titles a track with no title tag after its file and files a folder of
+  untagged files as `[Unknown Album]` under `Various Artists`; rex has no tags to read, so a source
+  names its tracks with `display`.

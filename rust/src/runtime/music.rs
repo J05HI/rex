@@ -19,9 +19,12 @@ use super::*;
 use crate::identify;
 use crate::{hierarchy, mediainfo, metadata};
 
-/// What a source may push as a track: the containers Plex's music scanner reads.
+/// What a source may push as a track: the containers Plex's music scanner reads. plexav's 1.43.4
+/// made a track of one small file of each of the last twelve (2026-11-04, `tests/fixtures/music/
+/// audio-formats.json`) and of no `.tak`.
 const AUDIO: &[&str] = &[
     "flac", "mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "alac", "aif", "aiff", "wma", "ape", "wv", "dsf", "mka",
+    "m4b", "ac3", "dts", "dsd", "mp2", "mpa", "mpc", "mp+", "mpp", "rm", "rma", "shn",
 ];
 
 /// What PMS names an artist and an album no tag names (its local agent's words); rex has no tags
@@ -1469,6 +1472,15 @@ impl Runtime {
         let Some(row) = self.catalog.get(key).cloned().filter(|row| row.get("type").and_then(Value::as_str) == Some("track")) else {
             return Response::error(400, "rex: bad request");
         };
+        // plexav's 1.43.4 (2026-11-04, `tests/fixtures/music/chronicle.jsonl`): `hasMDE=1` without
+        // `directPlay=0` needs a valid `mediaIndex`, as the video decision does (`route_decision`).
+        let media_count = row.get("Media").and_then(Value::as_array).map_or(0, Vec::len);
+        if query.get("hasMDE").map(String::as_str) == Some("1")
+            && query.get("directPlay").map(String::as_str) != Some("0")
+            && query.get("mediaIndex").and_then(|index| index.parse::<usize>().ok()).filter(|index| *index < media_count).is_none()
+        {
+            return Response::error(400, "rex: hasMDE without a valid mediaIndex");
+        }
         // The client's session, as the video decision keys it: the timeline's `Bandwidths` follow it.
         let headers = &_request.headers;
         let session = query

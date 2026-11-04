@@ -10936,9 +10936,19 @@ impl Runtime {
                 });
             }
             let near_end = completes && total > 0 && (offset as f64) >= total as f64 * 0.9;
+            // A track resumes only in a library with "Store track progress" on (`enableTrackOffsets`,
+            // off by default): plexav's 1.43.4 showed a paused audiobook's position with it on and
+            // none with it off, stamping `lastViewedAt` either way (2026-11-04,
+            // `tests/fixtures/music/chronicle.jsonl`).
+            let keeps_offset = row.get("type").and_then(Value::as_str) != Some("track") || {
+                let section = row.get("librarySectionID").map(string_value).unwrap_or_default();
+                self.section_prefs.get(&(section, "enableTrackOffsets".to_string())).is_some_and(|value| value == "true" || is_true_option(value))
+            };
             if (total > 0 || !completes) && offset > 60000 && !near_end {
                 let stamp = now();
-                self.update_view(key, "viewOffset", Some(json!(offset)));
+                if keeps_offset {
+                    self.update_view(key, "viewOffset", Some(json!(offset)));
+                }
                 self.update_view(key, "lastViewedAt", Some(json!(stamp)));
                 let mut stamped = vec![key.to_string()];
                 stamped.extend(self.parent_keys(key));
@@ -11257,7 +11267,9 @@ impl Runtime {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let targets = if matches!(kind.as_str(), "show" | "season") {
+        // An album's scrobble marks each of its tracks played, as a show's does its episodes:
+        // Chronicle marks a finished audiobook so (plexav 1.43.4, 2026-11-04, `chronicle.jsonl`).
+        let targets = if matches!(kind.as_str(), "show" | "season" | "album") {
             self.leaves(&key)
                 .into_iter()
                 .filter_map(|row| key_of(&row))
@@ -11310,7 +11322,7 @@ impl Runtime {
                 self.update_view(&parent, "viewCount", Some(json!(previous + 1)));
                 self.update_view(&parent, "lastViewedAt", Some(json!(stamp)));
             }
-        } else if !watched && matches!(kind.as_str(), "show" | "season") {
+        } else if !watched && matches!(kind.as_str(), "show" | "season" | "album") {
             self.update_view(&key, "viewCount", None);
             self.update_view(&key, "lastViewedAt", None);
         }
@@ -11543,6 +11555,17 @@ impl Runtime {
             return Response::error(400, "rex: bad request");
         }
         let media_index_raw = query.get("mediaIndex").cloned().unwrap_or_default();
+        // plexav's 1.43.4, 2026-11-04, music and video alike (`tests/fixtures/music/chronicle.jsonl`):
+        // `hasMDE=1` without direct play turned off (`directPlay=0`) needs a valid `mediaIndex` --
+        // absent, empty, -1, out of range or a word is a 400 ("hasMDE was specified along with
+        // directPlay without specifying a valid media and part index"), whatever `partIndex` says.
+        // Chronicle asks so and plays the listing's Part key on the refusal.
+        if query.get("hasMDE").map(String::as_str) == Some("1")
+            && query.get("directPlay").map(String::as_str) != Some("0")
+            && media_index_raw.parse::<usize>().ok().filter(|index| *index < media_rows.len()).is_none()
+        {
+            return Response::error(400, "rex: hasMDE without a valid mediaIndex");
+        }
         let media_index = if media_rows.len() > 1 {
             let Ok(index) = media_index_raw.parse::<usize>() else {
                 return Response::error(400, "rex: bad request");
@@ -28233,10 +28256,10 @@ fn part_content_type(part: &Value) -> String {
         "mpg" | "mpeg" => "video/mpeg",
         "flv" => "video/x-flv",
         "wmv" => "video/x-ms-wmv",
-        // plexav's part reads of its tracks (2026-10-31, 2026-11-01): `.opus` and `.ogg` are
-        // octet-streams there too.
+        // plexav's part reads of its tracks (2026-10-31, 2026-11-01, 2026-11-04): `.opus`, `.ogg`,
+        // `.m4b` and the rest are octet-streams there too.
         "flac" => "audio/flac",
-        "mp3" => "audio/mpeg",
+        "mp3" | "mp2" | "mpa" => "audio/mpeg",
         "m4a" => "audio/mp4",
         "wav" => "audio/wav",
         "asf" => "video/x-ms-asf",
