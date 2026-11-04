@@ -1,0 +1,337 @@
+{
+ "_provenance": "GET /library/sections/{id}/all?includeMeta=1 (X-Plex-Container-Size 0), with and without includeAdvanced=1 (the same answer), on a photo library (type=photo, tv.plex.agents.none, Plex Photo Scanner, group 4) made through Plex Web 4.160.0's Add Library on plexscratch (PMS 1.43.4, unclaimed), 2026-11-04. Two Types: photo (active) and folder (Albums). `/library/sections/10/` is rewritten to the library's own id.",
+ "plain": {
+  "Type": [
+   {
+    "key": "/library/sections/10/all",
+    "type": "photo",
+    "title": "Photos",
+    "active": true,
+    "Filter": [
+     {
+      "filter": "year",
+      "filterType": "integer",
+      "key": "/library/sections/10/year?type=13",
+      "title": "Year",
+      "type": "filter"
+     },
+     {
+      "filter": "make",
+      "filterType": "string",
+      "key": "/library/sections/10/make?type=13",
+      "title": "Camera Make",
+      "type": "filter"
+     },
+     {
+      "filter": "model",
+      "filterType": "string",
+      "key": "/library/sections/10/model?type=13",
+      "title": "Camera Model",
+      "type": "filter"
+     },
+     {
+      "filter": "aperture",
+      "filterType": "string",
+      "key": "/library/sections/10/aperture?type=13",
+      "title": "Aperture",
+      "type": "filter"
+     },
+     {
+      "filter": "exposure",
+      "filterType": "string",
+      "key": "/library/sections/10/exposure?type=13",
+      "title": "Shutter Speed",
+      "type": "filter"
+     },
+     {
+      "filter": "iso",
+      "filterType": "string",
+      "key": "/library/sections/10/iso?type=13",
+      "title": "ISO",
+      "type": "filter"
+     },
+     {
+      "filter": "lens",
+      "filterType": "string",
+      "key": "/library/sections/10/lens?type=13",
+      "title": "Lens",
+      "type": "filter"
+     },
+     {
+      "filter": "tag",
+      "filterType": "string",
+      "key": "/library/sections/10/tag?type=13",
+      "title": "Tag",
+      "type": "filter"
+     },
+     {
+      "filter": "trash",
+      "filterType": "boolean",
+      "key": "/library/sections/10/trash",
+      "title": "Trash",
+      "type": "filter"
+     },
+     {
+      "filter": "location",
+      "filterType": "string",
+      "key": "/library/sections/10/location",
+      "title": "Folder Location",
+      "type": "filter"
+     },
+     {
+      "filter": "place",
+      "filterType": "string",
+      "key": "/library/sections/10/place?type=13",
+      "title": "Places",
+      "type": "filter"
+     }
+    ],
+    "Sort": [
+     {
+      "defaultDirection": "desc",
+      "descKey": "addedAt:desc",
+      "key": "addedAt",
+      "title": "Date Added"
+     },
+     {
+      "defaultDirection": "desc",
+      "descKey": "originallyAvailableAt:desc",
+      "key": "originallyAvailableAt",
+      "title": "Date Taken"
+     },
+     {
+      "active": true,
+      "activeDirection": "asc",
+      "default": "asc",
+      "defaultDirection": "asc",
+      "descKey": "photo.titleSort:desc,photo.originallyAvailableAt,photo.id",
+      "key": "photo.titleSort,photo.originallyAvailableAt,photo.id",
+      "title": "Name"
+     },
+     {
+      "defaultDirection": "asc",
+      "descKey": "mediaCount:desc,titleSort:asc",
+      "key": "mediaCount,titleSort",
+      "title": "Album"
+     }
+    ],
+    "Field": [
+     {
+      "key": "title",
+      "title": "Title",
+      "type": "string"
+     },
+     {
+      "key": "addedAt",
+      "title": "Date Added",
+      "type": "date"
+     },
+     {
+      "key": "originallyAvailableAt",
+      "title": "Date Taken",
+      "type": "date"
+     },
+     {
+      "key": "userRating",
+      "subType": "rating",
+      "title": "Rating",
+      "type": "integer"
+     },
+     {
+      "key": "mediaSize",
+      "subType": "fileSize",
+      "title": "File size",
+      "type": "integer"
+     },
+     {
+      "key": "tag",
+      "title": "Tag",
+      "type": "tag"
+     },
+     {
+      "key": "trash",
+      "title": "Trash",
+      "type": "boolean"
+     },
+     {
+      "key": "location",
+      "title": "Folder Location",
+      "type": "tag"
+     },
+     {
+      "key": "aperture",
+      "title": "Aperture",
+      "type": "tag"
+     },
+     {
+      "key": "exposure",
+      "title": "Exposure",
+      "type": "tag"
+     },
+     {
+      "key": "iso",
+      "title": "ISO",
+      "type": "tag"
+     },
+     {
+      "key": "lens",
+      "title": "Lens",
+      "type": "tag"
+     },
+     {
+      "key": "make",
+      "title": "Make",
+      "type": "tag"
+     },
+     {
+      "key": "model",
+      "title": "Model",
+      "type": "tag"
+     },
+     {
+      "key": "device",
+      "title": "Device",
+      "type": "tag"
+     },
+     {
+      "key": "place",
+      "title": "Place",
+      "type": "tag"
+     }
+    ]
+   },
+   {
+    "key": "/library/sections/10/folder",
+    "type": "folder",
+    "title": "Albums",
+    "active": false
+   }
+  ],
+  "FieldType": [
+   {
+    "type": "tag",
+    "Operator": [
+     {
+      "key": "=",
+      "title": "is"
+     },
+     {
+      "key": "!=",
+      "title": "is not"
+     }
+    ]
+   },
+   {
+    "type": "integer",
+    "Operator": [
+     {
+      "key": "=",
+      "title": "is"
+     },
+     {
+      "key": "!=",
+      "title": "is not"
+     },
+     {
+      "key": ">>=",
+      "title": "is greater than"
+     },
+     {
+      "key": "<<=",
+      "title": "is less than"
+     }
+    ]
+   },
+   {
+    "type": "string",
+    "Operator": [
+     {
+      "key": "=",
+      "title": "contains"
+     },
+     {
+      "key": "!=",
+      "title": "does not contain"
+     },
+     {
+      "key": "==",
+      "title": "is"
+     },
+     {
+      "key": "!==",
+      "title": "is not"
+     },
+     {
+      "key": "<=",
+      "title": "begins with"
+     },
+     {
+      "key": ">=",
+      "title": "ends with"
+     }
+    ]
+   },
+   {
+    "type": "boolean",
+    "Operator": [
+     {
+      "key": "=",
+      "title": "is true"
+     },
+     {
+      "key": "!=",
+      "title": "is false"
+     }
+    ]
+   },
+   {
+    "type": "date",
+    "Operator": [
+     {
+      "key": "<<=",
+      "title": "is before"
+     },
+     {
+      "key": ">>=",
+      "title": "is after"
+     }
+    ]
+   },
+   {
+    "type": "subtitleLanguage",
+    "Operator": [
+     {
+      "key": "=",
+      "title": "is"
+     },
+     {
+      "key": "!=",
+      "title": "is not"
+     }
+    ]
+   },
+   {
+    "type": "audioLanguage",
+    "Operator": [
+     {
+      "key": "=",
+      "title": "is"
+     },
+     {
+      "key": "!=",
+      "title": "is not"
+     }
+    ]
+   },
+   {
+    "type": "resolution",
+    "Operator": [
+     {
+      "key": "=",
+      "title": "is"
+     }
+    ]
+   }
+  ]
+ }
+}

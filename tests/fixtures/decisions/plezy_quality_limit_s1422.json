@@ -1,0 +1,320 @@
+{
+ "_provenance": "Recorded 2026-11-04 on plexscratch42 (PMS 1.42.2.10156, unclaimed, offline): the exact decision request Plezy 2.24.0 (Pixel 6) sent rex with its Default Quality at 720p 2 Mbps -- no maxVideoBitrate, the cap an add-limitation in X-Plex-Client-Profile-Extra, its target's audioCodec list percent-encoded (aac%2Cac3%2Ceac3%2Cmp3) -- replayed against plexscratch42's 'Vobsub Pair' (a 1080p h264/AAC Matroska); tokens and device ids left out. The decision only: plexscratch42 cannot download its transcoder's codecs.",
+ "path": "/video/:/transcode/universal/decision",
+ "query": [
+  [
+   "hasMDE",
+   "1"
+  ],
+  [
+   "path",
+   "/library/metadata/100041"
+  ],
+  [
+   "mediaIndex",
+   "0"
+  ],
+  [
+   "partIndex",
+   "0"
+  ],
+  [
+   "protocol",
+   "hls"
+  ],
+  [
+   "fastSeek",
+   "1"
+  ],
+  [
+   "directPlay",
+   "0"
+  ],
+  [
+   "directStream",
+   "0"
+  ],
+  [
+   "subtitleSize",
+   "100"
+  ],
+  [
+   "audioBoost",
+   "100"
+  ],
+  [
+   "location",
+   "lan"
+  ],
+  [
+   "addDebugOverlay",
+   "0"
+  ],
+  [
+   "autoAdjustQuality",
+   "0"
+  ],
+  [
+   "videoResolution",
+   "1280x720"
+  ],
+  [
+   "videoQuality",
+   "60"
+  ],
+  [
+   "directStreamAudio",
+   "1"
+  ],
+  [
+   "mediaBufferSize",
+   "102400"
+  ],
+  [
+   "session",
+   "plezy-quality"
+  ],
+  [
+   "subtitles",
+   "none"
+  ],
+  [
+   "audioStreamID",
+   "100041002"
+  ],
+  [
+   "Accept-Language",
+   "en"
+  ],
+  [
+   "X-Plex-Session-Identifier",
+   "plezy-quality"
+  ],
+  [
+   "X-Plex-Client-Profile-Extra",
+   "add-settings(DirectPlayStreamSelection=true)+add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=2000&replace=true)+add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac%2Cac3%2Ceac3%2Cmp3)+add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+  ],
+  [
+   "X-Plex-Incomplete-Segments",
+   "1"
+  ],
+  [
+   "X-Plex-Features",
+   "external-media,indirect-media"
+  ],
+  [
+   "X-Plex-Model",
+   "standalone"
+  ],
+  [
+   "X-Plex-Language",
+   "en"
+  ],
+  [
+   "X-Plex-Client-Profile-Name",
+   "Generic"
+  ],
+  [
+   "X-Plex-Product",
+   "Plezy"
+  ],
+  [
+   "X-Plex-Version",
+   "2.24.0"
+  ],
+  [
+   "X-Plex-Client-Identifier",
+   "pixel6-plezy"
+  ],
+  [
+   "X-Plex-Platform",
+   "Generic"
+  ],
+  [
+   "X-Plex-Device",
+   "Pixel 6"
+  ],
+  [
+   "X-Plex-Device-Name",
+   "Pixel 6"
+  ]
+ ],
+ "source_media": {
+  "id": 301,
+  "duration": 120021,
+  "bitrate": 95,
+  "width": 1920,
+  "height": 1080,
+  "aspectRatio": 1.78,
+  "audioChannels": 2,
+  "audioCodec": "aac",
+  "videoCodec": "h264",
+  "videoResolution": "1080",
+  "container": "mkv",
+  "videoFrameRate": "24p",
+  "audioProfile": "lc",
+  "videoProfile": "constrained baseline",
+  "Part": [
+   {
+    "id": 301,
+    "key": "/library/parts/301/1793754149/file.mkv",
+    "duration": 120021,
+    "file": "/data2/vobsub-movies/Vobsub Pair (2004)/Vobsub Pair (2004).mkv",
+    "size": 1428805,
+    "audioProfile": "lc",
+    "container": "mkv",
+    "videoProfile": "constrained baseline",
+    "Stream": [
+     {
+      "id": 573,
+      "streamType": 1,
+      "codec": "h264",
+      "index": 0,
+      "bitrate": 95,
+      "chromaLocation": "left",
+      "codedHeight": 1088,
+      "codedWidth": 1920,
+      "colorRange": "tv",
+      "frameRate": 24.0,
+      "hasScalingMatrix": false,
+      "height": 1080,
+      "level": 40,
+      "profile": "constrained baseline",
+      "refFrames": 1,
+      "scanType": "progressive",
+      "width": 1920,
+      "displayTitle": "1080p",
+      "extendedDisplayTitle": "1080p (H.264 Constrained Baseline)"
+     },
+     {
+      "id": 574,
+      "streamType": 2,
+      "selected": true,
+      "codec": "aac",
+      "index": 1,
+      "channels": 2,
+      "profile": "lc",
+      "samplingRate": 48000,
+      "displayTitle": "Unknown (AAC Stereo)",
+      "extendedDisplayTitle": "Unknown (AAC Stereo)"
+     },
+     {
+      "id": 580,
+      "key": "/library/streams/580",
+      "streamType": 3,
+      "file": "/data2/vobsub-movies/Vobsub Pair (2004)/Vobsub Pair (2004).idx",
+      "codec": "idx",
+      "language": "Deutsch",
+      "languageTag": "de",
+      "languageCode": "deu",
+      "format": "idx",
+      "displayTitle": "Deutsch",
+      "extendedDisplayTitle": "Deutsch (VOBSUB External)"
+     }
+    ]
+   }
+  ]
+ },
+ "status": 200,
+ "decision": {
+  "MediaContainer": {
+   "size": 1,
+   "allowSync": "1",
+   "directPlayDecisionCode": 3000,
+   "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+   "generalDecisionCode": 1001,
+   "generalDecisionText": "Direct play not available; Conversion OK.",
+   "identifier": "com.plexapp.plugins.library",
+   "librarySectionID": "31",
+   "librarySectionTitle": "vobsub-movies",
+   "librarySectionUUID": "2a2257ce-182f-4e33-b7fe-4860177a63e9",
+   "mediaTagPrefix": "/system/bundle/media/flags/",
+   "mediaTagVersion": "1758205129",
+   "resourceSession": "plezy-quality",
+   "transcodeDecisionCode": 1001,
+   "transcodeDecisionText": "Direct play not available; Conversion OK.",
+   "Metadata": [
+    {
+     "addedAt": 1793754149,
+     "art": "/library/metadata/1164/art/1793754773",
+     "duration": 120021,
+     "guid": "local://1164",
+     "key": "/library/metadata/1164",
+     "librarySectionID": "31",
+     "librarySectionKey": "/library/sections/31",
+     "librarySectionTitle": "vobsub-movies",
+     "ratingKey": "1164",
+     "subtype": "clip",
+     "thumb": "/library/metadata/1164/thumb/1793754773",
+     "title": "Vobsub Pair",
+     "type": "movie",
+     "updatedAt": 1793754773,
+     "year": 2004,
+     "Media": [
+      {
+       "audioProfile": "lc",
+       "id": "301",
+       "videoProfile": "constrained baseline",
+       "audioChannels": 2,
+       "audioCodec": "aac",
+       "bitrate": 2000,
+       "container": "mpegts",
+       "duration": 120021,
+       "height": 720,
+       "protocol": "hls",
+       "videoCodec": "h264",
+       "videoFrameRate": "24p",
+       "videoResolution": "720p",
+       "width": 1280,
+       "selected": true,
+       "Part": [
+        {
+         "audioProfile": "lc",
+         "id": "301",
+         "videoProfile": "constrained baseline",
+         "bitrate": 2000,
+         "container": "mpegts",
+         "duration": 120021,
+         "height": 720,
+         "protocol": "hls",
+         "width": 1280,
+         "decision": "transcode",
+         "selected": true,
+         "Stream": [
+          {
+           "bitrate": 2000,
+           "codec": "h264",
+           "displayTitle": "1080p",
+           "extendedDisplayTitle": "1080p (H.264 Constrained Baseline)",
+           "frameRate": 24.0,
+           "height": 720,
+           "id": "573",
+           "streamType": 1,
+           "width": 1280,
+           "decision": "transcode",
+           "location": "segments-av"
+          },
+          {
+           "bitrateMode": "cbr",
+           "channels": 2,
+           "codec": "aac",
+           "displayTitle": "Unknown (AAC Stereo)",
+           "extendedDisplayTitle": "Unknown (AAC Stereo)",
+           "id": "574",
+           "profile": "lc",
+           "samplingRate": 48000,
+           "selected": true,
+           "streamType": 2,
+           "decision": "copy",
+           "location": "segments-av"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

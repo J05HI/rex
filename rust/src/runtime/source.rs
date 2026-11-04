@@ -46,6 +46,8 @@ pub(crate) struct Declared {
     pub shows: Option<String>,
     /// A music library's title (an artist library, as Add Library's Music makes).
     pub music: Option<String>,
+    /// A photo library's title (as Add Library's Photos makes).
+    pub photos: Option<String>,
 }
 
 /// A registration's `directories` and the entries left out, with why. Absent, `null` (a Go nil
@@ -71,11 +73,11 @@ fn declared(value: Option<&Value>) -> (Vec<Declared>, Vec<Value>) {
             Some(Value::String(_)) => Err(format!("directory {name:?}: {kind} title is empty")),
             Some(_) => Err(format!("directory {name:?}: {kind} title must be text")),
         };
-        let (movies, shows, music) = (title("movies")?, title("shows")?, title("music")?);
-        if movies.is_none() && shows.is_none() && music.is_none() {
-            return Err(format!("directory {name:?}: names no shows, movies or music library"));
+        let (movies, shows, music, photos) = (title("movies")?, title("shows")?, title("music")?, title("photos")?);
+        if movies.is_none() && shows.is_none() && music.is_none() && photos.is_none() {
+            return Err(format!("directory {name:?}: names no shows, movies, music or photos library"));
         }
-        Ok(Declared { name: name.to_string(), movies, shows, music })
+        Ok(Declared { name: name.to_string(), movies, shows, music, photos })
     };
     let (mut kept, mut ignored) = (Vec::new(), Vec::new());
     for entry in entries {
@@ -102,15 +104,25 @@ fn quote_segment(segment: &str) -> String {
 }
 
 /// The extensions taken as media; anything else in a release (subtitles, nfo, samples'
-/// images) is not a Part.
+/// images) is not a Part. Each is one a real PMS makes a playable Part of, measured on
+/// plexscratch42 (1.42.2) one file per extension (2026-11-04,
+/// `tests/fixtures/video_extensions_s1422.json`): its Plex Movie scanner's, and `.vob`, which
+/// only its Plex TV Series scanner takes. `.mk3d` is Matroska that neither scanner takes, kept
+/// because a source pushes it as the video it is. Listed by the legacy scanner but left out: the
+/// playlists (asx, sdp, strm, xsp), Parts with no stream every decision answers 400; `.bup`,
+/// one of those too; `.viv`, whose video no decoder names; and `.iso`, never a Part, which
+/// ffprobe reads as Invalid data off a Blu-ray image's head.
 pub(super) fn is_video(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    [
-        ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".ts", ".m2ts", ".mts", ".webm", ".wmv",
-        ".mpg", ".mpeg", ".flv", ".divx", ".iso",
-    ]
-    .iter()
-    .any(|extension| lower.ends_with(extension))
+    let name = path.rsplit('/').next().unwrap_or(path);
+    name.rsplit_once('.').is_some_and(|(_, extension)| {
+        [
+            "3g2", "3gp", "asf", "avc", "avi", "avs", "bivx", "divx", "dv", "dvr-ms", "evo", "fli",
+            "flv", "m2t", "m2ts", "m2v", "m4v", "mk3d", "mkv", "mov", "mp4", "mpeg", "mpg", "mts",
+            "nsv", "nuv", "ogm", "ogv", "pva", "qt", "rm", "rmvb", "svq3", "tp", "ts", "ty", "vdr",
+            "vob", "vp3", "webm", "wmv", "wtv", "xvid",
+        ]
+        .contains(&extension.to_ascii_lowercase().as_str())
+    })
 }
 
 fn trimmed_mount(mount: &str) -> String {
@@ -163,7 +175,7 @@ impl Source {
         if !directories.is_empty() {
             let entries = directories.iter().map(|entry| {
                 let mut out = json!({"name": entry.name});
-                for (kind, title) in [("shows", &entry.shows), ("movies", &entry.movies), ("music", &entry.music)] {
+                for (kind, title) in [("shows", &entry.shows), ("movies", &entry.movies), ("music", &entry.music), ("photos", &entry.photos)] {
                     if let Some(title) = title {
                         out[kind] = json!(title);
                     }
@@ -361,7 +373,7 @@ mod tests {
             {"name": "wrestling", "shows": "Wrestling", "movies": null},
             {"name": "movies-1080p", "movies": "1080p Movies"}]});
         let source = Source::register("zurg", &body).unwrap();
-        assert_eq!(source.directories[0], Declared { name: "anime".into(), movies: Some("Anime Movies".into()), shows: Some("Anime".into()), music: None });
+        assert_eq!(source.directories[0], Declared { name: "anime".into(), movies: Some("Anime Movies".into()), shows: Some("Anime".into()), music: None, photos: None });
         assert_eq!(source.directories[1].movies, None);
         let kept = json!([{"name": "anime", "shows": "Anime", "movies": "Anime Movies"},
                           {"name": "wrestling", "shows": "Wrestling"}, {"name": "movies-1080p", "movies": "1080p Movies"}]);
@@ -392,12 +404,12 @@ mod tests {
         let mut sent: Vec<Value> = entries.to_vec();
         sent.insert(3, json!({"name": "wrestling", "shows": "Wrestling"}));
         let source = Source::register("zurg", &json!({"url": "http://h/dav", "directories": sent})).unwrap();
-        assert_eq!(source.directories, [Declared { name: "wrestling".into(), movies: None, shows: Some("Wrestling".into()), music: None }]);
+        assert_eq!(source.directories, [Declared { name: "wrestling".into(), movies: None, shows: Some("Wrestling".into()), music: None, photos: None }]);
         assert_eq!(source.ignored.iter().map(|ignored| ignored["entry"].clone()).collect::<Vec<_>>(), entries);
         // Each reason names its directory: zurg logs each distinct reason once.
         let reasons: Vec<&str> = source.ignored.iter().filter_map(|ignored| ignored["reason"].as_str()).collect();
         assert_eq!(reasons, [
-            r#"directory "anime": names no shows, movies or music library"#,
+            r#"directory "anime": names no shows, movies, music or photos library"#,
             r#"directory entry {"shows":"Anime"}: no name"#,
             r#"directory entry {"name":"","shows":"Anime"}: no name"#,
             r#"directory "a/b": name must be one directory, with no '/'"#,

@@ -319,6 +319,14 @@ Consequences for rex, each one a behaviour change rather than a new field:
   rex must not claim: a transcode verdict means the item does not play at
   all. Advertising a transcoder it does not have is what produced "This server is
   not powerful enough to convert video" in the first place.
+- **With an FFmpeg, Optimize is hidden by `backgroundProcessing` (2026-11-04).** rex claims
+  `transcoderVideo` once it can convert, and the entry appeared: rex-fun's log held Plex
+  Web's `POST /playlists?type=42`, a 500, since rex keeps no optimized versions. PMS
+  1.43.4's Linux binary writes `backgroundProcessing` as a constant true (claimed or not,
+  with `OptimizerTranscodeCountLimit=0` or `TranscoderCanOnlyRemuxVideo=1` on plexscratch
+  too), so no PMS state to copy says false; rex says false, the one statement that leaves
+  the entry out. Web 4.147.1 reads it only in its two Optimize predicates; Settings ->
+  Status -> Conversions comes from `/playQueues?type=42` and `/playlists?type=42`.
 
 #### Response shapes the write half turned up
 
@@ -13717,6 +13725,16 @@ or selected tracks. An omitted chapter array preserves saved timings; an
 explicit empty array clears them. Sources must include `-show_chapters` in their
 probe to supply this data; rex does not read media bytes to obtain it.
 
+**They do arrive (rex-fun, 2026-11-04).** A survey counting rows that hold `"Chapter"` found 2
+of 47,047 and read it as chapters lost on the way; rex keeps them on each version as
+`Media[]._chapters`, and 21,086 episodes, 3,452 movies and 315 clips hold some. go-ffprobe has
+always passed `-show_chapters`, so every probe on fun's four zurgs carries a `chapters` array, and
+each file whose probe lists chapters has them in rex (joined by file name and size). Two cases stay
+open, neither measured on a PMS: 22 versions (12 RD, 10 Usenet; `[neko-kBaraka] Boku no Hero
+Academia` among them) whose probe gives every chapter `end_time` equal to `start_time`, which
+`build_chapters` drops, and ~160 that lose some chapters that way; and 3,045 rows with chapters
+only on a version other than the first, which the projection does not show.
+
 ## Closing the open audit items (2026-10-20)
 
 Measured on an isolated PMS 1.43.4 and rex 441dbe22, never by writing to plexlab or a
@@ -13856,6 +13874,15 @@ verdicts, is `tests/fixtures/subtitles/sync_corpus.json.gz`.
   else keeps the first; it is stored as the account's (`userID`) and selected by the settings. A
   decision for that item waits up to 3 s for the job. A search that finds nothing is not run again
   for that item and language for a day. Without a reference only the first is downloaded.
+- No automatic search for a row with no `plex://` guid, as an item a source pushed with no ids
+  (rex-youtube's): every search plexlab's PMS sent to the provider from 2026-09-12 to 2026-11-04,
+  21 in `capture/outbound.jsonl`, carried one and came from a Search Subtitles request or a probe;
+  none went out on its own. The picker's search still runs for such a row. A provider 400 is a
+  refusal asking again does not change, so its automatic search is settled until rex restarts and
+  logged once, at INFO. Measured 2026-11-04 (`provider_matches_refusals.json`): a search with no
+  guid is answered (200); one with no `openSubtitlesHash` is the 400 ("Missing required param
+  openSubtitlesHash!"), which rex sends when it cannot read the Part's head and tail, as for an
+  item pushed with no size (card 580).
 - Only a play's job reads audio (Ben, 2026-10-20): a detail request with no text track to check
   against keeps the best-named candidate unchecked, and the play queue's job measures the
   candidates against the audio and puts the kept stream right in place, same id and key
@@ -14457,6 +14484,40 @@ What worked unchanged with the gate bypassed: matching items to TMDb/IMDb/TVDb i
 rating and genre updates, smart collections with labels, summaries and sort titles, and overlays
 (poster uploads). `tests/test_tag_collections.py` replays Kometa's requests; its 200 and 406 poster checks
 fetch the recorded GitHub urls and skip offline.
+
+## A collection's clear logo, theme and custom order (2026-11-04)
+
+rex#15: Kometa's `url_logo` and `collection_order: custom` failed on a rex collection.
+python-plexapi 4.18's requests (`uploadLogo`, `logos`, `setLogo`, `uploadTheme`, `themes`,
+`sortUpdate`) were sent to two online PMS 1.43.4.10903 with the harness clips: plexlab
+(unclaimed) and a throwaway container claimed to a test account without Plex Pass, then signed
+out and its device deleted (`tests/fixtures/collection_logos_s1434.json`).
+
+- **`collectionSort` offers `2:Custom` only once the server is claimed**:
+  `0:Release date|1:Alphabetical|2:Custom` on the claimed one, `0:Release date|1:Alphabetical` on
+  plexlab (the "two" values cycle 15 recorded were an unclaimed copy's). Both store and read back
+  2. python-plexapi's `editAdvanced` refuses a value missing from the enum before sending
+  anything, so rex's two-value enum made every `sortUpdate("custom")` a client-side `NotFound: 2
+  not found in ['0', '1']`. rex now publishes the third value when claimed (`--assert-claimed` too).
+- **A collection takes `clearLogos` and `themes` uploads as an item does.** `POST
+  .../clearLogos?url=` (or a body) is an empty 200 storing `upload://clearLogos/<sha1 of the
+  bytes>`, listed newest first and selected; the row gains `Image` `clearLogo`
+  `/library/metadata/{id}/clearLogo/{v}` after any `coverPoster`, and a locked `clearLogo` Field.
+  A theme is `upload://themes/<sha1>`, a `theme` attribute after `thumb` and a locked `theme` Field.
+  rex answered both lists with GET only and a POST was a 404.
+- **A url logo or theme keeps whatever the url answers** -- a GitHub README, the server's own
+  `/identity` -- and a url it cannot fetch is a **406**, where a poster's is a 502 and a non-image
+  poster a 406. rex fetches public addresses only, as for posters (`artwork::posted_any`).
+- **`PUT .../clearLogos?url=` is a 404 on a real PMS too**, collection and film alike: the request
+  rex#15 quoted is not one python-plexapi sends. Its `setLogo` sends `PUT .../clearLogo?url=<the
+  candidate's ratingKey>`, a 200 whose body is the new path; without `url` a 400. (`PUT
+  .../theme?url=` answered a 500 there, so rex does not take it.)
+- **A film's `POST .../clearLogos?url=` is a 200.** rex's empty-body 406 ran before any url was
+  looked at, for posters and arts as well, so no item upload by url ever fetched; a request with a
+  `url` now skips it.
+
+`tests/test_collection_logos.py` replays python-plexapi's requests and compares each answer with the
+claimed server's; its `?url=` checks fetch the recorded GitHub url and skip offline.
 
 ## An announce plex.tv keeps no connection from (2026-10-24)
 
@@ -15106,6 +15167,33 @@ section (`probes/record_music_conversion.py`, `record_music_lyrics.py`, `record_
   decode no JPEG or PNG; an FFmpeg could, which was not built. A music library a source declares
   (`directories` `music`) lists as plexav's Add Library one does (agent, scanner, language, group).
 
+## Music for Plezy and python-plexapi, measured on plexav (2026-11-04)
+
+Replayed on plexav (PMS 1.43.4) from the clients' own source: Plezy 38c48f14 and python-plexapi
+(`probes/record_plezy_music_http.py`, `record_music_axes.py`; `tests/fixtures/music/`).
+
+- **Plezy's music quality presets.** Below original quality Plezy asks for one MP3: `directPlay=0`,
+  `directStream=0`, `protocol=http`, `musicBitrate` 320/192/128 and the target
+  `add-transcode-target(type=musicProfile&context=streaming&protocol=http&container=mp3&audioCodec=mp3)`
+  on the `Generic` platform, then `start.mp3` with the same query. plexav converts every codec it holds
+  (FLAC, Opus, Vorbis, ALAC, PCM, MP3): 3000/1001/1001, the Media `mp3`/`mp3` at 95% of
+  `musicBitrate` (304, 182, 121) with **no `protocol`**, the Stream `vbr` and `location="direct"`.
+  `start.mp3` is `audio/mpeg`, `Accept-Ranges: none`, `Connection: close`, chunked, an ID3v2.4 tag
+  first, and its session row `protocol` `http`, `container` `mp3`. rex answered 4005 and a 400, so
+  Plezy played the original FLAC at every preset (`plezy_http_mp3.json`).
+- **Filter values.** Plezy opens a music filter at the key `/all?includeMeta=1` names
+  (`/library/sections/1/mood?type=9`). plexav answers the rows' own tags, each `{fastKey, key: tag
+  id, title}` in title order: `mood` of artists (8), albums (9) and tracks (10), `style` of artists
+  and albums, `format` of albums (`Album`); `subformat` and `source` are empty there too. An album's
+  `Mood` is the agent's merged with its tracks', so `mood?type=9` is the albums' and their tracks'
+  moods (99: the union of the albums' 37 and the tracks' 86). rex answered a video library's empty cross-type axis
+  (`axes.json`).
+- **`/library/sections/{id}/albums`.** python-plexapi's `MusicSection.albums()` (`?includeGuids=1`,
+  paged by `X-Plex-Container-Start`/`-Size` headers) gets every album, in title order, `size`,
+  `totalSize` and `offset` beside the container rex already answered (`mixedParents`, `By Album`,
+  `viewGroup` `album`). Each row is `/all?type=9`'s with `allowSync`, `librarySectionID`, `-Title` and
+  `-UUID` first and `leafCount` before `addedAt`. rex answered it empty (`albums.json`).
+
 ## Music: a track's Part read per audio format (2026-11-01)
 
 Plexamp played an AAC `.m4a` from rex as `application/octet-stream`. Measured read-only on plexav (PMS
@@ -15283,3 +15371,328 @@ position inside the Part it converts.
   plays first: a real PMS gives no Media a default.
 - **Now Playing named the first Part while the second played**: the conversion's Media was built
   from the row's first Media and Part with the plan's duration; it is now the Part being converted.
+
+## Which files are videos: every extension a real PMS makes a Part of (2026-11-04)
+
+rex took fifteen extensions as video (`runtime/source.rs` `is_video`), chosen by hand: `.iso`
+among them, and `.3gp`, `.asf` and `.ogv` not, though cycle 54 had measured a Part of each. A
+source pushing anything else got `not a video file`, and zurg has fed `.mk3d` since 2026-08-31.
+Measured on plexscratch42 (1.42.2) with one small file per extension of the legacy scanner's
+`video_exts` (fun's `Scanners.bundle/.../VideoFiles.py`, 48 names) plus `.mk3d`, `.ifo`, `.iso` and
+a DVD's VIDEO_TS folder, in a section of each kind made for it (`videoext-movies`, Plex Movie;
+`videoext-shows`, Plex TV Series). ffmpeg 4.4.2 wrote every container it has a muxer for, dvdauthor
+the DVD and genisoimage its image, samples.ffmpeg.org gave real files of the rest, and the
+playlists are text. Each Part was read with `Range: bytes=0-9` and driven through the 78 profiles'
+plain-form decisions after its first audio stream was chosen (the corpus's `selected` state), and
+through Plex for Android (Mobile)'s own conversion request
+(`generic_transcode_target_s1422.json`'s last row, its path pointed at the item).
+`tests/fixtures/video_extensions_s1422.json` keeps the table, `tests/fixtures/media/s42-1099-0` to
+`s42-1140-0` each Part's probe and Media, and `tests/fixtures/decisions/` the 2,028 new cells.
+
+| Extension | Plex Movie | Plex TV Series | Container | Part read | 78 profiles: direct / convert / neither / 400 | Plex for Android's conversion | rex |
+|---|---|---|---|---|---|---|---|
+| .3g2 | Part | Part | mp4 | application/octet-stream | 47 / 16 / 15 / 0 | 1001 | takes |
+| .asx | Part, no stream | not tried | - | application/octet-stream | 0 / 0 / 0 / 78 | 400 | refuses |
+| .avc | Part | Part | h264 | application/octet-stream | 0 / 38 / 40 / 0 | 1001 | takes |
+| .avs | Part | not tried | mpeg | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .bivx | Part | not tried | avi | application/octet-stream | 17 / 29 / 32 / 0 | 1001 | takes |
+| .bup | no Part | Part, no stream (in VIDEO_TS) | - | application/octet-stream | 400 for the 3 tried | - | refuses |
+| .dv | Part | not tried | dv | application/octet-stream | 1 / 38 / 38 / 1 | 1001 | takes |
+| .dvr-ms | Part | not tried | asf | application/octet-stream | 5 / 33 / 39 / 1 | 1001 | takes |
+| .evo | Part | not tried | mpeg | application/octet-stream | 7 / 33 / 37 / 1 | 1001 | takes |
+| .f4v | no Part | not tried | - | - | - | - | refuses |
+| .fli | Part | not tried | flic | application/octet-stream | 0 / 38 / 40 / 0 | 1001 | takes |
+| .ifo | no Part | no Part (in VIDEO_TS) | - | - | - | - | refuses |
+| .iso | no Part (a DVD image) | not tried | - | - | - | - | refuses |
+| .m2t | Part | not tried | mpegts | application/octet-stream | 13 / 28 / 36 / 1 | 1001 | takes |
+| .m2v | Part | not tried | mpegvideo | application/octet-stream | 0 / 38 / 40 / 0 | 1001 | takes |
+| .mk3d | no Part | no Part | (mkv, ffprobe's matroska) | (octet-stream: no mk3d in the binary) | - | - | takes, rex's own |
+| .mkv (control) | Part | Part | mkv | video/x-matroska | 25 / 19 / 33 / 1 | 1001 | takes |
+| .mp4v | no Part | not tried | - | - | - | - | refuses |
+| .nsv | Part | not tried | nsv | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .nuv | Part | not tried | nuv | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .ogm | Part | not tried | ogg | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .pva | Part | not tried | pva | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .qt | Part | not tried | mp4 | video/quicktime | 45 / 15 / 18 / 0 | 1001 | takes |
+| .rm | Part | Part | rm | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .rmvb | Part | not tried | rm | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .sdp | Part, no stream | not tried | - | application/octet-stream | 0 / 0 / 0 / 78 | 400 | refuses |
+| .strm | Part, no stream | not tried | - | 301 to its URL | 0 / 0 / 0 / 78 | 400 | refuses |
+| .svq3 | Part | not tried | mp4 | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .tp | Part | not tried | mpegts | application/octet-stream | 12 / 29 / 36 / 1 | 1001 | takes |
+| .ty | Part | not tried | ty | application/octet-stream | 0 / 38 / 39 / 1 | 1001 | takes |
+| .vdr | Part | not tried | mpeg | application/octet-stream | 11 / 29 / 37 / 1 | 1001 | takes |
+| .viv | Part | not tried | vivo | application/octet-stream | 0 / 1 / 76 / 1 | 4007 | refuses |
+| .vob | no Part | Part (loose, `.VOB` and in VIDEO_TS) | mpeg | application/octet-stream | 7 / 33 / 37 / 1 | 1001 | takes |
+| .vp3 | Part | not tried | mgsts | application/octet-stream | 0 / 38 / 40 / 0 | 1001 | takes |
+| .webm | Part | not tried | mkv | video/webm | 0 / 38 / 39 / 1 | 1001 | takes |
+| .wtv | Part | Part | wtv | video/wtv | 0 / 38 / 39 / 1 | 1001 | takes |
+| .xsp | Part, no stream | not tried | - | application/octet-stream | 0 / 0 / 0 / 78 | 400 | refuses |
+| .xvid | Part | not tried | avi | video/x-msvideo | 17 / 29 / 32 / 0 | 1001 | takes |
+
+- **The two native scanners do not agree on `.vob`.** Plex Movie makes nothing of one, loose or in
+  VIDEO_TS, upper case or lower, while an `.mpg` of the same bytes is a Part; Plex TV Series takes
+  a loose one and, of a season's VIDEO_TS folder, makes one episode ("Episode 1", read off
+  `VTS_01`) of two Media, `VTS_01_1.VOB` (mpeg) and `VTS_01_0.BUP` (no container, no stream, a
+  400 to every profile tried). Neither takes `.mk3d`, `.ifo`, `.f4v` or `.mp4v`.
+- **Listed is not playable.** The playlists (`.asx`, `.sdp`, `.strm`, `.xsp`) are Parts with no
+  stream that every profile's decision answers 400; a `.strm` part read is a 301 to the URL inside
+  it. `.viv` has a Part whose video PMS names `none`, and every conversion of it answers 4007,
+  "Implementation for video decoder 'none' not found."; ffprobe 8.1.2 names no codec for it either.
+- **The Content-Type is the extension's**, over the table cycle 54 found: `.qt` is `video/quicktime`
+  though its container is `mp4`, `.xvid` `video/x-msvideo` though `.bivx` (the same avi) is an
+  octet-stream, `.wtv` `video/wtv`, and every other new one, `.vob` included, an octet-stream.
+  The binary's MIME strings are exactly that set; no string of it is `mk3d`.
+- **Containers come out of ffprobe's first format name**, as rex already named them: `.3g2`, `.qt`
+  and `.svq3` `mp4` (only `.mov` is `mov`), `.avc` `h264`, `.m2v` `mpegvideo`, `.fli` `flic`,
+  `.viv` `vivo`, `.vp3` `mgsts`, `.dvr-ms` `asf`, `.ogm` `ogg`, `.rmvb` `rm`, the MPEG-PS family
+  `mpeg` and `.m2t`/`.tp` `mpegts` with `packetLength` 188. The 27 new media fixtures pass
+  `test_mediainfo`'s container and packet-length checks on the unfixed binary: records, not
+  regressions.
+- **Xbox 360's asf-only transcode target is a 400 only for a Media with audio.** The four rows with
+  no audio stream (`.avc`, `.fli`, `.m2v`, `.vp3`, the corpus's first) answer 3000/2000/4007,
+  "Implementation for video encoder 'wmv2' not found."; the model refused them with the 400
+  (`decision::conversion`).
+- **An ISO is no video for any source.** PMS makes no Part of a DVD image, ffprobe reads the first
+  8 MiB of a real UHD Blu-ray ISO (fun's Usenet library) as "Invalid data found", so a source
+  can push no probe and rex would hold it for ever, and a real DVD ISO sniffs as MPEG-PS from its
+  menu VOB on.
+
+rex now takes the extensions a scanner makes a Part of with a stream something can decode, `.vob`
+the TV scanner's, and `.mk3d`, the Matroska no scanner takes (served as the octet-stream the
+binary's table would answer); it refuses the rest, `.iso` now included. Each new container
+converts through `REX_TRANSCODER` to a first segment that decodes as H.264 for Plex Web's own
+request: FFmpeg-written clips in `tests/test_video_extensions.py`, and once by hand the eleven real
+files FFmpeg cannot write (fli, nsv, nuv, pva, ty, vp3, svq3, rmvb, ogm, avs, dvr-ms). zurg feeds
+none of the new ones: fun's Real-Debrid library holds no file of any of them, its VIDEO_TS discs
+are Usenet RAR members (zurg serves a member VOB's bytes, `00 00 01 BA`), and the Movie scanner a
+disc rip lands in ignores VOBs. Not measured: which of these Plex for Android or Plezy plays
+direct on a device, since Android decides direct play in its own engine (`hasMDE=1`) and Plezy asks
+no decision at all.
+
+## Audiobooks, and every audio file PMS makes a track of (2026-11-04)
+
+Plex has no audiobook library: Chronicle (Android, `local.oss.chronicle`, github.com/fabiogermann/chronicle
+at 747e68e9), Prologue and Plexamp's audiobook view read a music library whose albums are books.
+Measured on plexav (PMS 1.43.4, Plex Music agent) with a library `Audiobooks` of one LibriVox
+recording (public domain, archive.org `selectedpoemsgordon_2509_librivox`) as its chaptered `.m4b`
+and its six per-chapter `.mp3`s, replaying every request Chronicle makes, read off its
+`PlexService.kt` and `PlexInterceptor.kt` (exact paths, parameter order, `X-Plex-*` headers and its
+`X-Plex-Client-Profile-Extra` direct-play profile), then Plex for Android's, Plexamp's and Plex Web's
+own recorded play-queue and detail requests pointed at the `.m4b` (`probes/record_audiobooks.py`,
+`tests/fixtures/music/chronicle.jsonl`, `tests/test_music_audiobooks.py`). A second library `Formats`
+held one small file of each audio extension (`probes/record_audio_formats.py`,
+`tests/fixtures/music/audio-formats.json`).
+
+| Extension | PMS 1.43.4 | Media `container` / `audioCodec` | Part read `Content-Type` | rex before |
+|---|---|---|---|---|
+| `.m4b` | track | `mp4` / `aac`, `audioProfile` `lc`, `optimizedForStreaming` 1 | `application/octet-stream` | refused |
+| `.ac3` | track | `ac3` / `ac3` | octet-stream | refused |
+| `.dts` | track | `dts` / (none: its analysis read no stream of FFmpeg's DTS) | octet-stream | refused |
+| `.dsd` | track | `dsf` / `dsd_lsbf_planar` (a DSF file) | octet-stream | refused |
+| `.mp2`, `.mpa` | track | `mp3` / `mp2` | `audio/mpeg` | refused |
+| `.mpc` | track | `mpc8` / `musepack8` | octet-stream | refused |
+| `.mp+`, `.mpp` | track | `mpc` / `musepack7` | octet-stream | refused |
+| `.rm`, `.rma` | track | `rm` / `ra_144` | octet-stream | refused |
+| `.shn` | track | `shn` / `shorten` | octet-stream | refused |
+| `.tak` | **no track** | | | refused (kept) |
+
+- **Chapters.** An `.m4b`'s QuickTime chapters are its track's `Chapter`s (`id`, `filter`
+  `thumb=<id>`, `tag` exactly as tagged, leading space included, `index` from 1, `startTimeOffset`,
+  `endTimeOffset` in ms) only with `includeChapters=1`, and `chapterSource="media"` on every read;
+  per-chapter `.mp3`s carry none. Plex for Android's and Plex Web's play queues ask for chapters and
+  get them, Plexamp's does not. rex already built them from `media_info.chapters`; it leaves out
+  `filter`, since it makes no chapter picture.
+- **An MP4-family track is `optimizedForStreaming`** (Media 1, Part true) whatever its atoms' order:
+  FFmpeg's `.m4b` with `moov` last as LibriVox's with it first. An AAC's `audioProfile` `lc` (and a
+  WAV's `pcm_s16le`) is on its Media and Part; rex dropped both.
+- **Chronicle's decision is refused.** `GET /music/:/transcode/universal/decision?...&hasMDE=1&
+  directPlay=1&directStream=1&musicBitrate=320&maxAudioBitrate=320` with no `mediaIndex` is a 400
+  ("MDE: hasMDE was specified along with directPlay without specifying a valid media and part
+  index" in PMS's log), music and video alike: `hasMDE=1` without `directPlay=0` needs a valid
+  `mediaIndex` (absent, empty, -1, out of range or a word: 400; `partIndex` alone does not help;
+  `hasMDE=0` or empty, or `directPlay=0`: 200). Chronicle then plays the listing's Part key. rex
+  answered 200 to both; it now answers the 400.
+- **Chronicle's play queue is refused too**: Retrofit writes `repeat=false&own=true&includeChapters=true`,
+  and PMS answers `repeat=false` 400 (`repeat=0` with the other words is 200), so Chronicle's
+  timelines carry `playQueueItemID=-1`. rex already answered the 400.
+- **Store track progress.** A track's `/:/timeline` keeps a resume point only while the library's
+  `enableTrackOffsets` (off by default) is on: with it off a paused beat at 95 s shows no
+  `viewOffset` on the track; on, it shows 95000, and a stop at 125 s 125000. The album never has
+  one. The play stamps `lastViewedAt` on the track and its album either way. The first
+  beat answers `{"size":0,"playbackState":"ignore"}`; later ones carry `skipCount`, `viewCount` 0
+  and `viewOffset` (-1 under a minute). rex kept every track's position and named the counts only
+  once a play or skip was counted. Not done: with the setting off PMS still answers the paused
+  beat's 95000 though no row shows it; rex keeps none, so answers -1.
+- **Scrobbles.** `/:/scrobble?key=<track>` plays the track (`viewCount` 1, its position gone) and
+  counts it on its album; `?key=<album>` plays every track of it, which rex did only for shows and
+  seasons; `/:/unscrobble` takes them back.
+- **Not done: an MP3's bytes.** PMS serves an MP3 Part without its ID3v2 tag (this book's first
+  file is 583,213 bytes and read as 581,380: its 1,833-byte tag gone; plexav's One More Time 187),
+  while its listed `size` counts the tag. rex serves the source's bytes as they are.
+- **Untagged files.** PMS titles a track with no title tag after its file and files a folder of
+  untagged files as `[Unknown Album]` under `Various Artists`; rex has no tags to read, so a source
+  names its tracks with `display`.
+
+## A photo library, measured (2026-11-04)
+
+plexscratch (PMS 1.43.4, unclaimed, offline) was given a photo library through Plex Web 4.160.0's own
+Add Library, Photos (`POST /library/sections?name=Photos&type=photo&agent=tv.plex.agents.none&scanner=Plex%20Photo%20Scanner&language=en-US&...&metadataAgentProviderGroupId=4`),
+on a folder of Pepper&Carrot pages (David Revoy, CC BY 4.0): pictures at the top, two levels of
+folders, a PNG, and later a folder named `Witch Test v01 (2019) (Digital).cbz`. Plex Web was held
+open over CDP on a Chrome whose plex.tv resource list was rewritten to the one scratch server, and
+walked Recommended, Timeline, Library, an album, a sub-album, the viewer forward and back, the
+album's slideshow and a picture at the top (`tests/fixtures/photos/web-photos.jsonl`,
+`probes/photo_capture_fixture.py`; `tests/test_photo_library.py` replays it at rex).
+
+- **Folders are albums, named as they are.** An album is `type="photo"` with a `/children` key (a
+  `Directory`; Plex type 14), a picture `type="photo"` (a `Photo`; 13). An album is titled exactly as
+  its folder, extension and all (`Witch Test v01 (2019) (Digital).cbz`), a picture as its file name
+  without its extension. Every row's `index` is 1.
+- **A `.cbz` file is nothing to PMS.** The comic book beside the folders was left out of the library:
+  a comic is a photo album only where something shows its pages as a folder. rex takes them as its
+  source pushes them (`docs/feed-api.md` "Photos").
+- **Natural title order.** `page 1`, `page 10`, `page 2` were keyed in that (scan) order and listed
+  `page 1`, `page 2`, `page 10`; albums and pictures sort together (`E02P03` before `Sketches`).
+  Recently Added is newest first, then by key; the Timeline's listing newest first, then by title.
+- **No EXIF, the file's own time.** A picture without EXIF is dated by its file's modification time
+  (`addedAt` and `originallyAvailableAt`), `createdAtAccuracy="local"`, `createdAtTZOffset` the
+  server's offset in seconds, as text. `aspectRatio` is the video bucket nearest width over height
+  (1200x1660 is 1.33, 1200x287 2.35). `container` is `jpeg` for a `.jpg`, `png` for a `.png`.
+- **The viewer is a play queue.** `POST /playQueues?type=photo&uri=.../library/metadata/{album}/children&key=/library/metadata/{photo}`
+  from a picture, `uri=.../library/metadata/{album}` from the album's Play, and the library's listing
+  with `key` from a picture at the top, which queued all eight pictures of every album in title
+  order. Its rows carry parent and grandparent fields; `/:/timeline` for a picture answers
+  `{"size":0,"playbackState":"ignore"}` (`playing` on show, `stopped` with `continuing=1` on the
+  next), and the queue's selected item follows the viewer. The slideshow advances every 4 s.
+- **Pictures are JPEG.** Plex Web asks `/photo/:/transcode?width=..&height=..&minSize=1&upscale=1&url=/library/parts/{id}/{t}/file.jpg`
+  for the viewer (1920x1213) and the filmstrip, and `url=/library/metadata/{id}/thumb/{t}` for
+  tiles. Thumb, composite and every transcode answer `image/jpeg`, a PNG's transcode too, whose
+  bytes stay a PNG; a Part read is `image/jpeg` or `image/png` by its file. rex answers the picture
+  itself to all of them (no resizer) with those types.
+- **A picture on screen is a session.** `/status/sessions` listed the picture being viewed with its
+  Player and User. rex does not (yet).
+- **Plex for Android 2026.21.0 lists no photo library.** Pinned to plexscratch through the Android
+  harness (`harness/android`), it read `/media/providers` (which lists the photo section) and showed
+  only Movies and TV Shows, in the favourites sheet and in All Libraries, under "Looking for
+  dedicated Music and Photos apps?": Plexamp and Plex Photos. A real PMS's photo library is not
+  reachable there either; the separate Plex Photos app is the Android viewer, and is unmeasured.
+- **Plezy** (main, 2026-11-03) knows a `photo` kind for its icons and search labels and has no photo
+  viewer in its tree; unmeasured on a device.
+
+## What Plex's agent says of a title, shown as a real PMS shows it (2026-11-04)
+
+rex described a title from Plex's agent's match (`metadata::describe`) and kept little of it: six
+people of each kind, no producer, no original title, no theme music, clear logo or square art. A
+read-only survey of the production rex's own kept answers (`plex_cache.db`) against its rows:
+232 of 352 shows had theme music, 2,531 of 2,648 films and 331 of 351 shows a clear logo, 2,546
+films square art, 2,632 a producer, 438 an original title and 347 shows a network; a median show's
+cast is 39. None of it was served. The note above ("deliberately NOT copied") declined clear logos
+because rex then had no artwork of its own to serve; it has fetched Plex's artwork since.
+
+Measured on plexlab (1.43.4, unclaimed since 2026-10-22, its library matched while claimed) for
+Plex Web's and Plex for Android's own requests (`tests/fixtures/agent_description_s1434.json`,
+`probes/record_agent_description.py`), against the same titles' agent answers (`feed/specials.json`'s
+Firefly, `provider/matches.json`'s Big Buck Bunny):
+
+- **A film's and a show's `Image` list is four**: `coverPoster`, `background`, `clearLogo`
+  (`/library/metadata/{rk}/clearLogo/{v}`) and `backgroundSquare` (`/library/metadata/{rk}/squareArt/{v}`),
+  each only when the agent has one (Cosmos Laundromat has no logo), on the detail row and the grid
+  row alike. A season's and an episode's carry their show's `clearLogo` and `backgroundSquare`
+  paths after their own poster, snapshot and background.
+- **A show names its theme** (`theme`, `/library/metadata/{rk}/theme/{v}`) on its detail and grid
+  rows; its seasons carry it as `parentTheme` (after `parentThumb`), its episodes as
+  `grandparentTheme` (after `grandparentArt`). The agent's `theme` is TVDB's
+  (`https://tvthemes.plexapp.com/78874.mp3`); films have none.
+- **The reads**: theme `audio/mpeg3`, logo and square art `image/jpeg` (Firefly's logo is a PNG),
+  `X-Plex-Local-Asset: 1`, `Cache-Control: no-cache`, `Accept-Ranges: bytes`; any version and the
+  bare leaf alike; a Range is a 206 (Plex Web's `<audio>` asks `bytes=0-`); HEAD a 200 with the
+  length. The bytes are the agent's file unchanged (Firefly's theme 962,175 bytes, its logo and square
+  art, and Big Buck Bunny's square art hash as plexlab's). A season borrowing its show's answers 404 at
+  its own `theme`, `clearLogo` and `squareArt`, and a film at `theme`.
+- **`squareArts`** (1.43.4's, 404 on 1.42.2, which rex no longer reports) lists the row's square art,
+  selected; a season's is empty.
+- **Every person the agent credits**: Firefly's 112 actors in the agent's order, each `tagKey` the
+  agent's person id; a show lists no director, writer or producer though its agent names them;
+  The Train Job its own 24 actors, director, writers and producers, none of its show's; Big Buck
+  Bunny its producer, director and writer. The 1.42.2 reference's library agrees (its database,
+  read-only): up to 200 actors on an item (21.4 on average), a producer on 1,471 of 1,541 matched
+  films and on no show, no director on any show, an original title the agent gives on 474 films and
+  169 of 463 shows (`KPop Demon Hunters` / `K-Pop Demon Hunters`, `Attack on Titan` / `進撃の巨人`),
+  and network tags on 451 shows.
+- **A show's networks are a filter and an axis, never a row field**: plexlab lists Firefly under
+  `By Network` FOX (`/library/sections/2/network`, `network=177`) and no row of it carries `Network`.
+
+rex now keeps all of it (`metadata::agent_fields`): a film's theme, logo and square art as
+`_theme_url`, `_clearLogo_url`, `_squareArt_url` (where an upload already kept its own, which stays),
+served at paths `restamp_artwork` mints for them (`artwork::ASSETS`) and fetched off the lock as
+their measured types; a show's ride on its episode's leaf (`hierarchy::SHOW_HINTS`). A row described
+before is given them at the next start from the answers it was described from, read from
+`plex_cache.db` alone (`feed::describe_again`, `plexmeta::Kept`): a film or show by the ids its
+source placed it with and only when they name its guid, an episode by its own guid among its
+season's episodes; a lock, an upload and a hand match stay. `tests/test_agent_description.py`.
+
+Not done, measured for whoever takes it: **reviews** (`includeReviews=1`, asked 846 times on the
+production rex) and **agent-hosted extras** (`includeExtras=1`, 928 times). plexlab's PMS asked the
+agent `GET /library/metadata/{id}?excludeElements=Collection&includeReviews=1` and `.../extras` with
+its claim's server token, and the agent answered both (its outbound capture, 2026-09-12 and
+2026-10-03: 20 Rotten Tomatoes reviews each for three films, Big Buck Bunny's IVA trailer with a
+`Media.url` on video.internetvideoarchive.net). PMS keeps the trailer as a clip row of its own
+(`primaryExtraKey`, `extraType` 1, `Media.premium`) whose Part key `/services/iva/assets/481939/video.mp4?fmt=4&bitrate=750`
+302s to an IVA url it signs itself, and stopped listing it once unclaimed (`hasPremiumPrimaryExtra`,
+`Extras` size 0): a Plex Pass extra. No film of plexlab's has a review, so the `Review` element's
+shape on a film is unrecorded.
+
+## VobSub sidecars (2026-11-04)
+
+fun's Usenet library carried 690 VobSub files (`.idx` + `.sub`) in 333 releases: 31 loose in 17,
+659 inside RAR/7z sets in 316, most of them STARS' and RSG's German anime and series. rex's feed
+refused every `.idx`, so none reached a client. Measured on a fresh, unclaimed 1.42.2.10156 (the
+build plexscratch42 runs; the listings checked on plexscratch42 itself) with real pairs read
+unchanged through fun's zurg beside generated 1080p black clips, each client's own request
+replayed (`tests/fixtures/subtitles/vobsub_s1422.json`, `probes/record_vobsub.py`):
+
+| What | A real PMS |
+|---|---|
+| The listing | one stream per pair: `codec` and `format` `idx`, `key` `/library/streams/{id}`, `Deutsch (VOBSUB External)` |
+| Its language | the `.idx`'s `id:` line, not the name: `X.en.forced.idx` holding `id: de` is `Deutsch Forced` (the forced flag IS the name's) |
+| An `.idx` of four languages (McBain: da fi no sv) | four streams until the part is analysed, then one: the first's id, the LAST language (Svenska). Reproduced on plexscratch42 with `PUT .../analyze` |
+| Which pairs | the video's name (`X.idx`, `X-forced.idx`, `X.en.forced.idx`), in a `Subs/` folder too, and in a folder of one video any name (RSG's `rsg-the-100-...idx`); an `.idx` without its `.sub` none |
+| `GET /library/streams/{id}` and `.idx` | the `.idx` bytes, `text/html` |
+| `.sub` | the `.sub` bytes, to the byte; with `encoding=utf-8` (Plezy's request) every byte over 0x7f dropped (28,672 B as 17,901) |
+| any other extension | 404 (`.srt`, `.vtt`, `.ass`, `.sup`, `.xyz`) |
+| An SRT or ASS sidecar | its own extension only (`.srt`, `.ass`); `.vtt` on an SRT a 404 |
+| An embedded track | the bare stream's answer by any extension: 501 |
+| Plex Web's conversion | burned: `burn: "1"`, codec `idx`, no `format`, `segments-av`; the bitmaps of the `.idx`'s FIRST track (McBain's da, the frame within 0.005 of FFmpeg's da and 0.8-1.2 of the others) |
+| Plex for Android's and iOS's Generic (Matroska targets listing `vobsub`) | muxed: codec and format `vobsub`, `transcode`, `segments-subs`; the segment carries a `dvd_subtitle` track (the first track's packets, tagged with the listed language: McBain's `swe`), the picture untouched |
+| An embedded VobSub there | copied (`copy`, `segments-av`, format `vobsub`); Plex Web burns it |
+| Plex Web's direct-play request | `mdeDecisionCode` 1000, the subtitle `ignore` |
+
+Traps: an offline Plex Movie agent adds no local subtitle at all (a Personal Media library does);
+an offline PMS answers every conversion's playlist 500 (`Decoder install failed: h264`: it
+downloads its codecs), and in that state it even planned `png` video for iOS's Generic profile;
+and PMS takes byte-identical files for one part ("Duplicate media part detected"), so each clip
+has to differ. rex now does the same (`feed.rs` `idx_language`, `subtitles.rs` `external_stream`
+and `vobsub_read`, `universal.rs` `VobSub`), except that rex lists no sidecar's `file` (it never
+has for an SRT) and does not write an embedded track's `headerCompression` (mkvmerge's zlib, which
+ffprobe does not report). rex still burns embedded PGS for Matroska targets: no copy of one was
+measured. `tests/test_vobsub_sidecars.py`.
+
+## The new file types on real phone clients (2026-11-04)
+
+Ben's Pixel 6 (Android 16) with Plex for Android 2026.19.1, Plezy 2.24.0 and Chronicle 0.62.0,
+signed in to the account a zen test rex was claimed to (proxy parts, jellyfin-ffmpeg 8.1.3), fed by a
+static Range source and the feed API. Each app was driven over adb (uiautomator dumps, taps), and
+what it asked for was read off rex's own log: the decision, the Part reads and the timelines. A
+decision that looked wrong was replayed byte for byte, the app's exact query, against the 1.42.2
+reference's build on plexscratch42. What follows is what the clients do, not rex: a real PMS
+answers the same requests the same way, so none of it is a rex defect, and none was worked around.
+
+| Client | What | Measured |
+|---|---|---|
+| Plex for Android | direct play of any WMAv2 audio: `.wmv`, `.asf`, `.dvr-ms`, and an H.264 + WMAv2 `.mkv` | the app crashes in its own decoder (logcat: SIGSEGV in its bundled libavcodec, `avcodec_send_packet`). rex said direct play, and the 1.42.2 reference answers the app's exact decision request the same, `mdeDecisionCode` 1000. WMV2 video with AAC plays, and the same files play once converted |
+| Plex for Android | a raw `.avc` (H.264 elementary stream), with and without a duration in its probe | direct play starts and stops at about 0.3 s (timeline `stopped` at 274 ms); the reference's answer is the same shape. Plezy plays the same file |
+| Plezy | a VobSub sidecar (`.idx` + `.sub`) | asks `/library/streams/{id}.srt?encoding=utf-8`, gets the 404 a real PMS gives any extension but a sidecar's own (VobSub sidecars, above), and offers only Off. An SRT sidecar shows |
+| Plezy | a photo library (comics as albums of pages) | lists the library, shows each album as a TV show, and Play fails with "File information not available". Plezy has no photo viewer; Plex for Android lists no photo library at all, from a real PMS either, and points to the Plex Photos app |
+
+The phone's screenshots and logs stay with the test notes, not here: they show Plex's own UI.

@@ -29,6 +29,8 @@ pub(super) struct Library {
     pub key: String,
     pub kind: String,
     pub title: String,
+    /// What Plex's agent is asked in (`Runtime::section_language`).
+    pub language: String,
     pub plex: Option<Arc<plexmeta::PlexMeta>>,
 }
 
@@ -49,10 +51,12 @@ pub(super) struct Arrival {
     pub numbers: Option<(i64, i64)>,
 }
 
+/// A Part key's extension: the file's own, as PMS keeps it -- `.dvr-ms`'s six letters too
+/// (plexscratch42's `file.dvr-ms`, `tests/fixtures/media/s42-1105-0.json`).
 pub(super) fn extension(file: &str) -> String {
     file.rsplit_once('.')
         .map(|(_, extension)| extension.to_ascii_lowercase())
-        .filter(|extension| (2..=5).contains(&extension.len()))
+        .filter(|extension| (2..=6).contains(&extension.len()))
         .unwrap_or_else(|| "mkv".to_string())
 }
 
@@ -192,7 +196,8 @@ pub(super) fn identified_by(
 /// (`feed::number_unplaced`) names no episode of Plex's. A release named as the other kind of title
 /// than its library's, or not at all, stays unmatched for Fix Match: nothing is asked for it.
 pub(super) fn name_release(plan: &Library, arrivals: &mut [Arrival]) {
-    let plex = plan.plex.as_deref();
+    let plex = plan.plex.as_deref().map(|plex| plex.in_language(&plan.language));
+    let plex = plex.as_ref();
     let Some(first) = arrivals.first() else {
         return;
     };
@@ -632,11 +637,17 @@ impl Runtime {
             return false;
         };
         let present = |value: &&Value| !value.is_null() && value.as_str() != Some("");
-        let changes: Vec<(&str, Value)> = [("_poster_url", "thumb"), ("_art_url", "art")]
-            .into_iter()
-            .filter(|(field, lock)| row.get(*field).filter(present).is_none() && !super::edit::field_locked(&row, lock))
-            .filter_map(|(field, _)| Some((field, built.get(field).filter(present)?.clone())))
-            .collect();
+        let changes: Vec<(&str, Value)> = [
+            ("_poster_url", "thumb"),
+            ("_art_url", "art"),
+            ("_theme_url", "theme"),
+            ("_clearLogo_url", "clearLogo"),
+            ("_squareArt_url", "squareArt"),
+        ]
+        .into_iter()
+        .filter(|(field, lock)| row.get(*field).filter(present).is_none() && !super::edit::field_locked(&row, lock))
+        .filter_map(|(field, _)| Some((field, built.get(field).filter(present)?.clone())))
+        .collect();
         if changes.is_empty() {
             return false;
         }
@@ -708,6 +719,9 @@ impl Runtime {
         });
         if probe.is_none() {
             leaf["_probePending"] = json!(true);
+        }
+        if media.get("duration").is_none() {
+            leaf.as_object_mut().map(|leaf| leaf.shift_remove("duration"));
         }
         if let Some(hash) = arrival.entry.get("hash").and_then(Value::as_str) {
             leaf["_hash"] = json!(hash);
@@ -786,7 +800,7 @@ impl Runtime {
         let parent = self.catalog.get(&parent_key)?.clone();
         let index = self.extras_of(&parent_key).into_iter().map(super::clip_index).max().unwrap_or(0) + 1;
         let section = parent.get("librarySectionID").map(string_value).unwrap_or_else(|| plan.key.clone());
-        let film = Library { key: section, kind: "movie".to_string(), title: plan.title.clone(), plex: None };
+        let film = Library { key: section, kind: "movie".to_string(), title: plan.title.clone(), language: plan.language.clone(), plex: None };
         let mut clip = self.leaf_for(&film, arrival, None)?;
         let object = clip.as_object_mut()?;
         for field in ["_identity", "year"] {
@@ -945,7 +959,10 @@ impl Runtime {
                 mediainfo::select_media_tracks(&mut media, prefs);
             }
             if let Some(object) = self.catalog.get_mut(&key).and_then(Value::as_object_mut) {
-                object.insert("duration".to_string(), media.get("duration").cloned().unwrap_or(json!(0)));
+                match media.get("duration") {
+                    Some(duration) => object.insert("duration".to_string(), duration.clone()),
+                    None => object.shift_remove("duration"),
+                };
                 object.insert("Media".to_string(), json!([media]));
                 object.shift_remove("_probePending");
             }
@@ -1459,6 +1476,7 @@ mod tests {
             key: "1".to_string(),
             kind: kind.to_string(),
             title: "x".to_string(),
+            language: "en-US".to_string(),
             plex: Some(Arc::new(plexmeta::PlexMeta::new(Arc::clone(&claim), dir.join("plex_cache.json")))),
         };
         let mut movie = vec![film()];

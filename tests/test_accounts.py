@@ -674,8 +674,81 @@ def declared_move_keeps_each_account():
         shutil.rmtree(work, ignore_errors=True)
 
 
+def one_guid_shares_watch_state():
+    """Fizzy #579: a real PMS keeps watch state per account and GUID, not per item: PMS
+    1.43.4's `metadata_item_settings` (plexscratch) has `account_id` and `guid` and no item id,
+    and its listings read it `left join metadata_item_settings on
+    metadata_item_settings.guid=metadata_items.guid and metadata_item_settings.account_id=?`
+    (the PMS binary's SQL). So one film in two libraries is watched in both once played in
+    either, and each account's state stays its own (#487). The two rows are the card's
+    reproduction: "Movies" and "Movies 4K", ratingKeys 1 and 2, one guid; key 4 has another."""
+    grant = '<section key="1" createdAt="2026-10-17 15:35:28 UTC"/>'
+    PlexTv.tokens = LIST.replace('filterMovies="contentRating=G%2CPG"', 'filterMovies=""').replace(
+        grant, "".join(grant.replace('"1"', '"%d"' % key) for key in (1, 2)))
+    stub = http.server.ThreadingHTTPServer(("127.0.0.1", free_port()), PlexTv)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    work = tempfile.mkdtemp(prefix="rex-accounts-guid-")
+    document = catalog([])
+    sections = document["sections"]
+    sections[1] = dict(sections[0], key="2", title="Movies 4K", uuid="5b0e2b7e-4a1c-4f39-9d55-2f6a8c1d7e40",
+                       Location=[{"id": 2, "path": "/data/movies-4k"}])
+    shared, other = "plex://movie/5d776d1796b655001fe3f5d3", "plex://movie/5d776b04594b2b001e6cc839"
+    document["items"] = [
+        {"ratingKey": key, "key": "/library/metadata/" + key, "guid": guid, "type": "movie",
+         "title": title, "year": 2010, "duration": 10031, "addedAt": 1789187071 + int(key),
+         "librarySectionID": int(section), "librarySectionTitle": sections[int(section) - 1]["title"],
+         "librarySectionKey": "/library/sections/" + section, "Media": media(key)}
+        for key, section, guid, title in (("1", "1", shared, "Sintel"), ("2", "2", shared, "Sintel"),
+                                          ("4", "1", other, "Tears of Steel"))]
+    json.dump(document, open(os.path.join(work, "catalog.json"), "w"))
+    json.dump({"machine": MACHINE, "token": SERVER_TOKEN, "owner": "owner", "email": "owner@example.com",
+               "feature_uuids": [], "account_id": 316687974, "view_state_cursor": None, "access_tokens": []},
+              open(os.path.join(work, "claim_state.json"), "w"))
+    server = Server(work, stub.server_address[1])
+    library = ("identifier", "com.plexapp.plugins.library")
+
+    def row(token, key):
+        return (rex_rows(server.ask(token, "GET", "/library/metadata/%s" % key)[1]) or {}).get(key, {})
+
+    def state(token, key):
+        found = row(token, key)
+        return {name: found.get(name) for name in ("viewCount", "viewOffset", "lastViewedAt")}
+
+    try:
+        server.ask(OWNER, "GET", "/:/scrobble", [("key", "1"), library])
+        both = (state(OWNER, "1"), state(OWNER, "2"))
+        check("one guid: the owner's scrobble of key 1 marks key 2, the same film in Movies 4K, watched",
+              both[0]["viewCount"] == 1 and both[1]["viewCount"] == 1
+              and both[1]["lastViewedAt"] == both[0]["lastViewedAt"] is not None, both)
+        _, unwatched = server.ask(OWNER, "GET", "/library/sections/2/all", [("unwatched", "1")])
+        listed = sorted(rex_rows(unwatched))
+        check("one guid: Movies 4K's unwatched filter lists nothing for the owner", listed == [], listed)
+        check("one guid: key 4, another guid, stays unwatched", not state(OWNER, "4")["viewCount"], state(OWNER, "4"))
+        check("one guid: the share's copy of either stays unwatched (#487)",
+              not state(SHARED, "1")["viewCount"] and not state(SHARED, "2")["viewCount"],
+              (state(SHARED, "1"), state(SHARED, "2")))
+        server.ask(SHARED, "GET", "/:/timeline", [("ratingKey", "2"), ("key", "/library/metadata/2"), library,
+                                                  ("state", "stopped"), ("time", "600000"), ("duration", "7200000")])
+        progress = (state(SHARED, "1"), state(SHARED, "2"), state(OWNER, "1"), state(OWNER, "4"))
+        check("one guid: the share's timeline on key 2 is its resume point on key 1 too",
+              progress[0]["viewOffset"] == 600000 and progress[1]["viewOffset"] == 600000, progress[:2])
+        check("one guid: the owner's rows keep no share's progress, and key 4 none at all",
+              not progress[2]["viewOffset"] and progress[2]["viewCount"] == 1 and not progress[3]["viewOffset"],
+              progress[2:])
+        server.ask(OWNER, "GET", "/:/unscrobble", [("key", "2"), library])
+        cleared = (state(OWNER, "1"), state(OWNER, "2"), state(SHARED, "1"))
+        check("one guid: the owner's unscrobble of key 2 clears key 1, and the share's progress stays",
+              not cleared[0]["viewCount"] and not cleared[1]["viewCount"] and cleared[2]["viewOffset"] == 600000,
+              cleared)
+    finally:
+        server.stop()
+        stub.shutdown()
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def main():
     declared_move_keeps_each_account()
+    one_guid_shares_watch_state()
     for variant, name, tokens in VARIANTS:
         run(variant, name, tokens)
     failed = results.count(False)

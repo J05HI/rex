@@ -31,6 +31,7 @@ use serde_json::Value;
 /// Every field a hot row keeps, sorted (`get` searches it).
 pub const FIELDS: &[&str] = &[
     "_collections",
+    "_described",
     "_librarySectionID",
     "_matched",
     "_parentRatingKey",
@@ -547,6 +548,12 @@ impl<'h, 'a: 'h> Lazy<'h, 'a> {
     /// file when it is not in memory (`rows.rs`).
     pub fn body(&self) -> &'a Value {
         self.rows.get(self.hot.position).unwrap_or(&UNREAD)
+    }
+
+    /// The whole row for `visit` alone (`Rows::with_row`): `body` keeps what it reads until the
+    /// request's `trim`, which a pass outside a request never reaches.
+    pub fn with_body<R>(&self, visit: impl FnOnce(&Value) -> R) -> R {
+        self.rows.with_row(self.hot.position, visit)
     }
 
     pub fn get(&self, name: &str) -> Option<Field<'h>> {

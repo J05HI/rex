@@ -32793,7 +32793,9 @@ def main():
     request(base, "PUT", "/library/metadata/%s?collection.locked=0" % first_c64c)
     check("a collection's Advanced settings are localised",
           (settings_c64c.get("collectionMode") or {}).get("label") == "Sammlungsmodus"
-          and (settings_c64c.get("collectionSort") or {}).get("enumValues") == "0:Erscheinungsdatum|1:Alphabetisch",
+          # A claimed server's three orders (1.43.4, collection_logos_s1434.json), rex's own German for Custom.
+          and (settings_c64c.get("collectionSort") or {}).get("enumValues")
+          == "0:Erscheinungsdatum|1:Alphabetisch|2:Benutzerdefiniert",
           str({k: v.get("label") for k, v in settings_c64c.items()}))
 
     # Cycle 65, measured on plexscratch42 (1.42.2) in ten languages through one scan: a socket

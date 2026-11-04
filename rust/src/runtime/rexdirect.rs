@@ -34,6 +34,12 @@ use super::upstream;
 const REGISTER_URL: &str = "https://debridmediamanager.com/api/rex-direct/register";
 const REFRESH: Duration = Duration::from_secs(6 * 3600);
 const RETRY: Duration = Duration::from_secs(600);
+/// A 403 is DMM's "The Plex account does not own this server", which it also answers right after
+/// a claim, before plex.tv's /api/v2/resources lists the server (kids, 2026-11-04: the claim's
+/// 403, then a 202 ten minutes on, at the old retry). So the first 403s since `start` ask again
+/// in a minute: ten of them, covering the 10 minutes that retry found the listing inside.
+const SOON: Duration = Duration::from_secs(60);
+const SOON_REFUSALS: u32 = 10;
 /// Short: the start waits on it before the port opens.
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -144,6 +150,8 @@ fn parse(body: &[u8]) -> Result<Registration, String> {
 enum Later {
     Pending(Duration, Option<String>),
     Failed(String),
+    /// A 403: the provider's plex.tv check found no server of the account's with this id.
+    Refused(String),
 }
 
 impl Later {
@@ -155,21 +163,28 @@ impl Later {
         Self::Pending(Duration::from_secs(after), reason(&answer))
     }
 
-    fn after(&self) -> Duration {
+    /// `refused` counts the 403s since `start`.
+    fn after(&self, refused: &mut u32) -> Duration {
         match self {
             Self::Pending(after, _) => *after,
             Self::Failed(_) => RETRY,
+            Self::Refused(_) => {
+                *refused += 1;
+                if *refused <= SOON_REFUSALS { SOON } else { RETRY }
+            }
         }
     }
 
-    fn log(&self) {
+    fn log(&self, after: Duration) {
         match self {
             Self::Pending(after, why) => info!(
                 "rex-direct: the provider is still issuing the certificate{}; asking again in {} s",
                 why.as_ref().map(|why| format!(" ({why})")).unwrap_or_default(),
                 after.as_secs()
             ),
-            Self::Failed(why) => warning!("rex-direct: registration failed: {why}; retrying in {} min", RETRY.as_secs() / 60),
+            Self::Failed(why) | Self::Refused(why) => {
+                warning!("rex-direct: registration failed: {why}; retrying in {} min", after.as_secs() / 60)
+            }
         }
     }
 }
@@ -291,7 +306,8 @@ impl RexDirect {
             202 => Err(Later::pending(&answer)),
             _ => {
                 let reason = serde_json::from_slice::<Value>(&answer).ok().as_ref().and_then(reason);
-                Err(Later::Failed(format!("HTTP {status}{}", reason.map(|reason| format!(" ({reason})")).unwrap_or_default())))
+                let why = format!("HTTP {status}{}", reason.map(|reason| format!(" ({reason})")).unwrap_or_default());
+                Err(if status == 403 { Later::Refused(why) } else { Later::Failed(why) })
             }
         }
     }
@@ -347,12 +363,14 @@ impl RexDirect {
 
     /// Once claimed, on the caller's thread (a claimed start's, before the port opens): the
     /// provider's answer, else the one kept, else none. Then a thread registers again every
-    /// 6 h, 10 min after a failure, and when a 202 says.
+    /// 6 h, 10 min after a failure (1 min after one of the first 403s), and when a 202 says.
     pub(crate) fn start(self, plextv: Arc<PlexTv>) {
+        let mut refused = 0;
         let (mut current, mut next) = match self.attempt(None, &plextv) {
             Ok(fresh) => (Some(fresh), REFRESH),
             Err(later) => {
-                later.log();
+                let after = later.after(&mut refused);
+                later.log(after);
                 let kept = std::fs::read(&self.file)
                     .map_err(|error| error.to_string())
                     .and_then(|kept| parse(&kept))
@@ -360,10 +378,10 @@ impl RexDirect {
                     .ok();
                 match (&kept, &later) {
                     (Some(_), _) => info!("rex-direct: serving the answer kept in {} until the provider answers", self.file.display()),
-                    (None, Later::Failed(_)) => warning!("rex-direct: running without it until the provider answers"),
+                    (None, Later::Failed(_) | Later::Refused(_)) => warning!("rex-direct: running without it until the provider answers"),
                     (None, Later::Pending(..)) => {}
                 }
-                (kept, later.after())
+                (kept, after)
             }
         };
         let _ = thread::Builder::new().name("rex-direct".to_string()).spawn(move || loop {
@@ -374,8 +392,9 @@ impl RexDirect {
                     REFRESH
                 }
                 Err(later) => {
-                    later.log();
-                    later.after()
+                    let after = later.after(&mut refused);
+                    later.log(after);
+                    after
                 }
             };
         });
@@ -510,9 +529,91 @@ mod tests {
         assert_eq!(wait(r#"{"retryAfter": 1}"#), Later::Pending(Duration::from_secs(15), None));
         assert_eq!(wait(r#"{"retryAfter": 86400}"#), Later::Pending(Duration::from_secs(600), None));
         for body in ["{}", r#"{"retryAfter": -5}"#, r#"{"retryAfter": "30"}"#, r#"{"retryAfter": 2.5}"#, "not json", ""] {
-            assert_eq!(wait(body).after(), Duration::from_secs(60), "{body:?}");
+            assert_eq!(wait(body).after(&mut 0), Duration::from_secs(60), "{body:?}");
         }
-        assert_eq!(Later::Failed("HTTP 500".to_string()).after(), RETRY);
+        assert_eq!(Later::Failed("HTTP 500".to_string()).after(&mut 0), RETRY);
+    }
+
+    /// DMM's answer to a registration plex.tv does not yet list as the account's server
+    /// (`src/utils/plexServerOwner.ts`), as rex logged it on kids right after a claim, 2026-11-04.
+    const NOT_OWNED: &str = r#"{"error":"The Plex account does not own this server"}"#;
+
+    /// A provider on loopback answering each registration with the next of `answers`.
+    fn provider(answers: Vec<(u16, &'static str)>) -> String {
+        use std::io::{BufRead, BufReader, Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/api/rex-direct/register", listener.local_addr().unwrap());
+        thread::spawn(move || {
+            for (status, body) in answers {
+                let (stream, _) = listener.accept().unwrap();
+                let mut reader = BufReader::new(stream);
+                let mut length = 0;
+                loop {
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                        length = value.trim().parse().unwrap();
+                    }
+                    if line.trim().is_empty() {
+                        break;
+                    }
+                }
+                reader.read_exact(&mut vec![0; length]).unwrap();
+                let answer = format!("HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                reader.get_mut().write_all(answer.as_bytes()).unwrap();
+            }
+        });
+        url
+    }
+
+    #[test]
+    fn a_403_right_after_a_claim_asks_again_in_a_minute_and_repeated_ones_every_10_min() {
+        let direct = RexDirect {
+            key: None,
+            url: provider(vec![(403, NOT_OWNED), (403, NOT_OWNED)]),
+            machine: "a1b2c3".to_string(),
+            name: "rex".to_string(),
+            announce: None,
+            port: 32400,
+            lan_port: 32400,
+            file: PathBuf::from("rex-direct.json"),
+            certificates: Arc::new(Certificates::new(None)),
+        };
+        let refusal = direct.register("SERVER-TOKEN").err().expect("a 403 is no answer");
+        assert_eq!(refusal, Later::Refused("HTTP 403 (The Plex account does not own this server)".to_string()));
+        // plex.tv lists a just-claimed server late: the next tries come at the short interval...
+        let mut refused = 0;
+        let waits = (0..SOON_REFUSALS + 2).map(|_| refusal.after(&mut refused)).collect::<Vec<_>>();
+        assert_eq!(waits[..SOON_REFUSALS as usize], vec![Duration::from_secs(60); SOON_REFUSALS as usize][..]);
+        // ...and a refusal that lasts falls back to the 10-minute retry, not hammering the provider.
+        assert_eq!(waits[SOON_REFUSALS as usize..], [RETRY, RETRY]);
+        // Other failures and a 202 do not spend or need the short tries.
+        assert_eq!(Later::Failed("HTTP 401 (Invalid API key)".to_string()).after(&mut 0), RETRY);
+        let mut none = 0;
+        assert_eq!(Later::pending(br#"{"retryAfter": 60}"#).after(&mut none), Duration::from_secs(60));
+        assert_eq!(none, 0);
+        // The second refusal comes through register too: the stub answered both.
+        assert!(matches!(direct.register("SERVER-TOKEN"), Err(Later::Refused(_))));
+    }
+
+    /// plex.tv listed kids' just-claimed server somewhere inside the old 10-minute retry that found
+    /// it (2026-11-04), not at a known minute: the short tries must cover those 10 minutes, or a
+    /// listing at minute 6 to 10 waits for the first long retry, later than the old schedule.
+    #[test]
+    fn the_short_tries_cover_the_old_retry_before_falling_back() {
+        let refusal = Later::Refused("HTTP 403".to_string());
+        let mut refused = 0;
+        let mut attempts = vec![Duration::ZERO];
+        while attempts.len() < 40 {
+            let wait = refusal.after(&mut refused);
+            attempts.push(*attempts.last().unwrap() + wait);
+        }
+        // Whenever the listing lands, the next try is no later than the old schedule's, every 10 min from the claim.
+        for listed in (0..=3600).step_by(30) {
+            let next = attempts.iter().find(|at| at.as_secs() >= listed).unwrap().as_secs();
+            let old = listed.div_ceil(RETRY.as_secs()) * RETRY.as_secs();
+            assert!(next <= old, "listed at {listed} s: tried at {next} s, the old schedule at {old} s");
+        }
     }
 
     #[test]

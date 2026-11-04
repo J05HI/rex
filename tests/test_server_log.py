@@ -304,7 +304,10 @@ def main():
         run("a refused decision", "GET", "/video/:/transcode/universal/decision?path=%2Flibrary"
             "%2Fmetadata%2F1007&session=lp3&directPlay=0&directStream=0&protocol=dash"
             "&mediaIndex=0&partIndex=0&hasMDE=1",
-            [("INFO", E("DECISION refused for path=/library/metadata/1007"))], status=200)
+            # With its reason, the answer's own two texts (rex-fun's refusals logged none).
+            [("INFO", E("DECISION refused for path=/library/metadata/1007 -- App cannot direct play this item. "
+                        "Direct play is disabled. Cannot convert this item. No conversion profile found for protocol dash."))],
+            status=200)
         run("a transcode start after a decision", "GET", "/video/:/transcode/universal/"
             "start.m3u8?path=%2Flibrary%2Fmetadata%2F1007&session=lp3&protocol=hls",
             [("WARNING", E("TRANSCODE REQUESTED -- client refused direct play: "

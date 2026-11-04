@@ -76,7 +76,7 @@ searched on disk. The gate is usually one truthiness check in minified code.
 
 Sidecar fixtures are captured from a real PMS -- the later ones read straight out of its
 image -- and live in `data/`. The descriptors (`server_prefs.json`, `regional_server_prefs.json`,
-`section_prefs.json`, `section_meta.json`, `section_meta_show.json`, `section_meta_artist.json`, `item_prefs.json`,
+`section_prefs.json`, `section_meta.json`, `section_meta_show.json`, `section_meta_artist.json`, `section_meta_photo.json`, `item_prefs.json`,
 `section_prefs_new.json`, `section_filters.json`, `section_sorts.json`, `system_agents.json`,
 `legacy_agents.json`, `agent_languages.json`, `languages.json`, `translations.json`, `refusal_strings.json`,
 `client_profiles.json`, `spellfix_static_tags.json`, `legacy_agent_config.json`); the strings a
@@ -137,7 +137,7 @@ Where things live in `rust/src/`:
 | `runtime/*.rs` (the rest) | One subsystem each, named after it: search, listing, axes, edit, collections, playlists, artwork, butler, framework, i18n, resume (On Deck and hubs), logging and so on |
 | `filters.rs`, `hierarchy.rs`, `metadata.rs`, `mediainfo.rs`, `decision.rs`, `xmlout.rs`, `gate.rs`, `catalog.rs` | Plex's filter grammar (the operator is part of the KEY), flat leaves to show/season/episode, Plex's description of a title and `plex://` guids, ffprobe JSON to `Media`/`Part`/`Stream`, a plain-form decision against the client's own profile, Plex XML, the direct-play gate, the catalog |
 | `store.rs` | The state file: a SQLite database written by the row, holding the catalog too when the catalog is a database |
-| `rows.rs` | Where the rows are: in the state file once a start has restored them (`Catalog::attach`), memory holding the rows written since their save reached the file and a cache of rows read capped at the memory they hold (`REX_ROW_CACHE_MB`, 64 MB; 16 on a host packing several servers; trimmed after each request); a listing's rows read in parallel without their streams and kept nowhere (`read_listed`, `prefetch_listed`); another account's view fields shown over the rows for its request, a row changed only once written (`Overlay`). With `--no-state` every row stays in memory |
+| `rows.rs` | Where the rows are: in the state file once a start has restored them (`Catalog::attach`), memory holding the rows written since their save reached the file and a cache of rows read capped at the memory they hold (`REX_ROW_CACHE_MB`, 64 MB; 16 on a host packing several servers; trimmed after each request); a listing's rows read in parallel without their streams and kept nowhere (`read_listed`, `prefetch_listed`); a pass outside a request (a thread of its own: plex.tv's, the feed's retry, the analysis worker) reads each row with `Lazy::with_body`, which lets it go, never `body()`, whose rows nothing trims there (a claimed start once held the whole library, 2026-11-02); another account's view fields shown over the rows for its request, a row changed only once written (`Overlay`). With `--no-state` every row stays in memory |
 | `hotrow.rs`, `corpus.rs` | The fields of a row that passes over the whole library read (`HotRow`; `Lazy` reads the row for any other), and each row's search entry: both kept in the catalog's index beside its lookups (`catalog::By`), re-derived for a row written |
 
 A movie library and a show library have **different**
@@ -643,10 +643,16 @@ python3 tests/test_feed_placement.py        # a file its source placed (`kind`, 
 python3 tests/test_feed_delete.py           # a delete removes the files at the source first, as a real PMS's does (zurg's WebDAV DELETE)
 python3 tests/test_delete_last_episode.py   # deleting a show's last episode removes its season and the show, with the reference's three frames; one of two leaves them (1.43.4)
 python3 tests/test_feed_rejected.py         # every item the feed rejects is logged with its reason (a real snapshot's sample)
+python3 tests/test_video_extensions.py      # which files are videos, by extension, as plexscratch42's two scanners took them:
+                                            # each Part's container and part-read type, the rest refused, .mk3d taken; with
+                                            # an FFmpeg each container FFmpeg writes converts for Plex Web to a decoded segment
 python3 tests/test_feed_display.py          # what a source names itself (`display`): titles, summaries, dates and artwork of a row nothing
                                             # identifies, its show's and season's, updated by later pushes, a person's lock kept (Ms Rachel's channel)
 python3 tests/test_feed_subtitles.py        # a source's sidecar subtitles (`subtitles`): the measured on-disk external stream on the item's own
                                             # Part, its text read off the lock, one id per path, [] and absent, bad entries left out, uploads untouched
+python3 tests/test_vobsub_sidecars.py       # a source's VobSub pair (`.idx` + `sub`): the 1.42.2 reference's one stream (its .idx's language,
+                                            # VOBSUB External), its key's every extension, Plex Web's burn and Android's dvd_subtitle mux,
+                                            # an embedded VobSub copied into Matroska (real Samurai Champloo and McBain pairs); needs ffmpeg
 python3 tests/test_feed_collections.py      # a source's `collections`: each name a collection of the title's library (an episode's show), made as a
                                             # tag write makes one; a person's removal and own collections kept, [] and absent (rex-stremio's catalogs)
 python3 tests/test_feed_playlists.py       # a source's `playlists`: each title an owner's playlist in the pushed order, audio for tracks and video
@@ -666,6 +672,11 @@ python3 tests/test_music_part_reads.py      # a track's Part read per audio form
 python3 tests/test_music_lyrics.py          # a source's sidecar `lyrics`: plexav's lyrics stream and its JSON, XML and raw answers
 python3 tests/test_music_loudness.py        # a source's `loudness`: plexav's stream fields, `/levels` per subsample and the play-queue ramps
 python3 tests/test_music_library_declared.py # a source's `directories` `music` makes the music library its tracks go to
+python3 tests/test_music_audiobooks.py      # every audio extension plexav makes a track of, and Chronicle's sync and play of a
+                                            # LibriVox book (.m4b chapters, .mp3s) replayed: its refused decision and play queue,
+                                            # Store track progress, scrobbles; Android's, Plexamp's and Web's chapters
+python3 tests/test_photo_library.py         # pictures a source pushes (`kind: photo`) are plexscratch's photo library: folders as albums
+                                            # titled as named, natural order, Plex Web's walk, viewer and slideshow replayed; needs ffmpeg
 python3 tests/test_artwork_blur.py          # thumbBlurHash, artBlurHash and UltraBlurColors as plexav answers them for rex's own synthetic
                                             # covers: which rows carry which, the hash and corners within tolerance, kept by --state
 python3 tests/test_match_show_children.py  # a show Fix Matched takes the picked show's episodes by its rows' TMDB episode ids, by number only where every season's count is Plex's (a real library's Ben 10: Omniverse); one matched onto a show the library holds merges into it, its episodes kept; both listed for the source with the show's ids until Unmatch
@@ -673,6 +684,8 @@ python3 tests/test_feed_episode_ids.py      # a pushed `tmdb_episode` is Plex's 
 python3 tests/test_feed_retry_placed.py     # an episode its source placed that Plex's agent had not named is named by the ten-minute retry, without a push (Animaniacs), one of several releases placed alike too (Re:ZERO S1E79)
 python3 tests/test_feed_named_on_claim.py   # what a source placed before rex could ask Plex's agent is named the moment it is claimed, and once
                                             # the agent is back on the next push, its show included (a sponsor's 7,035 releases)
+python3 tests/test_metadata_language.py     # a library's language is what Plex's agent is asked in, where a PMS puts it (match headers,
+                                            # item GET query), music too; each language its own cache entry (rex#9)
 python3 tests/test_feed_versions_1017.py    # one row per episode whatever its guid, other files of one release apart, a trashed row folded or brought back (SpongeBob S10E64, Freakazoid)
 python3 tests/test_feed_parts.py            # an episode a source sends in `part`s is one row, one Media of several Parts, whatever its ids: each
                                             # Part streams, leaves and is deleted as its own file, a whole-episode row takes its second part, and an
@@ -680,6 +693,9 @@ python3 tests/test_feed_parts.py            # an episode a source sends in `part
 python3 tests/test_zurg_contract.py        # zurg's own feed requests (its internal/rexfeed/testdata/rex-contract.json, from
                                             # ../zurg or $ZURG_CONTRACT) replayed in order, and the two 409s zurg tells apart
 python3 tests/test_auto_collections.py      # "Minimum automatic collection size" set later makes the agent's collections (a real library's Matrix trilogy)
+python3 tests/test_agent_description.py     # what Plex's agent says of a title, as plexlab shows it: theme music, clear logos, square art,
+                                            # every credited person, original titles, networks as an axis; rows an older rex described given
+                                            # them at a start; the bytes need Plex's hosts, else skip
 python3 tests/test_sources.py               # registering sources, and sources that are not zurg: a server ignoring Range,
                                             # a redirect to a CDN, a restart, rows before registration, the two-step delete
 python3 tests/test_server_command.py        # the launcher's default and REX_SERVER override
@@ -698,10 +714,12 @@ python3 tests/test_tag_collections.py       # a metadata manager's requests repl
                                             # a url poster is fetched (its 200/406 need raw.githubusercontent.com, else skip)
 python3 tests/test_collection_hub_pins.py   # a collection's Visible on and Manage Recommendations replayed from Plex Web on an online
                                             # 1.43.5: the list's rows, moves, removal and reset, its shelf on Recommended and Home, kept by --state
+python3 tests/test_collection_logos.py      # python-plexapi's logo, theme and order requests replayed from a claimed 1.43.4: uploads
+                                            # listed and shown, setLogo, the refusals, collectionSort's 2:Custom (url uploads skip offline)
 python3 tests/parallel_suites.py --workers 4 test_cli test_feed ...
                                             # several suites at once, as CI runs them: each gets its own
                                             # REX_TEST_PORTS range (tests/test_ports.py), output kept per suite
-cargo test --manifest-path rust/Cargo.toml  # the Rust unit tests: the decision corpus (1,872 measured decisions),
+cargo test --manifest-path rust/Cargo.toml  # the Rust unit tests: the decision corpus (4,368 measured decisions),
                                             # GDM against four real servers, the subtitle sync corpus (rex's pick against Plex's
                                             # first result on 122 real releases)
 ```

@@ -1825,12 +1825,13 @@ def main():
               logged(second_log, "INFO", r"loaded claim for %s \(owner %s\)" % (MACHINE, OWNER))
               and logged(second_log, "INFO", r"claim state: CLAIMED by %s" % OWNER),
               second_log[-3000:])
-        check("--verbose logs each request line at DEBUG",
-              logged(second_log, "DEBUG", r'"GET /identity HTTP/1\.1" 200 -'),
+        # Then the app that asked, from its X-Plex-Product header (a native app's only one).
+        check("--verbose logs each request line at DEBUG, with its X-Plex-Product",
+              logged(second_log, "DEBUG", r'"GET /identity HTTP/1\.1" 200 - "Plex Web"'),
               second_log[-3000:])
         check("--verbose request lines mask a query-string token",
               DEVICE_TOKEN not in second_log
-              and logged(second_log, "DEBUG", r'"GET /library/sections\?X-Plex-Token=x{20} HTTP/1\.1" 200 -'),
+              and logged(second_log, "DEBUG", r'"GET /library/sections\?X-Plex-Token=x{20} HTTP/1\.1" 200 - "Plex Web"'),
               [line for line in second_log.splitlines() if "oken=" in line][:5])
         check("without --verbose there are no request lines",
               not logged(first_log, "DEBUG", r'".*'), "first run had DEBUG lines")

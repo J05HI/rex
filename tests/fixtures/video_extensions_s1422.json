@@ -1,0 +1,1443 @@
+{
+ "_provenance": "Recorded 2026-11-04 on plexscratch42 (Plex Media Server 1.42.2.10156-f737b826c, unclaimed, offline) from two sections made for it: `videoext-movies` (Plex Movie scanner, tv.plex.agents.movie) and `videoext-shows` (Plex TV Series scanner, tv.plex.agents.series). One small file per extension of the legacy scanner's video_exts (fun's Scanners.bundle VideoFiles.py), plus .mk3d, .ifo, .iso and a DVD VIDEO_TS folder: written by ffmpeg 4.4.2 on the lab host wherever it has a muxer (a DVD by dvdauthor 0.7.2 and genisoimage), else a real file from samples.ffmpeg.org (fli, nsv, nuv, pva, ty, viv, vp3, svq3, rmvb, ogm, avs, dvr-ms), and text for the playlists. Per extension: whether the scan made a Part of it, its Media's container and stream count, the part read's status and Content-Type for `Range: bytes=0-9` (`location` where it redirected), and over the 78 client profiles' plain-form http decisions how many direct play, convert, answer neither or 400 (tests/fixtures/decisions/ holds the cells). `media` names the tests/fixtures/media/ fixture holding the file's probe and Media. `mk3d.probe` is ffprobe 4.4.2's probe of a real .mk3d, a 44 GB 3D Blu-ray remux served by a production zurg over localhost (its file name replaced): what a source pushes for one.",
+ "Plex Movie": {
+  "3g2": {
+   "part": true,
+   "file": "Videoext Probe 3g2 (2020).3g2",
+   "container": "mp4",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "direct play": 47,
+    "conversion": 16,
+    "neither": 15
+   },
+   "media": "s42-1099-0"
+  },
+  "VIDEO_TS": {
+   "part": false,
+   "file": "VIDEO_TS/VTS_01_1.VOB (with VIDEO_TS.IFO/.BUP, VTS_01_0.IFO/.BUP)"
+  },
+  "VOB": {
+   "part": false
+  },
+  "asx": {
+   "part": true,
+   "file": "Videoext Probe asx (2020).asx",
+   "container": null,
+   "streams": 0,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "400": 78
+   }
+  },
+  "avc": {
+   "part": true,
+   "file": "Videoext Probe avc (2020).avc",
+   "container": "h264",
+   "streams": 1,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 40,
+    "conversion": 38
+   },
+   "media": "s42-1101-0"
+  },
+  "avs": {
+   "part": true,
+   "file": "Videoext Probe avs (2020).avs",
+   "container": "mpeg",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1102-0"
+  },
+  "bivx": {
+   "part": true,
+   "file": "Videoext Probe bivx (2020).bivx",
+   "container": "avi",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 32,
+    "direct play": 17,
+    "conversion": 29
+   },
+   "media": "s42-1103-0"
+  },
+  "bup": {
+   "part": false
+  },
+  "dv": {
+   "part": true,
+   "file": "Videoext Probe dv (2020).dv",
+   "container": "dv",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 38,
+    "conversion": 38,
+    "direct play": 1,
+    "400": 1
+   },
+   "media": "s42-1104-0"
+  },
+  "dvr-ms": {
+   "part": true,
+   "file": "Videoext Probe dvr-ms (2020).dvr-ms",
+   "container": "asf",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 33,
+    "direct play": 5,
+    "400": 1
+   },
+   "media": "s42-1105-0"
+  },
+  "evo": {
+   "part": true,
+   "file": "Videoext Probe evo (2020).evo",
+   "container": "mpeg",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 37,
+    "conversion": 33,
+    "direct play": 7,
+    "400": 1
+   },
+   "media": "s42-1106-0"
+  },
+  "f4v": {
+   "part": false,
+   "seen": "section 1's Container Probe C54 files, still no Part on 2026-11-04"
+  },
+  "fli": {
+   "part": true,
+   "file": "Videoext Probe fli (2020).fli",
+   "container": "flic",
+   "streams": 1,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 40,
+    "conversion": 38
+   },
+   "media": "s42-1107-0"
+  },
+  "ifo": {
+   "part": false
+  },
+  "iso": {
+   "part": false
+  },
+  "m2t": {
+   "part": true,
+   "file": "Videoext Probe m2t (2020).m2t",
+   "container": "mpegts",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 36,
+    "conversion": 28,
+    "direct play": 13,
+    "400": 1
+   },
+   "media": "s42-1108-0"
+  },
+  "m2v": {
+   "part": true,
+   "file": "Videoext Probe m2v (2020).m2v",
+   "container": "mpegvideo",
+   "streams": 1,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 40,
+    "conversion": 38
+   },
+   "media": "s42-1109-0"
+  },
+  "mk3d": {
+   "part": false
+  },
+  "mkv": {
+   "part": true,
+   "file": "Videoext Probe mkv (2020).mkv",
+   "container": "mkv",
+   "streams": 2,
+   "read": 206,
+   "contentType": "video/x-matroska",
+   "decisions": {
+    "neither": 33,
+    "direct play": 25,
+    "conversion": 19,
+    "400": 1
+   }
+  },
+  "mp4v": {
+   "part": false,
+   "seen": "section 1's Container Probe C54 files, still no Part on 2026-11-04"
+  },
+  "nsv": {
+   "part": true,
+   "file": "Videoext Probe nsv (2020).nsv",
+   "container": "nsv",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1111-0"
+  },
+  "nuv": {
+   "part": true,
+   "file": "Videoext Probe nuv (2020).nuv",
+   "container": "nuv",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1112-0"
+  },
+  "ogm": {
+   "part": true,
+   "file": "Videoext Probe ogm (2020).ogm",
+   "container": "ogg",
+   "streams": 5,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1113-0"
+  },
+  "pva": {
+   "part": true,
+   "file": "Videoext Probe pva (2020).pva",
+   "container": "pva",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1114-0"
+  },
+  "qt": {
+   "part": true,
+   "file": "Videoext Probe qt (2020).qt",
+   "container": "mp4",
+   "streams": 2,
+   "read": 206,
+   "contentType": "video/quicktime",
+   "decisions": {
+    "direct play": 45,
+    "conversion": 15,
+    "neither": 18
+   },
+   "media": "s42-1115-0"
+  },
+  "rm": {
+   "part": true,
+   "file": "Videoext Probe rm (2020).rm",
+   "container": "rm",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1116-0"
+  },
+  "rmvb": {
+   "part": true,
+   "file": "Videoext Probe rmvb (2020).rmvb",
+   "container": "rm",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1117-0"
+  },
+  "sdp": {
+   "part": true,
+   "file": "Videoext Probe sdp (2020).sdp",
+   "container": null,
+   "streams": 0,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "400": 78
+   }
+  },
+  "strm": {
+   "part": true,
+   "file": "Videoext Probe strm (2020).strm",
+   "container": null,
+   "streams": 0,
+   "read": 301,
+   "contentType": null,
+   "location": "http://example.invalid/video.mkv",
+   "decisions": {
+    "400": 78
+   }
+  },
+  "svq3": {
+   "part": true,
+   "file": "Videoext Probe svq3 (2020).svq3",
+   "container": "mp4",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1120-0"
+  },
+  "tp": {
+   "part": true,
+   "file": "Videoext Probe tp (2020).tp",
+   "container": "mpegts",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 36,
+    "conversion": 29,
+    "direct play": 12,
+    "400": 1
+   },
+   "media": "s42-1121-0"
+  },
+  "ty": {
+   "part": true,
+   "file": "Videoext Probe ty (2020).ty",
+   "container": "ty",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1122-0"
+  },
+  "vdr": {
+   "part": true,
+   "file": "Videoext Probe vdr (2020).vdr",
+   "container": "mpeg",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 37,
+    "conversion": 29,
+    "direct play": 11,
+    "400": 1
+   },
+   "media": "s42-1123-0"
+  },
+  "viv": {
+   "part": true,
+   "file": "Videoext Probe viv (2020).viv",
+   "container": "vivo",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 76,
+    "conversion": 1,
+    "400": 1
+   },
+   "media": "s42-1124-0"
+  },
+  "vob": {
+   "part": false
+  },
+  "vp3": {
+   "part": true,
+   "file": "Videoext Probe vp3 (2020).vp3",
+   "container": "mgsts",
+   "streams": 1,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "neither": 40,
+    "conversion": 38
+   },
+   "media": "s42-1125-0"
+  },
+  "webm": {
+   "part": true,
+   "file": "Videoext Probe webm (2020).webm",
+   "container": "mkv",
+   "streams": 2,
+   "read": 206,
+   "contentType": "video/webm",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1126-0"
+  },
+  "wtv": {
+   "part": true,
+   "file": "Videoext Probe wtv (2020).wtv",
+   "container": "wtv",
+   "streams": 2,
+   "read": 206,
+   "contentType": "video/wtv",
+   "decisions": {
+    "neither": 39,
+    "conversion": 38,
+    "400": 1
+   },
+   "media": "s42-1127-0"
+  },
+  "xsp": {
+   "part": true,
+   "file": "Videoext Probe xsp (2020).xsp",
+   "container": null,
+   "streams": 0,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "decisions": {
+    "400": 78
+   }
+  },
+  "xvid": {
+   "part": true,
+   "file": "Videoext Probe xvid (2020).xvid",
+   "container": "avi",
+   "streams": 2,
+   "read": 206,
+   "contentType": "video/x-msvideo",
+   "decisions": {
+    "neither": 32,
+    "direct play": 17,
+    "conversion": 29
+   },
+   "media": "s42-1129-0"
+  }
+ },
+ "Plex TV Series": {
+  "3g2": {
+   "part": true,
+   "file": "Videoext Show (2020) - s01e05.3g2",
+   "container": "mp4",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream"
+  },
+  "VIDEO_TS/VTS_01_0.BUP": {
+   "part": true,
+   "file": "VTS_01_0.BUP",
+   "container": null,
+   "streams": 0,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "episode": "Videoext Dvdshow S1E1, one row of two Media",
+   "decisions": {
+    "400": 3
+   }
+  },
+  "VIDEO_TS/VTS_01_1.VOB": {
+   "part": true,
+   "file": "VTS_01_1.VOB",
+   "container": "mpeg",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "episode": "Videoext Dvdshow S1E1, one row of two Media"
+  },
+  "VOB": {
+   "part": true,
+   "file": "Videoext Show (2020) - s01e08.VOB",
+   "container": "mpeg",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream"
+  },
+  "avc": {
+   "part": true,
+   "file": "Videoext Show (2020) - s01e06.avc",
+   "container": "h264",
+   "streams": 1,
+   "read": 206,
+   "contentType": "application/octet-stream"
+  },
+  "mk3d": {
+   "part": false
+  },
+  "mkv": {
+   "part": true,
+   "file": "Videoext Show (2020) - s01e07.mkv",
+   "container": "mkv",
+   "streams": 2,
+   "read": 206,
+   "contentType": "video/x-matroska"
+  },
+  "rm": {
+   "part": true,
+   "file": "Videoext Show (2020) - s01e03.rm",
+   "container": "rm",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream"
+  },
+  "vob": {
+   "part": true,
+   "file": "Videoext Show (2020) - s01e02.vob",
+   "container": "mpeg",
+   "streams": 2,
+   "read": 206,
+   "contentType": "application/octet-stream",
+   "media": "s42-1140-0"
+  },
+  "wtv": {
+   "part": true,
+   "file": "Videoext Show (2020) - s01e04.wtv",
+   "container": "wtv",
+   "streams": 2,
+   "read": 206,
+   "contentType": "video/wtv"
+  }
+ },
+ "mk3d": {
+  "release": "Avengers.Endgame.2019.3D.1080p.BluRay.REMUX.AVC.Atmos-EPSiLON",
+  "file": "Avengers.Endgame.2019.3D.1080p.BluRay.REMUX.AVC.Atmos-EPSiLON.mk3d",
+  "size": 44122733781,
+  "probe": {
+   "streams": [
+    {
+     "index": 0,
+     "codec_name": "h264",
+     "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+     "profile": "High",
+     "codec_type": "video",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "width": 1920,
+     "height": 1080,
+     "coded_width": 1920,
+     "coded_height": 1080,
+     "closed_captions": 0,
+     "has_b_frames": 1,
+     "sample_aspect_ratio": "1:1",
+     "display_aspect_ratio": "16:9",
+     "pix_fmt": "yuv420p",
+     "level": 41,
+     "chroma_location": "left",
+     "field_order": "progressive",
+     "refs": 1,
+     "is_avc": "true",
+     "nal_length_size": "4",
+     "r_frame_rate": "24000/1001",
+     "avg_frame_rate": "24000/1001",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "bits_per_raw_sample": "8",
+     "disposition": {
+      "default": 1,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "eng",
+      "title": "MPEG-4 AVC Video / 6737 - 19784 kbps / 1080p / 23.976 fps / 16:9 / High Profile 4.1",
+      "stereo_mode": "block_lr",
+      "BPS-eng": "26383908",
+      "DURATION-eng": "03:01:11.361000000",
+      "NUMBER_OF_FRAMES-eng": "260652",
+      "NUMBER_OF_BYTES-eng": "35853624857",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     },
+     "side_data_list": [
+      {
+       "side_data_type": "Stereo 3D",
+       "type": "frame alternate",
+       "inverted": 0
+      }
+     ]
+    },
+    {
+     "index": 1,
+     "codec_name": "truehd",
+     "codec_long_name": "TrueHD",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "s32",
+     "sample_rate": "48000",
+     "channels": 8,
+     "channel_layout": "7.1",
+     "bits_per_sample": 0,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 1,
+     "start_time": "0.001000",
+     "bits_per_raw_sample": "24",
+     "disposition": {
+      "default": 1,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "eng",
+      "title": "Dolby TrueHD/Atmos Audio / 7.1 / 48 kHz / 4777 kbps / 24-bit",
+      "BPS-eng": "4776587",
+      "DURATION-eng": "03:01:11.361000000",
+      "NUMBER_OF_FRAMES-eng": "13045633",
+      "NUMBER_OF_BYTES-eng": "6491001026",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 2,
+     "codec_name": "ac3",
+     "codec_long_name": "ATSC A/52A (AC-3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "48000",
+     "channels": 6,
+     "channel_layout": "5.1(side)",
+     "bits_per_sample": 0,
+     "dmix_mode": "-1",
+     "ltrt_cmixlev": "-1.000000",
+     "ltrt_surmixlev": "-1.000000",
+     "loro_cmixlev": "-1.000000",
+     "loro_surmixlev": "-1.000000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 25,
+     "start_time": "0.025000",
+     "bit_rate": "640000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "eng",
+      "title": "Compatibility Track / Dolby Digital Audio / 5.1 / 48 kHz / 640 kbps",
+      "BPS-eng": "640000",
+      "DURATION-eng": "03:01:11.360000000",
+      "NUMBER_OF_FRAMES-eng": "339730",
+      "NUMBER_OF_BYTES-eng": "869708800",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 3,
+     "codec_name": "ac3",
+     "codec_long_name": "ATSC A/52A (AC-3)",
+     "codec_type": "audio",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "sample_fmt": "fltp",
+     "sample_rate": "48000",
+     "channels": 2,
+     "channel_layout": "stereo",
+     "bits_per_sample": 0,
+     "dmix_mode": "-1",
+     "ltrt_cmixlev": "-1.000000",
+     "ltrt_surmixlev": "-1.000000",
+     "loro_cmixlev": "-1.000000",
+     "loro_surmixlev": "-1.000000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "bit_rate": "192000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "eng",
+      "title": "Commentary by directors Joe Russo and Anthony Russo, and writers Christopher Markus and Stephen McFeely",
+      "BPS-eng": "192000",
+      "DURATION-eng": "03:01:11.392000000",
+      "NUMBER_OF_FRAMES-eng": "339731",
+      "NUMBER_OF_BYTES-eng": "260913408",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 4,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 10871392,
+     "duration": "10871.392000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "eng",
+      "title": "SDH",
+      "BPS-eng": "34013",
+      "DURATION-eng": "03:00:53.467000000",
+      "NUMBER_OF_FRAMES-eng": "5292",
+      "NUMBER_OF_BYTES-eng": "46145287",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 5,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "width": 1920,
+     "height": 1080,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 4130,
+     "start_time": "4.130000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "eng",
+      "title": "Commentary by directors Joe Russo and Anthony Russo, and writers Christopher Markus and Stephen McFeely",
+      "BPS-eng": "70039",
+      "DURATION-eng": "03:00:56.512000000",
+      "NUMBER_OF_FRAMES-eng": "6522",
+      "NUMBER_OF_BYTES-eng": "95048405",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 6,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 10871392,
+     "duration": "10871.392000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "cze",
+      "BPS-eng": "25258",
+      "DURATION-eng": "03:00:48.087000000",
+      "NUMBER_OF_FRAMES-eng": "4364",
+      "NUMBER_OF_BYTES-eng": "34251252",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 7,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 10871392,
+     "duration": "10871.392000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "fre",
+      "BPS-eng": "28500",
+      "DURATION-eng": "02:52:06.566000000",
+      "NUMBER_OF_FRAMES-eng": "4446",
+      "NUMBER_OF_BYTES-eng": "36788705",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 8,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 10871392,
+     "duration": "10871.392000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "ger",
+      "BPS-eng": "26013",
+      "DURATION-eng": "03:00:48.087000000",
+      "NUMBER_OF_FRAMES-eng": "4224",
+      "NUMBER_OF_BYTES-eng": "35274642",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 9,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 10871392,
+     "duration": "10871.392000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "ita",
+      "BPS-eng": "29206",
+      "DURATION-eng": "03:00:48.087000000",
+      "NUMBER_OF_FRAMES-eng": "4384",
+      "NUMBER_OF_BYTES-eng": "39604824",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 10,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 10871392,
+     "duration": "10871.392000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "pol",
+      "BPS-eng": "25324",
+      "DURATION-eng": "03:00:48.087000000",
+      "NUMBER_OF_FRAMES-eng": "4316",
+      "NUMBER_OF_BYTES-eng": "34339846",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 11,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 10871392,
+     "duration": "10871.392000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "spa",
+      "title": "Castilian",
+      "BPS-eng": "26950",
+      "DURATION-eng": "03:00:48.087000000",
+      "NUMBER_OF_FRAMES-eng": "4352",
+      "NUMBER_OF_BYTES-eng": "36545089",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 12,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 0,
+     "start_time": "0.000000",
+     "duration_ts": 10871392,
+     "duration": "10871.392000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "spa",
+      "title": "Latin American",
+      "BPS-eng": "31011",
+      "DURATION-eng": "02:47:57.818000000",
+      "NUMBER_OF_FRAMES-eng": "4394",
+      "NUMBER_OF_BYTES-eng": "39066321",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 13,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "width": 1920,
+     "height": 1080,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 4130,
+     "start_time": "4.130000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "ita",
+      "title": "Commentary by directors Joe Russo and Anthony Russo, and writers Christopher Markus and Stephen McFeely",
+      "BPS-eng": "57808",
+      "DURATION-eng": "02:53:15.802000000",
+      "NUMBER_OF_FRAMES-eng": "6260",
+      "NUMBER_OF_BYTES-eng": "75120195",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    },
+    {
+     "index": 14,
+     "codec_name": "hdmv_pgs_subtitle",
+     "codec_long_name": "HDMV Presentation Graphic Stream subtitles",
+     "codec_type": "subtitle",
+     "codec_tag_string": "[0][0][0][0]",
+     "codec_tag": "0x0000",
+     "width": 1920,
+     "height": 1080,
+     "r_frame_rate": "0/0",
+     "avg_frame_rate": "0/0",
+     "time_base": "1/1000",
+     "start_pts": 4130,
+     "start_time": "4.130000",
+     "disposition": {
+      "default": 0,
+      "dub": 0,
+      "original": 0,
+      "comment": 0,
+      "lyrics": 0,
+      "karaoke": 0,
+      "forced": 0,
+      "hearing_impaired": 0,
+      "visual_impaired": 0,
+      "clean_effects": 0,
+      "attached_pic": 0,
+      "timed_thumbnails": 0
+     },
+     "tags": {
+      "language": "spa",
+      "title": "Commentary by directors Joe Russo and Anthony Russo, and writers Christopher Markus and Stephen McFeely",
+      "BPS-eng": "60455",
+      "DURATION-eng": "02:53:15.802000000",
+      "NUMBER_OF_FRAMES-eng": "6258",
+      "NUMBER_OF_BYTES-eng": "78560354",
+      "_STATISTICS_WRITING_APP-eng": "mkvmerge v36.0.0 ('Is That Jazz?') 64-bit",
+      "_STATISTICS_WRITING_DATE_UTC-eng": "2019-08-22 18:37:13",
+      "_STATISTICS_TAGS-eng": "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"
+     }
+    }
+   ],
+   "chapters": [
+    {
+     "id": -517108888,
+     "time_base": "1/1000000000",
+     "start": 0,
+     "start_time": "0.000000",
+     "end": 485902000000,
+     "end_time": "485.902000",
+     "tags": {
+      "title": "One Last Suprise"
+     }
+    },
+    {
+     "id": -948488205,
+     "time_base": "1/1000000000",
+     "start": 485902000000,
+     "start_time": "485.902000",
+     "end": 1201700000000,
+     "end_time": "1201.700000",
+     "tags": {
+      "title": "\"To The Garden\""
+     }
+    },
+    {
+     "id": 1396477398,
+     "time_base": "1/1000000000",
+     "start": 1201700000000,
+     "start_time": "1201.700000",
+     "end": 1575282000000,
+     "end_time": "1575.282000",
+     "tags": {
+      "title": "Five Years Later"
+     }
+    },
+    {
+     "id": 1773662114,
+     "time_base": "1/1000000000",
+     "start": 1575282000000,
+     "start_time": "1575.282000",
+     "end": 2217173000000,
+     "end_time": "2217.173000",
+     "tags": {
+      "title": "\"A Time Heist\""
+     }
+    },
+    {
+     "id": -1628721872,
+     "time_base": "1/1000000000",
+     "start": 2217173000000,
+     "start_time": "2217.173000",
+     "end": 2600598000000,
+     "end_time": "2600.598000",
+     "tags": {
+      "title": "\"Time Travel Do-Over\""
+     }
+    },
+    {
+     "id": -2059708288,
+     "time_base": "1/1000000000",
+     "start": 2600598000000,
+     "start_time": "2600.598000",
+     "end": 2924171000000,
+     "end_time": "2924.171000",
+     "tags": {
+      "title": "\"I Fixed IT\""
+     }
+    },
+    {
+     "id": 2118843008,
+     "time_base": "1/1000000000",
+     "start": 2924171000000,
+     "start_time": "2924.171000",
+     "end": 3456745000000,
+     "end_time": "3456.745000",
+     "tags": {
+      "title": "Assembling The Avengers"
+     }
+    },
+    {
+     "id": -609382781,
+     "time_base": "1/1000000000",
+     "start": 3456745000000,
+     "start_time": "3456.745000",
+     "end": 4032612000000,
+     "end_time": "4032.612000",
+     "tags": {
+      "title": "\"Get The Stones Back\""
+     }
+    },
+    {
+     "id": -1384265960,
+     "time_base": "1/1000000000",
+     "start": 4032612000000,
+     "start_time": "4032.612000",
+     "end": 4562516000000,
+     "end_time": "4562.516000",
+     "tags": {
+      "title": "Rouge Transmission"
+     }
+    },
+    {
+     "id": -359579476,
+     "time_base": "1/1000000000",
+     "start": 4562516000000,
+     "start_time": "4562.516000",
+     "end": 5185430000000,
+     "end_time": "5185.430000",
+     "tags": {
+      "title": "New York, 2012"
+     }
+    },
+    {
+     "id": 561099252,
+     "time_base": "1/1000000000",
+     "start": 5185430000000,
+     "start_time": "5185.430000",
+     "end": 5540118000000,
+     "end_time": "5540.118000",
+     "tags": {
+      "title": "Asgaurd, 2013"
+     }
+    },
+    {
+     "id": 1948558188,
+     "time_base": "1/1000000000",
+     "start": 5540118000000,
+     "start_time": "5540.118000",
+     "end": 5935805000000,
+     "end_time": "5935.805000",
+     "tags": {
+      "title": "Morag, 2014"
+     }
+    },
+    {
+     "id": -1990954283,
+     "time_base": "1/1000000000",
+     "start": 5935805000000,
+     "start_time": "5935.805000",
+     "end": 6492361000000,
+     "end_time": "6492.361000",
+     "tags": {
+      "title": "New Jersey, 1970"
+     }
+    },
+    {
+     "id": -1776562047,
+     "time_base": "1/1000000000",
+     "start": 6492361000000,
+     "start_time": "6492.361000",
+     "end": 7046915000000,
+     "end_time": "7046.915000",
+     "tags": {
+      "title": "Vormir, 2014"
+     }
+    },
+    {
+     "id": -154476943,
+     "time_base": "1/1000000000",
+     "start": 7046915000000,
+     "start_time": "7046.915000",
+     "end": 7500243000000,
+     "end_time": "7500.243000",
+     "tags": {
+      "title": "\"I Was Made For This\""
+     }
+    },
+    {
+     "id": 834587238,
+     "time_base": "1/1000000000",
+     "start": 7500243000000,
+     "start_time": "7500.243000",
+     "end": 8106432000000,
+     "end_time": "8106.432000",
+     "tags": {
+      "title": "Thanos' Return"
+     }
+    },
+    {
+     "id": -271920877,
+     "time_base": "1/1000000000",
+     "start": 8106432000000,
+     "start_time": "8106.432000",
+     "end": 8750450000000,
+     "end_time": "8750.450000",
+     "tags": {
+      "title": "Avengers Assemble"
+     }
+    },
+    {
+     "id": 151937764,
+     "time_base": "1/1000000000",
+     "start": 8750450000000,
+     "start_time": "8750.450000",
+     "end": 9277935000000,
+     "end_time": "9277.935000",
+     "tags": {
+      "title": "One Of The 14,000,605"
+     }
+    },
+    {
+     "id": -761585383,
+     "time_base": "1/1000000000",
+     "start": 9277935000000,
+     "start_time": "9277.935000",
+     "end": 9783899000000,
+     "end_time": "9783.899000",
+     "tags": {
+      "title": "\"Part Of The Journey Is The End\""
+     }
+    },
+    {
+     "id": 1299787449,
+     "time_base": "1/1000000000",
+     "start": 9783899000000,
+     "start_time": "9783.899000",
+     "end": 10145344000000,
+     "end_time": "10145.344000",
+     "tags": {
+      "title": "\"Clip All The Branches\""
+     }
+    },
+    {
+     "id": -1701777064,
+     "time_base": "1/1000000000",
+     "start": 10145344000000,
+     "start_time": "10145.344000",
+     "end": 10871392000000,
+     "end_time": "10871.392000",
+     "tags": {
+      "title": "End Credits"
+     }
+    }
+   ],
+   "format": {
+    "filename": "file.mk3d",
+    "nb_streams": 15,
+    "nb_programs": 0,
+    "format_name": "matroska,webm",
+    "format_long_name": "Matroska / WebM",
+    "start_time": "0.000000",
+    "duration": "10871.392000",
+    "size": "44122733781",
+    "bit_rate": "32468875",
+    "probe_score": 100,
+    "tags": {
+     "encoder": "libebml v1.3.9 + libmatroska v1.5.2",
+     "creation_time": "2019-08-22T18:37:13.000000Z",
+     "IMDB": "tt4154796",
+     "TMDB": "movie/299534"
+    }
+   }
+  }
+ }
+}

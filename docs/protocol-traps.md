@@ -419,9 +419,11 @@ currently advertised by rex. A version label is not proof of complete PMS equiva
   one trailing slash is harmless. Catch a leading `//` before `urlparse`, which reads it
   as a host.
 
-- **No row names a theme.** rex has no theme audio, so `theme`, `parentTheme` and
-  `grandparentTheme` stay off every row and container -- a real show without one
-  carries none of the three, and the client fetches whichever it finds.
+- **A show names its theme only when it has one.** A real show without one carries none of
+  `theme`, `parentTheme` and `grandparentTheme`, and the client fetches whichever it finds; one
+  whose agent gives theme music (232 of the production rex's 352 shows) carries its own `theme`,
+  its seasons `parentTheme` and its episodes `grandparentTheme`, all the show's path (findings,
+  "What Plex's agent says of a title").
 - **A hub row's projection depends on the row's TYPE and the SHELF**: movies and
   episodes are light (no Guid, text-only tags) on every shelf but Related and postplay,
   which carry the full row, and a show on a `mixed` Recently Added shelf is the full row. `excludeFields` applies to every row AND to the container.
@@ -799,7 +801,8 @@ currently advertised by rex. A version label is not proof of complete PMS equiva
   does. The two families split on that, so neither inherits the other's rule.
 - **`/library/metadata/{id}/banners` and `/thumbs` are candidate lists too** (200 on both
   versions, `banners` empty on both, `thumbs` from the media bundle). `/squareArts` is
-  **1.43.4 only** -- 404 on the 1.42.2 reference -- so rex, which reports 1.42.2, keeps 404ing it.
+  **1.43.4 only** -- 404 on the 1.42.2 reference -- and rex, which reports 1.43.5 since 2026-10-22,
+  answers it as plexlab does (findings, "What Plex's agent says of a title").
 - **`/library/sections/{id}/recentlyReleased` does not exist.** A 404 on both references,
   every library type, with and without `type=`. rex answered a listing there for its
   whole life; the name appears in no findings document and in no suite, so it was assumed

@@ -1,0 +1,1492 @@
+{
+ "_provenance": "Recorded 2026-11-04 on a throwaway, unclaimed Plex Media Server 1.42.2.10156-f737b826c (plexinc/pms-docker) on zen, with no network (--network none), over loopback with its .LocalAdminToken. Item 1 is a generated 30 s 1920x1080 H.264 + AC3 5.1 mkv, the shape of rex#18's repro. `decisions` are GET /video/:/transcode/universal/decision answers to Plezy 2.25.0's own request (edde746/plezy 38c48f14, lib/services/plex_client.dart _buildTranscodeParams with the Generic profile, videoCodec hevc,h264 for a device without AV1): the 1080p 8 Mbps preset with its fMP4 target and its MPEG-TS fallback, and Original quality with direct play withheld (directStream=1). Plezy joins each codec list with a literal %2C and then percent-encodes the whole value, so the server reads `audioCodec=aac%2Cac3%2Ceac3%2Cmp3` after one query decode: that is the `plezy-*` rows' X-Plex-Client-Profile-Extra as stored here. The `control-*` rows are the same requests with plain commas, as Plex's own apps send. Every pair as sent, in order; the client identifier and session names replaced. PMS answers both alike: AC3 copied, the H.264 copied at Original and converted at 8 Mbps.",
+ "items": {
+  "1": {
+   "ratingKey": "1",
+   "key": "/library/metadata/1",
+   "guid": "tv.plex.agents.none://1",
+   "type": "movie",
+   "title": "Rec633",
+   "librarySectionTitle": "Movies",
+   "librarySectionID": 1,
+   "librarySectionKey": "/library/sections/1",
+   "subtype": "clip",
+   "summary": "",
+   "thumb": "/library/metadata/1/thumb/1793762638",
+   "art": "/library/metadata/1/art/1793762638",
+   "duration": 30016,
+   "addedAt": 1793762498,
+   "updatedAt": 1793762638,
+   "createdAtAccuracy": "epoch",
+   "createdAtTZOffset": "0",
+   "Media": [
+    {
+     "id": 1,
+     "duration": 30016,
+     "bitrate": 5276,
+     "width": 1920,
+     "height": 1080,
+     "aspectRatio": 1.78,
+     "audioChannels": 6,
+     "audioCodec": "ac3",
+     "videoCodec": "h264",
+     "videoResolution": "1080",
+     "container": "mkv",
+     "videoFrameRate": "24p",
+     "videoProfile": "high",
+     "Part": [
+      {
+       "id": 1,
+       "key": "/library/parts/1/1793762498/file.mkv",
+       "duration": 30016,
+       "file": "/media/movies/Rec633/Rec633.mkv",
+       "size": 19794811,
+       "container": "mkv",
+       "videoProfile": "high",
+       "Stream": [
+        {
+         "id": 1,
+         "streamType": 1,
+         "default": true,
+         "codec": "h264",
+         "index": 0,
+         "bitrate": 4892,
+         "codedHeight": 1088,
+         "codedWidth": 1920,
+         "frameRate": 24.0,
+         "hasScalingMatrix": false,
+         "height": 1080,
+         "level": 40,
+         "profile": "high",
+         "refFrames": 1,
+         "scanType": "progressive",
+         "width": 1920,
+         "displayTitle": "1080p",
+         "extendedDisplayTitle": "1080p (H.264)"
+        },
+        {
+         "id": 2,
+         "streamType": 2,
+         "selected": true,
+         "default": true,
+         "codec": "ac3",
+         "index": 1,
+         "channels": 6,
+         "bitrate": 384,
+         "audioChannelLayout": "5.1(side)",
+         "samplingRate": 48000,
+         "displayTitle": "Unknown (AC3 5.1)",
+         "extendedDisplayTitle": "Unknown (AC3 5.1)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "Image": [
+    {
+     "alt": "Rec633",
+     "type": "coverPoster",
+     "url": "/library/metadata/1/thumb/1793762638"
+    },
+    {
+     "alt": "Rec633",
+     "type": "background",
+     "url": "/library/metadata/1/art/1793762638"
+    }
+   ]
+  }
+ },
+ "decisions": [
+  {
+   "label": "plezy-mp4",
+   "query": [
+    [
+     "hasMDE",
+     "1"
+    ],
+    [
+     "path",
+     "/library/metadata/1"
+    ],
+    [
+     "mediaIndex",
+     "0"
+    ],
+    [
+     "partIndex",
+     "0"
+    ],
+    [
+     "protocol",
+     "hls"
+    ],
+    [
+     "fastSeek",
+     "1"
+    ],
+    [
+     "directPlay",
+     "0"
+    ],
+    [
+     "directStream",
+     "0"
+    ],
+    [
+     "subtitleSize",
+     "100"
+    ],
+    [
+     "audioBoost",
+     "100"
+    ],
+    [
+     "location",
+     "lan"
+    ],
+    [
+     "addDebugOverlay",
+     "0"
+    ],
+    [
+     "autoAdjustQuality",
+     "0"
+    ],
+    [
+     "videoResolution",
+     "1920x1080"
+    ],
+    [
+     "videoQuality",
+     "60"
+    ],
+    [
+     "directStreamAudio",
+     "1"
+    ],
+    [
+     "mediaBufferSize",
+     "102400"
+    ],
+    [
+     "session",
+     "rec633-plezy-mp4"
+    ],
+    [
+     "subtitles",
+     "none"
+    ],
+    [
+     "Accept-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Session-Identifier",
+     "rec633-plezy-mp4-id"
+    ],
+    [
+     "X-Plex-Client-Profile-Extra",
+     "add-settings(DirectPlayStreamSelection=true)+add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=8000&replace=true)+add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mp4&videoCodec=hevc%2Ch264&audioCodec=aac%2Cac3%2Ceac3%2Cmp3)+add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+    ],
+    [
+     "X-Plex-Incomplete-Segments",
+     "1"
+    ],
+    [
+     "X-Plex-Features",
+     "external-media,indirect-media"
+    ],
+    [
+     "X-Plex-Model",
+     "standalone"
+    ],
+    [
+     "X-Plex-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Client-Profile-Name",
+     "Generic"
+    ],
+    [
+     "X-Plex-Product",
+     "Plezy"
+    ],
+    [
+     "X-Plex-Version",
+     "2.25.0"
+    ],
+    [
+     "X-Plex-Client-Identifier",
+     "rec633-plezy"
+    ],
+    [
+     "X-Plex-Platform",
+     "Linux"
+    ]
+   ],
+   "response": {
+    "size": 1,
+    "allowSync": "1",
+    "directPlayDecisionCode": 3000,
+    "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+    "generalDecisionCode": 1001,
+    "generalDecisionText": "Direct play not available; Conversion OK.",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": "1",
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "77f7215e-f039-450c-968a-cb0e1e27de74",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": "1758205129",
+    "resourceSession": "rec633-plezy-mp4-id",
+    "transcodeDecisionCode": 1001,
+    "transcodeDecisionText": "Direct play not available; Conversion OK.",
+    "Metadata": [
+     {
+      "addedAt": 1793762498,
+      "createdAtAccuracy": "epoch",
+      "createdAtTZOffset": "0",
+      "duration": 30016,
+      "guid": "tv.plex.agents.none://1",
+      "key": "/library/metadata/1",
+      "librarySectionID": "1",
+      "librarySectionKey": "/library/sections/1",
+      "librarySectionTitle": "Movies",
+      "originallyAvailableAt": "2026-11-04",
+      "ratingKey": "1",
+      "subtype": "clip",
+      "title": "Rec633",
+      "type": "movie",
+      "updatedAt": 1793762592,
+      "year": 2026,
+      "Media": [
+       {
+        "id": "1",
+        "videoProfile": "high",
+        "audioChannels": 6,
+        "audioCodec": "ac3",
+        "bitrate": 8384,
+        "container": "mp4",
+        "duration": 30016,
+        "height": 1080,
+        "optimizedForStreaming": true,
+        "protocol": "hls",
+        "videoCodec": "h264",
+        "videoFrameRate": "24p",
+        "videoResolution": "1080p",
+        "width": 1920,
+        "selected": true,
+        "Part": [
+         {
+          "id": "1",
+          "videoProfile": "high",
+          "bitrate": 8384,
+          "container": "mp4",
+          "duration": 30016,
+          "height": 1080,
+          "optimizedForStreaming": true,
+          "protocol": "hls",
+          "width": 1920,
+          "decision": "transcode",
+          "selected": true,
+          "Stream": [
+           {
+            "bitrate": 8000,
+            "codec": "h264",
+            "default": true,
+            "displayTitle": "1080p",
+            "extendedDisplayTitle": "1080p (H.264)",
+            "frameRate": 24.0,
+            "height": 1080,
+            "id": "1",
+            "streamType": 1,
+            "width": 1920,
+            "decision": "transcode",
+            "location": "segments-av"
+           },
+           {
+            "audioChannelLayout": "5.1(side)",
+            "bitrate": 384,
+            "bitrateMode": "cbr",
+            "channels": 6,
+            "codec": "ac3",
+            "default": true,
+            "displayTitle": "Unknown (AC3 5.1)",
+            "extendedDisplayTitle": "Unknown (AC3 5.1)",
+            "id": "2",
+            "samplingRate": 48000,
+            "selected": true,
+            "streamType": 2,
+            "decision": "copy",
+            "location": "segments-av"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "label": "plezy-ts",
+   "query": [
+    [
+     "hasMDE",
+     "1"
+    ],
+    [
+     "path",
+     "/library/metadata/1"
+    ],
+    [
+     "mediaIndex",
+     "0"
+    ],
+    [
+     "partIndex",
+     "0"
+    ],
+    [
+     "protocol",
+     "hls"
+    ],
+    [
+     "fastSeek",
+     "1"
+    ],
+    [
+     "directPlay",
+     "0"
+    ],
+    [
+     "directStream",
+     "0"
+    ],
+    [
+     "subtitleSize",
+     "100"
+    ],
+    [
+     "audioBoost",
+     "100"
+    ],
+    [
+     "location",
+     "lan"
+    ],
+    [
+     "addDebugOverlay",
+     "0"
+    ],
+    [
+     "autoAdjustQuality",
+     "0"
+    ],
+    [
+     "videoResolution",
+     "1920x1080"
+    ],
+    [
+     "videoQuality",
+     "60"
+    ],
+    [
+     "directStreamAudio",
+     "1"
+    ],
+    [
+     "mediaBufferSize",
+     "102400"
+    ],
+    [
+     "session",
+     "rec633-plezy-ts"
+    ],
+    [
+     "subtitles",
+     "none"
+    ],
+    [
+     "Accept-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Session-Identifier",
+     "rec633-plezy-ts-id"
+    ],
+    [
+     "X-Plex-Client-Profile-Extra",
+     "add-settings(DirectPlayStreamSelection=true)+add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=8000&replace=true)+add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac%2Cac3%2Ceac3%2Cmp3)+add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+    ],
+    [
+     "X-Plex-Incomplete-Segments",
+     "1"
+    ],
+    [
+     "X-Plex-Features",
+     "external-media,indirect-media"
+    ],
+    [
+     "X-Plex-Model",
+     "standalone"
+    ],
+    [
+     "X-Plex-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Client-Profile-Name",
+     "Generic"
+    ],
+    [
+     "X-Plex-Product",
+     "Plezy"
+    ],
+    [
+     "X-Plex-Version",
+     "2.25.0"
+    ],
+    [
+     "X-Plex-Client-Identifier",
+     "rec633-plezy"
+    ],
+    [
+     "X-Plex-Platform",
+     "Linux"
+    ]
+   ],
+   "response": {
+    "size": 1,
+    "allowSync": "1",
+    "directPlayDecisionCode": 3000,
+    "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+    "generalDecisionCode": 1001,
+    "generalDecisionText": "Direct play not available; Conversion OK.",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": "1",
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "77f7215e-f039-450c-968a-cb0e1e27de74",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": "1758205129",
+    "resourceSession": "rec633-plezy-ts-id",
+    "transcodeDecisionCode": 1001,
+    "transcodeDecisionText": "Direct play not available; Conversion OK.",
+    "Metadata": [
+     {
+      "addedAt": 1793762498,
+      "createdAtAccuracy": "epoch",
+      "createdAtTZOffset": "0",
+      "duration": 30016,
+      "guid": "tv.plex.agents.none://1",
+      "key": "/library/metadata/1",
+      "librarySectionID": "1",
+      "librarySectionKey": "/library/sections/1",
+      "librarySectionTitle": "Movies",
+      "originallyAvailableAt": "2026-11-04",
+      "ratingKey": "1",
+      "subtype": "clip",
+      "title": "Rec633",
+      "type": "movie",
+      "updatedAt": 1793762592,
+      "year": 2026,
+      "Media": [
+       {
+        "id": "1",
+        "videoProfile": "high",
+        "audioChannels": 6,
+        "audioCodec": "ac3",
+        "bitrate": 8384,
+        "container": "mpegts",
+        "duration": 30016,
+        "height": 1080,
+        "protocol": "hls",
+        "videoCodec": "h264",
+        "videoFrameRate": "24p",
+        "videoResolution": "1080p",
+        "width": 1920,
+        "selected": true,
+        "Part": [
+         {
+          "id": "1",
+          "videoProfile": "high",
+          "bitrate": 8384,
+          "container": "mpegts",
+          "duration": 30016,
+          "height": 1080,
+          "protocol": "hls",
+          "width": 1920,
+          "decision": "transcode",
+          "selected": true,
+          "Stream": [
+           {
+            "bitrate": 8000,
+            "codec": "h264",
+            "default": true,
+            "displayTitle": "1080p",
+            "extendedDisplayTitle": "1080p (H.264)",
+            "frameRate": 24.0,
+            "height": 1080,
+            "id": "1",
+            "streamType": 1,
+            "width": 1920,
+            "decision": "transcode",
+            "location": "segments-av"
+           },
+           {
+            "audioChannelLayout": "5.1(side)",
+            "bitrate": 384,
+            "bitrateMode": "cbr",
+            "channels": 6,
+            "codec": "ac3",
+            "default": true,
+            "displayTitle": "Unknown (AC3 5.1)",
+            "extendedDisplayTitle": "Unknown (AC3 5.1)",
+            "id": "2",
+            "samplingRate": 48000,
+            "selected": true,
+            "streamType": 2,
+            "decision": "copy",
+            "location": "segments-av"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "label": "plezy-mp4-original",
+   "query": [
+    [
+     "hasMDE",
+     "1"
+    ],
+    [
+     "path",
+     "/library/metadata/1"
+    ],
+    [
+     "mediaIndex",
+     "0"
+    ],
+    [
+     "partIndex",
+     "0"
+    ],
+    [
+     "protocol",
+     "hls"
+    ],
+    [
+     "fastSeek",
+     "1"
+    ],
+    [
+     "directPlay",
+     "0"
+    ],
+    [
+     "directStream",
+     "1"
+    ],
+    [
+     "subtitleSize",
+     "100"
+    ],
+    [
+     "audioBoost",
+     "100"
+    ],
+    [
+     "location",
+     "lan"
+    ],
+    [
+     "addDebugOverlay",
+     "0"
+    ],
+    [
+     "autoAdjustQuality",
+     "0"
+    ],
+    [
+     "directStreamAudio",
+     "1"
+    ],
+    [
+     "mediaBufferSize",
+     "102400"
+    ],
+    [
+     "session",
+     "rec633-plezy-mp4-original"
+    ],
+    [
+     "subtitles",
+     "none"
+    ],
+    [
+     "Accept-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Session-Identifier",
+     "rec633-plezy-mp4-original-id"
+    ],
+    [
+     "X-Plex-Client-Profile-Extra",
+     "add-settings(DirectPlayStreamSelection=true)+add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mp4&videoCodec=hevc%2Ch264&audioCodec=aac%2Cac3%2Ceac3%2Cmp3)+add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+    ],
+    [
+     "X-Plex-Incomplete-Segments",
+     "1"
+    ],
+    [
+     "X-Plex-Features",
+     "external-media,indirect-media"
+    ],
+    [
+     "X-Plex-Model",
+     "standalone"
+    ],
+    [
+     "X-Plex-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Client-Profile-Name",
+     "Generic"
+    ],
+    [
+     "X-Plex-Product",
+     "Plezy"
+    ],
+    [
+     "X-Plex-Version",
+     "2.25.0"
+    ],
+    [
+     "X-Plex-Client-Identifier",
+     "rec633-plezy"
+    ],
+    [
+     "X-Plex-Platform",
+     "Linux"
+    ]
+   ],
+   "response": {
+    "size": 1,
+    "allowSync": "1",
+    "directPlayDecisionCode": 3000,
+    "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+    "generalDecisionCode": 1001,
+    "generalDecisionText": "Direct play not available; Conversion OK.",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": "1",
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "77f7215e-f039-450c-968a-cb0e1e27de74",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": "1758205129",
+    "resourceSession": "rec633-plezy-mp4-original-id",
+    "transcodeDecisionCode": 1001,
+    "transcodeDecisionText": "Direct play not available; Conversion OK.",
+    "Metadata": [
+     {
+      "addedAt": 1793762498,
+      "art": "/library/metadata/1/art/1793762637",
+      "createdAtAccuracy": "epoch",
+      "createdAtTZOffset": "0",
+      "duration": 30016,
+      "guid": "tv.plex.agents.none://1",
+      "key": "/library/metadata/1",
+      "librarySectionID": "1",
+      "librarySectionKey": "/library/sections/1",
+      "librarySectionTitle": "Movies",
+      "originallyAvailableAt": "2026-11-04",
+      "ratingKey": "1",
+      "subtype": "clip",
+      "thumb": "/library/metadata/1/thumb/1793762637",
+      "title": "Rec633",
+      "type": "movie",
+      "updatedAt": 1793762637,
+      "year": 2026,
+      "Media": [
+       {
+        "id": "1",
+        "videoProfile": "high",
+        "audioChannels": 6,
+        "audioCodec": "ac3",
+        "bitrate": 5276,
+        "container": "mp4",
+        "duration": 30016,
+        "height": 1080,
+        "optimizedForStreaming": true,
+        "protocol": "hls",
+        "videoCodec": "h264",
+        "videoFrameRate": "24p",
+        "videoResolution": "1080p",
+        "width": 1920,
+        "selected": true,
+        "Part": [
+         {
+          "id": "1",
+          "videoProfile": "high",
+          "bitrate": 5276,
+          "container": "mp4",
+          "duration": 30016,
+          "height": 1080,
+          "optimizedForStreaming": true,
+          "protocol": "hls",
+          "width": 1920,
+          "decision": "transcode",
+          "selected": true,
+          "Stream": [
+           {
+            "bitrate": 4892,
+            "codec": "h264",
+            "codedHeight": 1088,
+            "codedWidth": 1920,
+            "default": true,
+            "displayTitle": "1080p",
+            "extendedDisplayTitle": "1080p (H.264)",
+            "frameRate": 24.0,
+            "hasScalingMatrix": false,
+            "height": 1080,
+            "id": "1",
+            "level": 40,
+            "profile": "high",
+            "refFrames": 1,
+            "scanType": "progressive",
+            "streamType": 1,
+            "width": 1920,
+            "decision": "copy",
+            "location": "segments-av"
+           },
+           {
+            "audioChannelLayout": "5.1(side)",
+            "bitrate": 384,
+            "bitrateMode": "cbr",
+            "channels": 6,
+            "codec": "ac3",
+            "default": true,
+            "displayTitle": "Unknown (AC3 5.1)",
+            "extendedDisplayTitle": "Unknown (AC3 5.1)",
+            "id": "2",
+            "samplingRate": 48000,
+            "selected": true,
+            "streamType": 2,
+            "decision": "copy",
+            "location": "segments-av"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "label": "control-mp4",
+   "query": [
+    [
+     "hasMDE",
+     "1"
+    ],
+    [
+     "path",
+     "/library/metadata/1"
+    ],
+    [
+     "mediaIndex",
+     "0"
+    ],
+    [
+     "partIndex",
+     "0"
+    ],
+    [
+     "protocol",
+     "hls"
+    ],
+    [
+     "fastSeek",
+     "1"
+    ],
+    [
+     "directPlay",
+     "0"
+    ],
+    [
+     "directStream",
+     "0"
+    ],
+    [
+     "subtitleSize",
+     "100"
+    ],
+    [
+     "audioBoost",
+     "100"
+    ],
+    [
+     "location",
+     "lan"
+    ],
+    [
+     "addDebugOverlay",
+     "0"
+    ],
+    [
+     "autoAdjustQuality",
+     "0"
+    ],
+    [
+     "videoResolution",
+     "1920x1080"
+    ],
+    [
+     "videoQuality",
+     "60"
+    ],
+    [
+     "directStreamAudio",
+     "1"
+    ],
+    [
+     "mediaBufferSize",
+     "102400"
+    ],
+    [
+     "session",
+     "rec633-control-mp4"
+    ],
+    [
+     "subtitles",
+     "none"
+    ],
+    [
+     "Accept-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Session-Identifier",
+     "rec633-control-mp4-id"
+    ],
+    [
+     "X-Plex-Client-Profile-Extra",
+     "add-settings(DirectPlayStreamSelection=true)+add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=8000&replace=true)+add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mp4&videoCodec=hevc,h264&audioCodec=aac,ac3,eac3,mp3)+add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+    ],
+    [
+     "X-Plex-Incomplete-Segments",
+     "1"
+    ],
+    [
+     "X-Plex-Features",
+     "external-media,indirect-media"
+    ],
+    [
+     "X-Plex-Model",
+     "standalone"
+    ],
+    [
+     "X-Plex-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Client-Profile-Name",
+     "Generic"
+    ],
+    [
+     "X-Plex-Product",
+     "Plezy"
+    ],
+    [
+     "X-Plex-Version",
+     "2.25.0"
+    ],
+    [
+     "X-Plex-Client-Identifier",
+     "rec633-plezy"
+    ],
+    [
+     "X-Plex-Platform",
+     "Linux"
+    ]
+   ],
+   "response": {
+    "size": 1,
+    "allowSync": "1",
+    "directPlayDecisionCode": 3000,
+    "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+    "generalDecisionCode": 1001,
+    "generalDecisionText": "Direct play not available; Conversion OK.",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": "1",
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "77f7215e-f039-450c-968a-cb0e1e27de74",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": "1758205129",
+    "resourceSession": "rec633-control-mp4-id",
+    "transcodeDecisionCode": 1001,
+    "transcodeDecisionText": "Direct play not available; Conversion OK.",
+    "Metadata": [
+     {
+      "addedAt": 1793762498,
+      "art": "/library/metadata/1/art/1793762637",
+      "createdAtAccuracy": "epoch",
+      "createdAtTZOffset": "0",
+      "duration": 30016,
+      "guid": "tv.plex.agents.none://1",
+      "key": "/library/metadata/1",
+      "librarySectionID": "1",
+      "librarySectionKey": "/library/sections/1",
+      "librarySectionTitle": "Movies",
+      "originallyAvailableAt": "2026-11-04",
+      "ratingKey": "1",
+      "subtype": "clip",
+      "thumb": "/library/metadata/1/thumb/1793762637",
+      "title": "Rec633",
+      "type": "movie",
+      "updatedAt": 1793762637,
+      "year": 2026,
+      "Media": [
+       {
+        "id": "1",
+        "videoProfile": "high",
+        "audioChannels": 6,
+        "audioCodec": "ac3",
+        "bitrate": 8384,
+        "container": "mp4",
+        "duration": 30016,
+        "height": 1080,
+        "optimizedForStreaming": true,
+        "protocol": "hls",
+        "videoCodec": "h264",
+        "videoFrameRate": "24p",
+        "videoResolution": "1080p",
+        "width": 1920,
+        "selected": true,
+        "Part": [
+         {
+          "id": "1",
+          "videoProfile": "high",
+          "bitrate": 8384,
+          "container": "mp4",
+          "duration": 30016,
+          "height": 1080,
+          "optimizedForStreaming": true,
+          "protocol": "hls",
+          "width": 1920,
+          "decision": "transcode",
+          "selected": true,
+          "Stream": [
+           {
+            "bitrate": 8000,
+            "codec": "h264",
+            "default": true,
+            "displayTitle": "1080p",
+            "extendedDisplayTitle": "1080p (H.264)",
+            "frameRate": 24.0,
+            "height": 1080,
+            "id": "1",
+            "streamType": 1,
+            "width": 1920,
+            "decision": "transcode",
+            "location": "segments-av"
+           },
+           {
+            "audioChannelLayout": "5.1(side)",
+            "bitrate": 384,
+            "bitrateMode": "cbr",
+            "channels": 6,
+            "codec": "ac3",
+            "default": true,
+            "displayTitle": "Unknown (AC3 5.1)",
+            "extendedDisplayTitle": "Unknown (AC3 5.1)",
+            "id": "2",
+            "samplingRate": 48000,
+            "selected": true,
+            "streamType": 2,
+            "decision": "copy",
+            "location": "segments-av"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "label": "control-ts",
+   "query": [
+    [
+     "hasMDE",
+     "1"
+    ],
+    [
+     "path",
+     "/library/metadata/1"
+    ],
+    [
+     "mediaIndex",
+     "0"
+    ],
+    [
+     "partIndex",
+     "0"
+    ],
+    [
+     "protocol",
+     "hls"
+    ],
+    [
+     "fastSeek",
+     "1"
+    ],
+    [
+     "directPlay",
+     "0"
+    ],
+    [
+     "directStream",
+     "0"
+    ],
+    [
+     "subtitleSize",
+     "100"
+    ],
+    [
+     "audioBoost",
+     "100"
+    ],
+    [
+     "location",
+     "lan"
+    ],
+    [
+     "addDebugOverlay",
+     "0"
+    ],
+    [
+     "autoAdjustQuality",
+     "0"
+    ],
+    [
+     "videoResolution",
+     "1920x1080"
+    ],
+    [
+     "videoQuality",
+     "60"
+    ],
+    [
+     "directStreamAudio",
+     "1"
+    ],
+    [
+     "mediaBufferSize",
+     "102400"
+    ],
+    [
+     "session",
+     "rec633-control-ts"
+    ],
+    [
+     "subtitles",
+     "none"
+    ],
+    [
+     "Accept-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Session-Identifier",
+     "rec633-control-ts-id"
+    ],
+    [
+     "X-Plex-Client-Profile-Extra",
+     "add-settings(DirectPlayStreamSelection=true)+add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=8000&replace=true)+add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac,ac3,eac3,mp3)+add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+    ],
+    [
+     "X-Plex-Incomplete-Segments",
+     "1"
+    ],
+    [
+     "X-Plex-Features",
+     "external-media,indirect-media"
+    ],
+    [
+     "X-Plex-Model",
+     "standalone"
+    ],
+    [
+     "X-Plex-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Client-Profile-Name",
+     "Generic"
+    ],
+    [
+     "X-Plex-Product",
+     "Plezy"
+    ],
+    [
+     "X-Plex-Version",
+     "2.25.0"
+    ],
+    [
+     "X-Plex-Client-Identifier",
+     "rec633-plezy"
+    ],
+    [
+     "X-Plex-Platform",
+     "Linux"
+    ]
+   ],
+   "response": {
+    "size": 1,
+    "allowSync": "1",
+    "directPlayDecisionCode": 3000,
+    "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+    "generalDecisionCode": 1001,
+    "generalDecisionText": "Direct play not available; Conversion OK.",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": "1",
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "77f7215e-f039-450c-968a-cb0e1e27de74",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": "1758205129",
+    "resourceSession": "rec633-control-ts-id",
+    "transcodeDecisionCode": 1001,
+    "transcodeDecisionText": "Direct play not available; Conversion OK.",
+    "Metadata": [
+     {
+      "addedAt": 1793762498,
+      "art": "/library/metadata/1/art/1793762638",
+      "createdAtAccuracy": "epoch",
+      "createdAtTZOffset": "0",
+      "duration": 30016,
+      "guid": "tv.plex.agents.none://1",
+      "key": "/library/metadata/1",
+      "librarySectionID": "1",
+      "librarySectionKey": "/library/sections/1",
+      "librarySectionTitle": "Movies",
+      "ratingKey": "1",
+      "subtype": "clip",
+      "thumb": "/library/metadata/1/thumb/1793762638",
+      "title": "Rec633",
+      "type": "movie",
+      "updatedAt": 1793762638,
+      "Media": [
+       {
+        "id": "1",
+        "videoProfile": "high",
+        "audioChannels": 6,
+        "audioCodec": "ac3",
+        "bitrate": 8384,
+        "container": "mpegts",
+        "duration": 30016,
+        "height": 1080,
+        "protocol": "hls",
+        "videoCodec": "h264",
+        "videoFrameRate": "24p",
+        "videoResolution": "1080p",
+        "width": 1920,
+        "selected": true,
+        "Part": [
+         {
+          "id": "1",
+          "videoProfile": "high",
+          "bitrate": 8384,
+          "container": "mpegts",
+          "duration": 30016,
+          "height": 1080,
+          "protocol": "hls",
+          "width": 1920,
+          "decision": "transcode",
+          "selected": true,
+          "Stream": [
+           {
+            "bitrate": 8000,
+            "codec": "h264",
+            "default": true,
+            "displayTitle": "1080p",
+            "extendedDisplayTitle": "1080p (H.264)",
+            "frameRate": 24.0,
+            "height": 1080,
+            "id": "1",
+            "streamType": 1,
+            "width": 1920,
+            "decision": "transcode",
+            "location": "segments-av"
+           },
+           {
+            "audioChannelLayout": "5.1(side)",
+            "bitrate": 384,
+            "bitrateMode": "cbr",
+            "channels": 6,
+            "codec": "ac3",
+            "default": true,
+            "displayTitle": "Unknown (AC3 5.1)",
+            "extendedDisplayTitle": "Unknown (AC3 5.1)",
+            "id": "2",
+            "samplingRate": 48000,
+            "selected": true,
+            "streamType": 2,
+            "decision": "copy",
+            "location": "segments-av"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "label": "control-mp4-original",
+   "query": [
+    [
+     "hasMDE",
+     "1"
+    ],
+    [
+     "path",
+     "/library/metadata/1"
+    ],
+    [
+     "mediaIndex",
+     "0"
+    ],
+    [
+     "partIndex",
+     "0"
+    ],
+    [
+     "protocol",
+     "hls"
+    ],
+    [
+     "fastSeek",
+     "1"
+    ],
+    [
+     "directPlay",
+     "0"
+    ],
+    [
+     "directStream",
+     "1"
+    ],
+    [
+     "subtitleSize",
+     "100"
+    ],
+    [
+     "audioBoost",
+     "100"
+    ],
+    [
+     "location",
+     "lan"
+    ],
+    [
+     "addDebugOverlay",
+     "0"
+    ],
+    [
+     "autoAdjustQuality",
+     "0"
+    ],
+    [
+     "directStreamAudio",
+     "1"
+    ],
+    [
+     "mediaBufferSize",
+     "102400"
+    ],
+    [
+     "session",
+     "rec633-control-mp4-original"
+    ],
+    [
+     "subtitles",
+     "none"
+    ],
+    [
+     "Accept-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Session-Identifier",
+     "rec633-control-mp4-original-id"
+    ],
+    [
+     "X-Plex-Client-Profile-Extra",
+     "add-settings(DirectPlayStreamSelection=true)+add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mp4&videoCodec=hevc,h264&audioCodec=aac,ac3,eac3,mp3)+add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+    ],
+    [
+     "X-Plex-Incomplete-Segments",
+     "1"
+    ],
+    [
+     "X-Plex-Features",
+     "external-media,indirect-media"
+    ],
+    [
+     "X-Plex-Model",
+     "standalone"
+    ],
+    [
+     "X-Plex-Language",
+     "en"
+    ],
+    [
+     "X-Plex-Client-Profile-Name",
+     "Generic"
+    ],
+    [
+     "X-Plex-Product",
+     "Plezy"
+    ],
+    [
+     "X-Plex-Version",
+     "2.25.0"
+    ],
+    [
+     "X-Plex-Client-Identifier",
+     "rec633-plezy"
+    ],
+    [
+     "X-Plex-Platform",
+     "Linux"
+    ]
+   ],
+   "response": {
+    "size": 1,
+    "allowSync": "1",
+    "directPlayDecisionCode": 3000,
+    "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+    "generalDecisionCode": 1001,
+    "generalDecisionText": "Direct play not available; Conversion OK.",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": "1",
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "77f7215e-f039-450c-968a-cb0e1e27de74",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": "1758205129",
+    "resourceSession": "rec633-control-mp4-original-id",
+    "transcodeDecisionCode": 1001,
+    "transcodeDecisionText": "Direct play not available; Conversion OK.",
+    "Metadata": [
+     {
+      "addedAt": 1793762498,
+      "art": "/library/metadata/1/art/1793762638",
+      "createdAtAccuracy": "epoch",
+      "createdAtTZOffset": "0",
+      "duration": 30016,
+      "guid": "tv.plex.agents.none://1",
+      "key": "/library/metadata/1",
+      "librarySectionID": "1",
+      "librarySectionKey": "/library/sections/1",
+      "librarySectionTitle": "Movies",
+      "ratingKey": "1",
+      "subtype": "clip",
+      "thumb": "/library/metadata/1/thumb/1793762638",
+      "title": "Rec633",
+      "type": "movie",
+      "updatedAt": 1793762638,
+      "Media": [
+       {
+        "id": "1",
+        "videoProfile": "high",
+        "audioChannels": 6,
+        "audioCodec": "ac3",
+        "bitrate": 5276,
+        "container": "mp4",
+        "duration": 30016,
+        "height": 1080,
+        "optimizedForStreaming": true,
+        "protocol": "hls",
+        "videoCodec": "h264",
+        "videoFrameRate": "24p",
+        "videoResolution": "1080p",
+        "width": 1920,
+        "selected": true,
+        "Part": [
+         {
+          "id": "1",
+          "videoProfile": "high",
+          "bitrate": 5276,
+          "container": "mp4",
+          "duration": 30016,
+          "height": 1080,
+          "optimizedForStreaming": true,
+          "protocol": "hls",
+          "width": 1920,
+          "decision": "transcode",
+          "selected": true,
+          "Stream": [
+           {
+            "bitrate": 4892,
+            "codec": "h264",
+            "codedHeight": 1088,
+            "codedWidth": 1920,
+            "default": true,
+            "displayTitle": "1080p",
+            "extendedDisplayTitle": "1080p (H.264)",
+            "frameRate": 24.0,
+            "hasScalingMatrix": false,
+            "height": 1080,
+            "id": "1",
+            "level": 40,
+            "profile": "high",
+            "refFrames": 1,
+            "scanType": "progressive",
+            "streamType": 1,
+            "width": 1920,
+            "decision": "copy",
+            "location": "segments-av"
+           },
+           {
+            "audioChannelLayout": "5.1(side)",
+            "bitrate": 384,
+            "bitrateMode": "cbr",
+            "channels": 6,
+            "codec": "ac3",
+            "default": true,
+            "displayTitle": "Unknown (AC3 5.1)",
+            "extendedDisplayTitle": "Unknown (AC3 5.1)",
+            "id": "2",
+            "samplingRate": 48000,
+            "selected": true,
+            "streamType": 2,
+            "decision": "copy",
+            "location": "segments-av"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

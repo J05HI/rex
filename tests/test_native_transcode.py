@@ -1002,7 +1002,12 @@ def run(scratch):
     port, process, log = start_server(catalog, zurg_port, True, scratch)
     try:
         status, _, body = get(port, "/")
-        check("/ claims transcoderVideo", json.loads(body)["MediaContainer"].get("transcoderVideo") is True, "")
+        root = json.loads(body)["MediaContainer"]
+        check("/ claims transcoderVideo", root.get("transcoderVideo") is True, "")
+        # Plex Web draws Optimize... on transcoderVideo AND backgroundProcessing, and rex has no
+        # storage for an optimized version: its POST /playlists?type=42 was a 500 (rex-fun, 2026-11).
+        check("/ claims no background processing, so Optimize... is not offered",
+              root.get("backgroundProcessing") is False, str(root.get("backgroundProcessing")))
         status, container = decision(port, "1", "direct", directPlay="1")
         check("a direct-playable request is still MDE direct play",
               container.get("mdeDecisionCode") == 1000 and "generalDecisionCode" not in container, "")
@@ -1070,6 +1075,49 @@ def run(scratch):
             if asked["label"].endswith("generic-target"):
                 walk(port, scratch, asked["label"], "3", "transcode", "copy", (1280, 720), directStream="0", muxer="mkv",
                      **{name: asked["req_headers"][name] for name in ("X-Plex-Client-Profile-Name", "X-Plex-Client-Profile-Extra")})
+        # Plezy joins its codec lists with an encoded comma (`audioCodec=aac%2Cac3%2Ceac3%2Cmp3`), which a
+        # real 1.42.2 reads as the plain list, the AC3 copied (`plezy_codec_lists_s1422.json`). rex took it
+        # for one codec and handed it to FFmpeg as the encoder: every segment 500 (rex#18).
+        plezy = {asked["label"]: dict(asked["query"]) for asked in
+                 json.load(open(os.path.join(ROOT, "tests/fixtures/decisions/plezy_codec_lists_s1422.json")))["decisions"]}
+        names = ("X-Plex-Client-Profile-Name", "X-Plex-Client-Profile-Extra")
+        walk(port, scratch, "plezy-ts", "3", "transcode", "copy", (1280, 720), directStream="0",
+             **{name: plezy["plezy-ts"][name] for name in names})
+        # Its video list too: at Original quality the HEVC is copied, as it is for `hevc,h264`.
+        status, container = decision(port, "3", "s-plezy-original", **{name: plezy["plezy-mp4-original"][name] for name in names})
+        part = container.get("Metadata", [{}])[0].get("Media", [{}])[0].get("Part", [{}])[0]
+        streams = {s.get("streamType"): s.get("decision") for s in part.get("Stream", [])}
+        check("plezy-mp4-original: hevc%2Ch264 copies the HEVC and AC3", (streams.get(1), streams.get(2)) == ("copy", "copy"),
+              json.dumps(streams))
+        get(port, "/video/:/transcode/universal/stop", [("session", "s-plezy-original")])
+        # A codec rex has no encoder for is refused, not handed to FFmpeg. Not measured: rex's own
+        # encoder-less refusal, for a list that still reads as one unknown name once decoded.
+        unknown = plezy["plezy-ts"]["X-Plex-Client-Profile-Extra"].replace("audioCodec=aac%2Cac3%2Ceac3%2Cmp3", "audioCodec=aac%252Cac3")
+        status, container = decision(port, "3", "s-plezy-unknown", directStream="0",
+                                     **{"X-Plex-Client-Profile-Name": "Generic", "X-Plex-Client-Profile-Extra": unknown})
+        check("an unknown audio encoder is refused (2000/4005), not converted to",
+              container.get("generalDecisionCode") == 2000 and container.get("transcodeDecisionCode") == 4005,
+              json.dumps({k: v for k, v in container.items() if "Decision" in k}))
+        # A list headed by a codec rex cannot encode still copies a source it names: the encoder gate once
+        # ran before the copy decision, so `dca,ac3` with this AC3 source was refused (2000) where the
+        # plain list copies it. Not measured: no bundled profile lists such a head (checked 2026-11-04).
+        headed = plezy["plezy-ts"]["X-Plex-Client-Profile-Extra"].replace("audioCodec=aac%2Cac3%2Ceac3%2Cmp3", "audioCodec=dca%2Cac3")
+        walk(port, scratch, "plezy-dca-head", "3", "transcode", "copy", (1280, 720), directStream="0",
+             **{"X-Plex-Client-Profile-Name": plezy["plezy-ts"]["X-Plex-Client-Profile-Name"], "X-Plex-Client-Profile-Extra": headed})
+        # Plezy's quality (720p 2 Mbps) is no maxVideoBitrate but an `add-limitation` on video.bitrate in
+        # its extra; a real 1.42.2 converts at 2000 (`plezy_quality_limit_s1422.json`). rex ignored it and
+        # sent 4482k, twice what the phone asked for (Pixel 6, 2026-11-04).
+        limited = json.load(open(os.path.join(ROOT, "tests/fixtures/decisions/plezy_quality_limit_s1422.json")))
+        theirs = next(s for s in limited["decision"]["MediaContainer"]["Metadata"][0]["Media"][0]["Part"][0]["Stream"] if s["streamType"] == 1)
+        query = [(name, "/library/metadata/3" if name == "path" else "s-plezy-limit" if name in ("session", "X-Plex-Session-Identifier") else value)
+                 for name, value in limited["query"]]
+        status, _, body = get(port, "/video/:/transcode/universal/decision", query)
+        part = json.loads(body)["MediaContainer"].get("Metadata", [{}])[0].get("Media", [{}])[0].get("Part", [{}])[0] if status == 200 else {}
+        ours = next((s for s in part.get("Stream", []) if s.get("streamType") == 1), {})
+        check("plezy-limit: its add-limitation holds the video to the reference's %sk" % theirs["bitrate"],
+              status == 200 and ours.get("decision") == "transcode" and 0 < (ours.get("bitrate") or 0) <= theirs["bitrate"],
+              json.dumps({"status": status, "bitrate": ours.get("bitrate"), "decision": ours.get("decision")}))
+        get(port, "/video/:/transcode/universal/stop", [("session", "s-plezy-limit")])
         # A selected text subtitle was dropped from every conversion. The reference copies an
         # SRT into these apps' Matroska segments (`subtitles_s1422.json`).
         android = next(asked for asked in recorded["decisions"] if asked["label"] == "android-generic-target")

@@ -382,6 +382,27 @@ fn limitation(limits: &[&Map<String, Value>], values: &HashMap<String, Value>) -
 /// The first codec-profile limitation `codec` breaks in `scope` (`VideoCodec`,
 /// `VideoAudioCodec`), with the `onlyTranscodes` ones included: those are exactly the
 /// rules for a stream a conversion copies rather than one the app plays directly.
+/// The video bitrate a conversion is held to by the profile: an `upperBound` on `video.bitrate` for
+/// any codec (`*`, which an extra's limitation arrives as an empty name) or H.264, which rex converts
+/// to. Plezy brings its quality as one in its extra (`add-limitation(scope=videoCodec&scopeName=*&
+/// type=upperBound&name=video.bitrate&value=2000)`) with no `maxVideoBitrate`, and a real 1.42.2
+/// converts at 2000 (`tests/fixtures/decisions/plezy_quality_limit_s1422.json`).
+pub fn video_bitrate_cap(profile: &Profile) -> Option<i64> {
+    entries(profile, "codecprofiles")
+        .into_iter()
+        .filter(|entry| text(entry.get("tag")) == Some("VideoCodec"))
+        .filter(|entry| {
+            let codecs = names(entry.get("name"));
+            codecs.is_empty() || codecs.iter().any(|name| *name == "*" || name.eq_ignore_ascii_case("h264"))
+        })
+        .flat_map(|entry| entries(entry, "limitations"))
+        .filter(|limit| text(limit.get("name")) == Some("video.bitrate") && text(limit.get("tag")).is_some_and(|tag| tag.eq_ignore_ascii_case("UpperBound")))
+        .filter_map(|limit| number(limit.get("value")))
+        .filter(|value| *value >= 1.0)
+        .map(|value| value as i64)
+        .min()
+}
+
 pub fn codec_limitation(profile: &Profile, scope: &str, codec: &str, media: &Value) -> Option<String> {
     let stream_list = streams(media);
     let values = measured_values(media, &stream_list, selected_audio(&stream_list));
@@ -645,6 +666,12 @@ pub fn conversion(profile: &Profile, protocol: &str, media: Option<&Value>) -> O
         }
         if declared.is_none() && protocol == "http" {
             if text(target.get("container")) == Some("asf") {
+                // Xbox 360's asf-only target. Its 400 is the audio's: a Media with no audio
+                // stream (a raw .avc, .m2v, .fli or .vp3 on plexscratch42, 2026-11-04) is
+                // 3000/2000/4007, "Implementation for video encoder 'wmv2' not found."
+                if media.is_some_and(|media| !streams(media).iter().any(|stream| stream_type(stream) == Some(2.0))) {
+                    return Outcome::Neither;
+                }
                 return Outcome::Refuse;
             }
             if !blocked {
@@ -713,20 +740,24 @@ pub fn with_extra(profile: &Profile, extra: &str) -> Profile {
         let Some((kind, rest)) = directive.split_once('(') else {
             continue;
         };
-        let pairs: HashMap<&str, &str> = rest
+        // Plezy sends `audioCodec=aac%2Cac3%2Ceac3%2Cmp3`, which a real 1.42.2 reads as the list
+        // Plex's apps send with plain commas (`tests/fixtures/decisions/plezy_codec_lists_s1422.json`).
+        let pairs: HashMap<&str, String> = rest
             .trim_end_matches(')')
             .split('&')
             .filter_map(|pair| pair.split_once('='))
+            .map(|(key, value)| (key, crate::runtime::percent_decode(value)))
             .collect();
+        let named = |key: &str| pairs.get(key).map(String::as_str).unwrap_or("");
         // The profile resource says "any" with an empty field; a client's extra says `*`.
-        let field = |key: &str| Value::from(pairs.get(key).copied().filter(|value| *value != "*").unwrap_or(""));
+        let field = |key: &str| Value::from(Some(named(key)).filter(|value| *value != "*").unwrap_or(""));
         let (list, entry) = match kind.trim() {
-            "add-direct-play-profile" if pairs.get("type") == Some(&"videoProfile") => (
+            "add-direct-play-profile" if named("type") == "videoProfile" => (
                 "directplay",
                 serde_json::json!({"tag": "VideoProfile", "container": field("container"),
                     "codec": field("videoCodec"), "audioCodec": field("audioCodec")}),
             ),
-            "add-transcode-target" if pairs.get("type") == Some(&"videoProfile") => (
+            "add-transcode-target" if named("type") == "videoProfile" => (
                 "targets",
                 serde_json::json!({"tag": "VideoProfile", "context": field("context"), "protocol": field("protocol"),
                     "container": field("container"), "codec": field("videoCodec"), "audioCodec": field("audioCodec"),
@@ -734,9 +765,9 @@ pub fn with_extra(profile: &Profile, extra: &str) -> Profile {
             ),
             "add-limitation" => (
                 "codecprofiles",
-                serde_json::json!({"tag": capital(pairs.get("scope").copied().unwrap_or("")),
+                serde_json::json!({"tag": capital(named("scope")),
                     "name": field("scopeName"), "limitations": [{"name": field("name"),
-                    "tag": capital(pairs.get("type").copied().unwrap_or("")), "value": field("value")}]}),
+                    "tag": capital(named("type")), "value": field("value")}]}),
             ),
             _ => continue,
         };
@@ -867,8 +898,8 @@ mod tests {
             }
         }
         assert_eq!(profiles.len(), 78);
-        assert_eq!(row_map.len(), 31);
-        assert_eq!(measured, 2340);
+        assert_eq!(row_map.len(), 57);
+        assert_eq!(measured, 4368);
         assert_eq!(outcome_matches, measured);
         assert_eq!(exact_matches, measured);
         assert_eq!(recorded, 156);
@@ -944,5 +975,29 @@ mod tests {
             assert_eq!(answer.outcome == Outcome::Convert, converts, "{}", row["label"]);
         }
         assert_eq!(rows.len(), 4);
+    }
+
+    const PLEZY: &str = include_str!("../../tests/fixtures/decisions/plezy_codec_lists_s1422.json");
+
+    #[test]
+    fn a_client_extra_codec_list_joined_with_an_encoded_comma_is_the_same_list_as_a_real_pms_reads_it() {
+        let profiles = parse_profiles(PROFILES).expect("profile fixture parses");
+        let fixture: Value = serde_json::from_str(PLEZY).expect("plezy fixture parses");
+        let media = &fixture["items"]["1"]["Media"][0];
+        let rows = fixture["decisions"].as_array().expect("decisions");
+        for row in rows {
+            let label = row["label"].as_str().expect("label");
+            let asked = |name: &str| {
+                row["query"].as_array().expect("query").iter().find(|pair| pair[0] == name).and_then(|pair| pair[1].as_str()).expect(name)
+            };
+            let profile = with_extra(resolve(&profiles, asked("X-Plex-Client-Profile-Name")).expect("profile"), asked("X-Plex-Client-Profile-Extra"));
+            let converts = row["response"]["generalDecisionCode"].as_i64() == Some(1001);
+            assert_eq!(decide_profile(&profile, media, "hls", false).outcome == Outcome::Convert, converts, "{label}");
+            let target = profile["targets"].as_array().expect("targets").iter().find(|target| target["protocol"] == "hls").expect("hls target");
+            assert_eq!(target["audioCodec"], "aac,ac3,eac3,mp3", "{label}");
+            let video = if target["container"] == "mp4" { "hevc,h264" } else { "h264" };
+            assert_eq!(target["codec"], video, "{label}");
+        }
+        assert_eq!(rows.len(), 6);
     }
 }

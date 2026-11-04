@@ -16,12 +16,15 @@
 use super::feed::{held_key, lock, Counts, Item};
 use super::source::Source;
 use super::*;
-use crate::identify::{self, PlexSource};
+use crate::identify;
 use crate::{hierarchy, mediainfo, metadata};
 
-/// What a source may push as a track: the containers Plex's music scanner reads.
+/// What a source may push as a track: the containers Plex's music scanner reads. plexav's 1.43.4
+/// made a track of one small file of each of the last twelve (2026-11-04, `tests/fixtures/music/
+/// audio-formats.json`) and of no `.tak`.
 const AUDIO: &[&str] = &[
     "flac", "mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "alac", "aif", "aiff", "wma", "ape", "wv", "dsf", "mka",
+    "m4b", "ac3", "dts", "dsd", "mp2", "mpa", "mpc", "mp+", "mpp", "rm", "rma", "shn",
 ];
 
 /// What PMS names an artist and an album no tag names (its local agent's words); rex has no tags
@@ -127,7 +130,7 @@ pub(super) fn upsert_tracks(
     retry: bool,
 ) {
     let mut plans: Vec<(Item, String, Plan)> = Vec::new();
-    let plex = {
+    let (plex, languages) = {
         let mut guard = lock(shared);
         let rows = guard.feed_rows(&source.name, items.iter().map(|item| item.id.as_str()));
         let mut albums: HashMap<String, Option<(String, String)>> = HashMap::new();
@@ -159,6 +162,7 @@ pub(super) fn upsert_tracks(
                         // from its album's listing) sends it on the next push, which this counted
                         // unchanged and dropped, leaving the Part at size 0 (2026-11-01).
                         let refreshed = guard.refresh_track_part(key, &item);
+                        let repictured = guard.refresh_track_pictures(key, source.artwork, &item);
                         let had = guard.item_streams(key, &source.name, &item.id).map(|streams| lyric_sources(&streams)).unwrap_or_default();
                         let wanted: Option<Vec<(String, Option<u64>)>> =
                             item.lyrics.as_ref().map(|lyrics| lyrics.iter().map(|(path, _, size)| (path.clone(), *size)).collect());
@@ -167,7 +171,7 @@ pub(super) fn upsert_tracks(
                         match wanted {
                             Some(wanted) if wanted != had => plans.push((item, section, Plan::Lyrics(key.clone()))),
                             _ if loudness_changed => plans.push((item, section, Plan::Lyrics(key.clone()))),
-                            _ if refreshed => counts.updated += 1,
+                            _ if refreshed || repictured => counts.updated += 1,
                             _ => {
                                 counts.unchanged += 1;
                                 counts.unchanged_tracks.push(item.id.clone());
@@ -196,19 +200,23 @@ pub(super) fn upsert_tracks(
                 }
             }
         }
-        guard.plex.clone()
+        let languages: HashMap<String, String> = plans.iter().map(|(_, section, _)| (section.clone(), guard.section_language(section))).collect();
+        (guard.plex.clone(), languages)
     };
     if plans.is_empty() {
         return;
     }
+    // ponytail: an album or artist is asked once per push, in the language of the first library
+    // holding it; one album in two music libraries of different languages shows the first's.
+    let agent = |section: &String| plex.as_deref().map(|plex| plex.in_language(&languages[section]));
     // Off the lock: Plex's agent, once per album.
     let mut named: Named = HashMap::new();
-    for (item, _, _) in &plans {
+    for (item, section, _) in &plans {
         let ids = album_ids(item);
         if ids == (None, None) || named.contains_key(&ids) {
             continue;
         }
-        let answer = plex.as_deref().and_then(|p| identify::plex_album(p as &dyn PlexSource, ids.0.as_deref(), ids.1.as_deref()));
+        let answer = agent(section).and_then(|p| identify::plex_album(&p, ids.0.as_deref(), ids.1.as_deref()));
         let what = answer.as_ref().and_then(|(album, _)| album.get("guid")).map(string_value).unwrap_or_else(|| "nothing".to_string());
         info!("FEED identified album {:?} -> {what}", ids.0.as_deref().or(ids.1.as_deref()).unwrap_or_default());
         named.insert(ids, answer);
@@ -217,12 +225,12 @@ pub(super) fn upsert_tracks(
     // beside that artist's named albums, not under an artist of its displayed name (2026-11-02: rex-fun
     // drew Lawrence and Pentatonix twice, once for each kind of album).
     let mut artists: HashMap<String, Option<Value>> = HashMap::new();
-    for (item, _, _) in &plans {
+    for (item, section, _) in &plans {
         let Some(mbid) = artist_mbid(item) else { continue };
         if named.get(&album_ids(item)).is_some_and(Option::is_some) || artists.contains_key(&mbid) {
             continue;
         }
-        let answer = plex.as_deref().and_then(|p| identify::plex_artist(p as &dyn PlexSource, &mbid));
+        let answer = agent(section).and_then(|p| identify::plex_artist(&p, &mbid));
         let what = answer.as_ref().and_then(|artist| artist.get("guid")).map(string_value).unwrap_or_else(|| "nothing".to_string());
         info!("FEED identified artist {mbid:?} -> {what}");
         artists.insert(mbid, answer);
@@ -300,6 +308,35 @@ pub(super) fn upsert_tracks(
 impl Runtime {
     /// A placed track's Part takes the file and size its source pushes now; whether either changed.
     /// A size of 0 (none sent, none probed) keeps the one the Part has.
+    /// A placed track's artist and album take its source's pictures as `place_track` gives them, on a
+    /// push that changes nothing else: rex-fun's BINI and nine other displayed artists stayed blank
+    /// after their source's pushes already carried the channel's picture, since those pushes were
+    /// counted unchanged and never placed again (2026-11-02). Never over a person's (`write_display`).
+    fn refresh_track_pictures(&mut self, key: &str, artwork: bool, item: &Item) -> bool {
+        let Some(row) = self.catalog.get(key).cloned() else {
+            return false;
+        };
+        let named = |this: &Self, key: &str, kind: &str| {
+            this.catalog.get(key).and_then(|row| row.get("guid")).and_then(Value::as_str).is_some_and(|guid| guid.starts_with(kind))
+        };
+        let mut changed = false;
+        if let Some(artist) = row.get("grandparentRatingKey").map(string_value) {
+            if artwork || !named(self, &artist, "plex://artist/") {
+                let pictures: Map<String, Value> = [("poster", "_poster_url"), ("art", "_art_url")]
+                    .into_iter()
+                    .filter_map(|(field, target)| Some((target.to_string(), json!(display_text(item, Some("artist"), field)?))))
+                    .collect();
+                changed |= !pictures.is_empty() && self.write_display(&artist, &pictures, None);
+            }
+        }
+        if let (Some(album), Some(poster)) = (row.get("parentRatingKey").map(string_value), display_text(item, Some("album"), "poster")) {
+            if !named(self, &album, "plex://album/") {
+                changed |= self.write_display(&album, &Map::from_iter([("_poster_url".to_string(), json!(poster))]), None);
+            }
+        }
+        changed
+    }
+
     fn refresh_track_part(&mut self, key: &str, item: &Item) -> bool {
         let Some(part) = self.catalog.get(key).and_then(|row| row.pointer("/Media/0/Part/0")).cloned() else {
             return false;
@@ -451,7 +488,7 @@ impl Runtime {
         // after every other row has been read (`runtime::stream_candidates`).
         let levels = match self.stream_owner(stream_id) {
             Some(row) => found(&row)?,
-            None => self.catalog.hot().lazy().find_map(|row| found(row.body()))?,
+            None => self.catalog.hot().lazy().find_map(|row| row.with_body(&found))?,
         };
         let wanted = query.get("subsample").and_then(|value| value.parse::<usize>().ok());
         let shown = subsample_levels(&levels, wanted);
@@ -1357,7 +1394,7 @@ impl Runtime {
     pub(super) fn music_plan(&self, query: &HashMap<String, String>, headers: &HashMap<String, String>, key: &str, media: &Value, protocol: &str) -> Option<super::universal::Plan> {
         use super::universal::{AudioPlan, Plan, Protocol};
         self.transcoder.as_ref()?;
-        let wire = Protocol::parse(protocol).filter(|wire| matches!(wire, Protocol::Hls | Protocol::Dash))?;
+        let wire = Protocol::parse(protocol).filter(|wire| matches!(wire, Protocol::Hls | Protocol::Dash | Protocol::Http))?;
         let extra = query.get("X-Plex-Client-Profile-Extra").or_else(|| headers.get("x-plex-client-profile-extra")).cloned().unwrap_or_default();
         let target: HashMap<String, String> = extra
             .split('+')
@@ -1367,6 +1404,11 @@ impl Runtime {
         let codecs: Vec<String> = target.get("audioCodec").map(|list| list.split(',').map(|codec| codec.trim().to_ascii_lowercase()).filter(|codec| !codec.is_empty()).collect()).unwrap_or_default();
         let codec = if codecs.iter().any(|codec| codec == "mp3") { "mp3".to_string() } else { codecs.first()?.clone() };
         if !matches!(codec.as_str(), "mp3" | "aac") {
+            return None;
+        }
+        // Over http plexav streams one MP3 file (Plezy's `container=mp3` target); any other http
+        // container was not measured and stays refused.
+        if wire == Protocol::Http && (codec != "mp3" || target.get("container").map(String::as_str) != Some("mp3")) {
             return None;
         }
         let media = crate::catalog::unpacked(media);
@@ -1407,6 +1449,7 @@ impl Runtime {
             text_subtitle: None,
             text_to_srt: false,
             sidecar: None,
+            vobsub: None,
             text_burn: None,
             incomplete_segments: false,
             copyts: false,
@@ -1435,6 +1478,15 @@ impl Runtime {
         let Some(row) = self.catalog.get(key).cloned().filter(|row| row.get("type").and_then(Value::as_str) == Some("track")) else {
             return Response::error(400, "rex: bad request");
         };
+        // plexav's 1.43.4 (2026-11-04, `tests/fixtures/music/chronicle.jsonl`): `hasMDE=1` without
+        // `directPlay=0` needs a valid `mediaIndex`, as the video decision does (`route_decision`).
+        let media_count = row.get("Media").and_then(Value::as_array).map_or(0, Vec::len);
+        if query.get("hasMDE").map(String::as_str) == Some("1")
+            && query.get("directPlay").map(String::as_str) != Some("0")
+            && query.get("mediaIndex").and_then(|index| index.parse::<usize>().ok()).filter(|index| *index < media_count).is_none()
+        {
+            return Response::error(400, "rex: hasMDE without a valid mediaIndex");
+        }
         // The client's session, as the video decision keys it: the timeline's `Bandwidths` follow it.
         let headers = &_request.headers;
         let session = query
@@ -1592,7 +1644,7 @@ impl Runtime {
         }
         if direct_off && converting.is_none() {
             fields.insert("size".to_string(), json!(0));
-            info!("DECISION refused (music, no conversion) for path={path}");
+            info!("DECISION refused (music, no conversion) for path={path} -- App cannot direct play this item. Direct play is disabled. Cannot convert this item. No conversion profile found for protocol.");
             return Response::json(200, json!({"MediaContainer": fields}));
         }
         fields.insert("Metadata".to_string(), json!([track]));
@@ -1603,8 +1655,8 @@ impl Runtime {
 
 /// A track's Media as plexav's conversion decision names it: the target's codec, container,
 /// bitrate and protocol on the Media, `decision="transcode"` on the Part and its one Stream
-/// (`bitrateMode` `cbr` for AAC and `vbr` for MP3, `location` `segments-audio` for DASH and
-/// `segments-av` for HLS), the source's titles kept on the Stream.
+/// (`bitrateMode` `cbr` for AAC and `vbr` for MP3, `location` `segments-audio` for DASH,
+/// `segments-av` for HLS and `direct` for http's one MP3), the source's titles kept on the Stream.
 fn converted_track_media(direct: &Map<String, Value>, plan: &super::universal::Plan) -> Map<String, Value> {
     let Some(audio) = plan.audio.as_ref() else {
         return direct.clone();
@@ -1620,7 +1672,7 @@ fn converted_track_media(direct: &Map<String, Value>, plan: &super::universal::P
         "channels": audio.channels, "codec": audio.codec,
         "displayTitle": text(&stream, "displayTitle"), "extendedDisplayTitle": text(&stream, "extendedDisplayTitle"),
         "id": text(&stream, "id"), "selected": true, "streamType": 2, "decision": "transcode",
-        "location": if protocol == "dash" { "segments-audio" } else { "segments-av" },
+        "location": match protocol { "dash" => "segments-audio", "http" => "direct", _ => "segments-av" },
     });
     let converted_part = json!({
         "id": text(&part, "id"), "bitrate": audio.bitrate, "container": plan.container(), "duration": duration,
@@ -1638,6 +1690,10 @@ fn converted_track_media(direct: &Map<String, Value>, plan: &super::universal::P
         ("selected", json!(true)),
         ("Part", json!([converted_part])),
     ] {
+        // plexav's http MP3 names no protocol on the Media (`plezy_http_mp3.json`).
+        if field == "protocol" && protocol == "http" {
+            continue;
+        }
         out.insert(field.to_string(), value);
     }
     out

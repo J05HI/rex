@@ -1,0 +1,17 @@
+{
+  "source": "metadata.provider.plex.tv/library/streams/matches asked directly with an X-Plex-Token, the request a claimed PMS makes (plex_search_apply_s143.json's outbound) with one parameter left out at a time",
+  "captured": "2026-11-04",
+  "note": "Token and headers left out. A search with no guid is answered: the guid only narrows it. A search with no openSubtitlesHash is refused with 400, guid or not: rex sends none when it cannot read the Part's head and tail (no size pushed, or the source refuses the Range), as an item from a source like rex-youtube can be. Every search plexlab's PMS sent from 2026-09-12 to 2026-11-04 (21, capture/outbound.jsonl) carried a plex:// guid and came from a Search Subtitles request or a probe; it sent none on its own.",
+  "answers": [
+    {
+      "query": [["filename", "Sintel (2010) - 1080p.mkv"], ["guid", "plex://movie/5d77688123d5a3001f4ed3df"], ["lang", "pt-BR"], ["type", "1"], ["videoCodec", "h264"], ["videoQuality", "1080p"], ["year", "2010"]],
+      "status": 400,
+      "body": {"Error": {"error": "Bad Request", "message": "Missing required param openSubtitlesHash!", "statusCode": 400}}
+    },
+    {
+      "query": [["filename", "Some Channel - Some Video [abc123].mkv"], ["lang", "pt-BR"], ["openSubtitlesHash", "8e245d9679d31e12"], ["type", "1"], ["videoCodec", "h264"], ["videoQuality", "1080p"], ["year", ""]],
+      "status": 200,
+      "body": {"MediaContainer": {"librarySectionID": "home", "librarySectionTitle": "Metadata", "offset": 0, "totalSize": 0, "identifier": "tv.plex.provider.metadata", "size": 0}}
+    }
+  ]
+}

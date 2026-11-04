@@ -272,7 +272,8 @@ pub fn placed(plex: Option<&dyn PlexSource>, kind: &str, tmdb: Option<i64>, imdb
 /// the agent's own key for that release (`ratingKey`, which is not always the guid's tail: In
 /// Rainbows is `plex://album/5d07c2b1...`, key `5d07c92a...`); then that key with
 /// `includeChildren=1`, and the album's `parentRatingKey`, the artist. A `plex://album/` guid
-/// pushed instead is asked for by its own tail. `None` when the agent names no album.
+/// pushed instead is asked for by its own tail. `None` when the agent names no album. The library's
+/// language goes on each item GET as plexav's PMS put en-US there (`plexmeta::localised`).
 pub fn plex_album(p: &dyn PlexSource, mbid: Option<&str>, guid: Option<&str>) -> Option<(Value, Option<Value>)> {
     let first = |answer: Option<Value>| answer?.pointer("/MediaContainer/Metadata/0").cloned();
     let release = match (mbid, guid) {
@@ -289,14 +290,14 @@ pub fn plex_album(p: &dyn PlexSource, mbid: Option<&str>, guid: Option<&str>) ->
     };
     let album = first(p.call(
         "GET",
-        &format!("/library/metadata/{release}?includeAlternates=1&includeChildren=1&X-Plex-Country=US&X-Plex-Language=en-US"),
+        &format!("/library/metadata/{release}?includeAlternates=1&includeChildren=1"),
         None,
     ))?;
     album.get("guid")?.as_str().filter(|guid| guid.starts_with("plex://album/"))?;
     let artist = album
         .get("parentRatingKey")
         .and_then(Value::as_str)
-        .and_then(|key| first(p.call("GET", &format!("/library/metadata/{key}?includeAlternates=1&X-Plex-Country=US&X-Plex-Language=en-US"), None)))
+        .and_then(|key| first(p.call("GET", &format!("/library/metadata/{key}?includeAlternates=1"), None)))
         .filter(|row| row.get("guid").and_then(Value::as_str).is_some_and(|guid| guid.starts_with("plex://artist/")));
     Some((album, artist))
 }
@@ -316,7 +317,7 @@ pub fn plex_artist(p: &dyn PlexSource, mbid: &str) -> Option<Value> {
     );
     let row = first(p.call("GET", &path, None)).filter(is_artist)?;
     let key = row.get("ratingKey")?.as_str()?;
-    first(p.call("GET", &format!("/library/metadata/{key}?includeAlternates=1&X-Plex-Country=US&X-Plex-Language=en-US"), None)).filter(is_artist)
+    first(p.call("GET", &format!("/library/metadata/{key}?includeAlternates=1"), None)).filter(is_artist)
 }
 
 pub fn album_track(album: &Value, disc: i64, track: i64) -> Option<Value> {
@@ -362,7 +363,9 @@ mod tests {
             let mut asked: Vec<(String, String)> = query.split('&').filter_map(|pair| pair.split_once('=')).map(|(k, v)| (k.to_string(), v.to_string())).collect();
             asked.sort();
             recorded["answers"].as_array().unwrap().iter().find_map(|answer| {
+                // The language plexav's PMS asked in is the transport's to add (`plexmeta::localised`).
                 let mut theirs: Vec<(String, String)> = answer["query"].as_array().unwrap().iter()
+                    .filter(|pair| !matches!(pair[0].as_str(), Some("X-Plex-Country" | "X-Plex-Language")))
                     .map(|pair| (pair[0].as_str().unwrap().to_string(), pair[1].as_str().unwrap().to_string())).collect();
                 theirs.sort();
                 (answer["path"] == wanted && theirs == asked).then(|| answer["response"].clone())

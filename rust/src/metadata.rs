@@ -10,6 +10,17 @@ fn put(row: &mut Map<String, Value>, key: &str, value: impl Into<Value>) {
     row.insert(key.to_string(), value.into());
 }
 
+/// `key` set to what the agent says, or gone when it says nothing: a title described again (Fix
+/// Match) keeps nothing of the one it was before.
+fn put_or_drop(row: &mut Map<String, Value>, key: &str, value: Option<Value>) {
+    match value {
+        Some(value) => put(row, key, value),
+        None => {
+            row.shift_remove(key);
+        }
+    }
+}
+
 /// Provider calls required by the GUID relinker.  The core transformation
 /// does not know about HTTP, caches, or fixture exchanges; production callers
 /// inject a real provider implementation.
@@ -288,8 +299,10 @@ fn external_ids(row: &Value) -> Vec<Value> {
 }
 
 /// A tag list (`Genre`, `Role`, ...) in the shape a row carries it: the provider's own entries,
-/// down to the fields rows keep, at most `limit` of them.
+/// down to the fields rows keep, at most `limit` of them. A person's `tagKey` is the agent's own id
+/// for them, as plexlab's (1.43.4) Firefly answers it (`5d7768286f4521001ea9945c`, Nathan Fillion).
 fn tags(row: &Value, field: &str, limit: usize) -> Option<Vec<Value>> {
+    let person = crate::hierarchy::PERSON_TAG_ELEMENTS.contains(&field);
     let tags: Vec<Value> = row
         .get(field)?
         .as_array()?
@@ -297,8 +310,11 @@ fn tags(row: &Value, field: &str, limit: usize) -> Option<Vec<Value>> {
         .filter_map(|entry| {
             let entry = entry.as_object()?;
             let mut tag = Map::new();
-            for key in ["tag", "role", "thumb"] {
-                if let Some(value) = entry.get(key).filter(|value| truthy(value)) {
+            for (key, from) in [("tag", "tag"), ("tagKey", "id"), ("role", "role"), ("thumb", "thumb")] {
+                if key == "tagKey" && !person {
+                    continue;
+                }
+                if let Some(value) = entry.get(from).filter(|value| truthy(value)) {
                     tag.insert(key.to_string(), value.clone());
                 }
             }
@@ -307,6 +323,47 @@ fn tags(row: &Value, field: &str, limit: usize) -> Option<Vec<Value>> {
         .take(limit)
         .collect();
     (!tags.is_empty()).then_some(tags)
+}
+
+/// The url of the agent's first image of `kind` (`clearLogo`, `backgroundSquare`) in its `Image` list.
+fn image(row: &Value, kind: &str) -> Option<Value> {
+    row.get("Image")?
+        .as_array()?
+        .iter()
+        .find(|image| image.get("type").and_then(Value::as_str) == Some(kind))
+        .and_then(|image| said(image, "url"))
+        .cloned()
+}
+
+/// The people Plex lists on a title: every one the agent names. The production rex kept six of
+/// each (a median show's cast is 39, 2026-11-04) where plexlab shows Firefly's 112, and no producer.
+const PEOPLE: [&str; 4] = ["Role", "Director", "Writer", "Producer"];
+
+/// The `_described` a row described from all of these carries (`agent_fields`); a row without
+/// it was described before they were kept, and `feed::describe_again` reads them back for it.
+pub const DESCRIBED: i64 = 2;
+
+/// What Plex's agent says of a title beside its name, summary and artwork, which rex dropped until
+/// 2026-11-04: a film's and a show's theme music, clear logo and square art (served at the row's
+/// own `theme`, `clearLogo` and `squareArt` paths) and original title; a film's and an episode's
+/// every credited person; a show's cast and networks, which plexlab files as tags it never
+/// projects onto a row (a filter and an axis only). Each with what the agent says, or None.
+/// plexlab (1.43.4) shows Firefly without the directors, writers and producers its agent names.
+pub fn agent_fields(title: &Value, kind: &str) -> Vec<(&'static str, Option<Value>)> {
+    let mut fields = Vec::new();
+    if kind != "episode" {
+        fields.extend([
+            ("_theme_url", said(title, "theme").cloned()),
+            ("_clearLogo_url", image(title, "clearLogo")),
+            ("_squareArt_url", image(title, "backgroundSquare")),
+            ("originalTitle", said(title, "originalTitle").cloned()),
+        ]);
+    }
+    let people: &[&'static str] = if kind == "show" { &["Network", "Role"] } else { &PEOPLE };
+    for field in people {
+        fields.push((*field, tags(title, field, usize::MAX).map(Value::from)));
+    }
+    fields
 }
 
 /// What the provider's season row gives the season a leaf builds (`hierarchy::build`): its guid
@@ -378,7 +435,7 @@ pub fn describe(
             put(row, field, value.clone());
         }
     }
-    for (field, limit) in [("Genre", usize::MAX), ("Country", 2), ("Role", 6), ("Director", 6), ("Writer", 6)] {
+    for (field, limit) in [("Genre", usize::MAX), ("Country", 2)] {
         if let Some(tags) = tags(title, field, limit) {
             put(row, field, tags);
         }
@@ -394,9 +451,13 @@ pub fn describe(
         put(row, "_art_url", art.clone());
     }
     put(row, "_show_external_guids", externals.clone());
+    put(row, "_described", DESCRIBED);
     if !show {
         put(row, "_kind", "movie");
         put(row, "_collections", collections_of(title));
+        for (field, value) in agent_fields(title, "movie") {
+            put_or_drop(row, field, value);
+        }
         if let Some(guid) = guid {
             put(row, "guid", guid);
         }
@@ -409,6 +470,28 @@ pub fn describe(
     put(row, "_show_year", year_of(title));
     put(row, "_show_poster", thumb.unwrap_or(Value::Null));
     put(row, "_show_art", art.unwrap_or(Value::Null));
+    // The show's own fields ride on its episode's leaf for `hierarchy::build` (`SHOW_HINTS`); each
+    // episode carries its own credits, below, and none of its show's.
+    put(row, "_show_described", DESCRIBED);
+    for (field, value) in agent_fields(title, "show") {
+        if let Some((_, hint)) = crate::hierarchy::SHOW_HINTS.iter().find(|(name, _)| *name == field) {
+            put(row, hint, value.unwrap_or(Value::Null));
+        }
+    }
+    for field in PEOPLE {
+        row.shift_remove(field);
+    }
+    // A show Fix Matched is described onto its own row, which takes them as a built show does.
+    if row.get("type").and_then(Value::as_str) == Some("show") {
+        for (field, hint) in crate::hierarchy::SHOW_HINTS {
+            match row.shift_remove(*hint).filter(|value| !value.is_null()) {
+                Some(value) => put(row, field, value),
+                None => {
+                    row.shift_remove(*field);
+                }
+            }
+        }
+    }
     if let Some(guid) = guid {
         put(row, "_show_guid", guid);
     }
@@ -430,6 +513,10 @@ pub fn describe(
     }
     if let Some(year) = year_of(episode) {
         put(row, "year", year);
+    }
+    // plexlab's The Train Job: the episode's 24 credited actors, its director, writers and producers.
+    for (field, value) in agent_fields(episode, "episode") {
+        put_or_drop(row, field, value);
     }
     // An episode's still draws its background, as a real PMS's episode rows do.
     if let Some(still) = said(episode, "thumb") {
@@ -489,6 +576,72 @@ mod tests {
         let mut unknown = Map::from_iter([("guid".to_string(), json!("local://100002"))]);
         describe(&mut unknown, &show, None, None, true, Some((9, 99)));
         assert_eq!((&unknown["guid"], &unknown["_show_title"]), (&json!("local://100002"), &show["title"]));
+    }
+
+    /// Plex's agent's Firefly (TMDB 1437), its season 1 and The Train Job, as `specials.json`
+    /// recorded them: what plexlab shows of the same title is in `agent_description_s1434.json`.
+    fn firefly() -> (Value, Value, Value) {
+        let plex: Value = serde_json::from_str(include_str!("../../tests/fixtures/feed/specials.json")).unwrap();
+        let rows = |key: &str| plex["plex"][key]["MediaContainer"]["Metadata"].as_array().unwrap().clone();
+        let show = rows("POST /library/metadata/matches {\"guid\": \"tmdb://1437\", \"type\": 2}")[0].clone();
+        let all: Vec<Value> = plex["plex"].as_object().unwrap().values().flat_map(|answer| answer["MediaContainer"]["Metadata"].as_array().cloned().unwrap_or_default()).collect();
+        let season = all.iter().find(|row| row["type"] == "season" && row["index"] == 1).unwrap().clone();
+        let episode = all.iter().find(|row| row["guid"] == "plex://episode/5d9c127e4eefaa001f6449c2").unwrap().clone();
+        (show, season, episode)
+    }
+
+    #[test]
+    fn a_film_keeps_its_logo_square_art_original_title_and_every_person() {
+        let bbb = recorded("/library/metadata/matches")["MediaContainer"]["Metadata"][0].clone();
+        let mut movie = Map::new();
+        describe(&mut movie, &bbb, None, None, false, None);
+        assert!(movie["_clearLogo_url"].as_str().unwrap().ends_with(".png"));
+        assert!(movie["_squareArt_url"].as_str().unwrap().contains("/gracenote/"));
+        assert!(!movie.contains_key("_theme_url"), "the movie agent gives no theme");
+        // plexlab's Big Buck Bunny: producer Ton Roosendaal, by the agent's person id.
+        assert_eq!(movie["Producer"][0]["tag"], "Ton Roosendaal");
+        assert_eq!(movie["Producer"][0]["tagKey"], "5d776834103a2d001f567902");
+        assert_eq!(movie["_described"], DESCRIBED);
+        let mut serbian = json!({"title": "A Serbian Film", "originalTitle": "Srpski film", "Role": (0..25).map(|n| json!({"tag": format!("Actor {n}"), "id": format!("{n:024}")})).collect::<Vec<_>>()});
+        describe(&mut movie, &serbian, None, None, false, None);
+        assert_eq!((movie["originalTitle"].as_str(), movie["Role"].as_array().map(Vec::len)), (Some("Srpski film"), Some(25)));
+        // Described again as a title that says none of it: nothing of the first lingers.
+        serbian = json!({"title": "Other"});
+        describe(&mut movie, &serbian, None, None, false, None);
+        assert!(["originalTitle", "Role", "Producer", "_clearLogo_url", "_squareArt_url"].iter().all(|field| !movie.contains_key(*field)));
+    }
+
+    #[test]
+    fn a_show_keeps_its_theme_logo_networks_and_cast_and_an_episode_its_own_credits() {
+        let (show, season, episode) = firefly();
+        let mut leaf = Map::new();
+        describe(&mut leaf, &show, Some(&season), Some(&episode), true, Some((1, 1)));
+        assert_eq!(leaf["_show_theme"], "https://tvthemes.plexapp.com/78874.mp3");
+        assert!(leaf["_show_clearLogo"].as_str().unwrap().ends_with(".png"));
+        assert_eq!(leaf["_show_Network"], json!([{"tag": "FOX"}]));
+        // plexlab shows Firefly's 112, The Train Job its own 24, its director, writers and producers.
+        assert_eq!(leaf["_show_Role"].as_array().unwrap().len(), 112);
+        assert_eq!(leaf["_show_Role"][0], json!({"tag": "Nathan Fillion", "tagKey": "5d7768286f4521001ea9945c", "role": "Mal Reynolds",
+                                                "thumb": "https://metadata-static.plex.tv/8/people/8e60c5a6412557c52b32ab5e85a2ce34.jpg"}));
+        assert_eq!(leaf["Role"].as_array().unwrap().len(), 24);
+        assert_eq!(leaf["Director"][0]["tag"], "Joss Whedon");
+        assert_eq!(leaf["Producer"].as_array().unwrap().len(), 2);
+        assert!(!leaf.contains_key("_theme_url") && !leaf.contains_key("Network"), "the show's own are hints only");
+        // Built, the show takes them, and the episode keeps its own credits.
+        let rows = crate::hierarchy::build(vec![Value::Object(leaf)]);
+        let built = rows.iter().find(|row| row["type"] == "show").unwrap();
+        assert_eq!((built["_theme_url"].as_str(), built["Role"].as_array().map(Vec::len)), (Some("https://tvthemes.plexapp.com/78874.mp3"), Some(112)));
+        assert_eq!(built["Network"], json!([{"tag": "FOX"}]));
+        assert_eq!(built["_described"], DESCRIBED);
+        assert!(!built.as_object().unwrap().keys().any(|key| key.starts_with("_show_")));
+        let ep = rows.iter().find(|row| row["type"] == "episode").unwrap();
+        assert_eq!(ep["Role"].as_array().map(Vec::len), Some(24));
+        // A show row Fix Matched onto the title is described as its own row.
+        let mut matched = Map::from_iter([("type".to_string(), json!("show")), ("Role".to_string(), json!([{"tag": "old"}]))]);
+        describe(&mut matched, &show, None, None, true, None);
+        assert_eq!(matched["Role"].as_array().map(Vec::len), Some(112));
+        assert_eq!(matched["_theme_url"], "https://tvthemes.plexapp.com/78874.mp3");
+        assert!(!matched.keys().any(|key| crate::hierarchy::SHOW_HINTS.iter().any(|(_, hint)| hint == key)));
     }
 
 }

@@ -122,10 +122,13 @@ struct SourceSubtitle {
     forced: bool,
     hearing_impaired: bool,
     size: Option<u64>,
+    /// A VobSub's `.sub` (`sub`, with `sub_size`): the bitmaps its `.idx` (`path`) indexes,
+    /// read only when a conversion or a client asks for them.
+    sub: Option<(String, Option<u64>)>,
 }
 
 /// The fields an entry sets only sometimes: a stream rewritten without them drops them.
-const SUBTITLE_FIELDS: [&str; 6] = ["forced", "hearingImpaired", "language", "languageTag", "languageCode", "_sourceSize"];
+const SUBTITLE_FIELDS: [&str; 8] = ["forced", "hearingImpaired", "language", "languageTag", "languageCode", "_sourceSize", "_sourceSub", "_sourceSubSize"];
 
 /// The most text a sidecar subtitle may hold: a feature's SRT is 50-150 KB, an ASS with
 /// typesetting a few MB, and the text is kept on its row.
@@ -149,11 +152,30 @@ fn subtitle_entries(source: &str, id: &str, value: Option<&Value>) -> Option<Vec
         if path.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") {
             return Err(format!("subtitle {path}: path has an empty, . or .. segment"));
         }
-        let name = path.rsplit('/').next().unwrap_or(path);
-        let format = name.rsplit_once('.').map(|(_, extension)| extension.to_ascii_lowercase()).unwrap_or_default();
-        if !SUBTITLE_FORMATS.contains(&format.as_str()) {
-            return Err(format!("subtitle {path}: not a subtitle format an upload takes ({})", SUBTITLE_FORMATS.join(", ")));
+        let extension = |path: &str| {
+            let name = path.rsplit('/').next().unwrap_or(path);
+            name.rsplit_once('.').map(|(_, extension)| extension.to_ascii_lowercase()).unwrap_or_default()
+        };
+        let format = extension(path);
+        // A VobSub is two files, its index and its bitmaps; nothing else an upload takes is.
+        if format != "idx" && !SUBTITLE_FORMATS.contains(&format.as_str()) {
+            return Err(format!("subtitle {path}: not a subtitle format an upload takes ({}) or a VobSub's .idx", SUBTITLE_FORMATS.join(", ")));
         }
+        let sub = match (format.as_str(), entry.get("sub")) {
+            ("idx", Some(Value::String(sub))) => {
+                let sub = sub.trim_matches('/');
+                if sub.is_empty() || sub.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") || extension(sub) != "sub" {
+                    return Err(format!("subtitle {path}: sub must be the path of its .sub"));
+                }
+                let size = match entry.get("sub_size") {
+                    None | Some(Value::Null) => None,
+                    Some(size) => Some(size.as_u64().ok_or_else(|| format!("subtitle {path}: sub_size must be a whole number of bytes"))?),
+                };
+                Some((sub.to_string(), size))
+            }
+            ("idx", _) => return Err(format!("subtitle {path}: a VobSub's .idx needs its .sub (sub)")),
+            _ => None,
+        };
         let flag = |field: &str| match entry.get(field) {
             None | Some(Value::Null) => Ok(false),
             Some(Value::Bool(flag)) => Ok(*flag),
@@ -171,7 +193,7 @@ fn subtitle_entries(source: &str, id: &str, value: Option<&Value>) -> Option<Vec
         if size.is_some_and(|size| size > SUBTITLE_TEXT_CAP as u64) {
             return Err(format!("subtitle {path}: over {} bytes", SUBTITLE_TEXT_CAP));
         }
-        Ok(SourceSubtitle { path: path.to_string(), format, language, forced: flag("forced")?, hearing_impaired: flag("hearing_impaired")?, size })
+        Ok(SourceSubtitle { path: path.to_string(), format, language, forced: flag("forced")?, hearing_impaired: flag("hearing_impaired")?, size, sub })
     };
     let mut kept: Vec<SourceSubtitle> = Vec::new();
     for entry in entries {
@@ -290,11 +312,16 @@ impl Item {
         if track && !super::music::is_audio(&file) {
             return Err(refuse("not an audio file"));
         }
-        if !track && !is_video(&file) && !playlist {
+        // A picture its source pushes as a photo (`photos.rs`), by its kind as well.
+        let photo = text("kind").as_deref() == Some("photo");
+        if photo && !super::photos::is_image(&file) {
+            return Err(refuse("not an image file"));
+        }
+        if !track && !photo && !is_video(&file) && !playlist {
             return Err(refuse("not a video file"));
         }
         // A video scanner's rule: a song may well be called "Sample".
-        if !track && is_sample(&file) {
+        if !track && !photo && is_sample(&file) {
             return Err(refuse("a sample"));
         }
         let segments: Vec<&str> = path.split('/').collect();
@@ -311,7 +338,7 @@ impl Item {
         let number = |key: &str, least: i64| {
             value.get(key).and_then(|n| n.as_i64().or_else(|| n.as_str()?.trim().parse().ok())).filter(|n| *n >= least)
         };
-        let placed = text("kind").filter(|kind| matches!(kind.as_str(), "movie" | "episode" | "track")).map(|kind| {
+        let placed = text("kind").filter(|kind| matches!(kind.as_str(), "movie" | "episode" | "track" | "photo")).map(|kind| {
             let mut placed = Map::from_iter([("kind".to_string(), json!(kind))]);
             // A track sits on its album's `disc` (1 unless said) and `track`, Plex's own numbers.
             if kind == "track" {
@@ -932,6 +959,10 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
     if !tracks.is_empty() {
         super::music::upsert_tracks(shared, source, tracks, &mut counts, seen.as_deref_mut(), retry);
     }
+    let (photos, items): (Vec<Item>, Vec<Item>) = items.into_iter().partition(|item| item.kind() == Some("photo"));
+    if !photos.is_empty() {
+        super::photos::upsert_photos(shared, source, photos, &mut counts, seen.as_deref_mut(), retry);
+    }
 
     // -- under the lock: which library, which row, what has to be identified ---------------
     let mut plans: Vec<(Item, Library, Plan)> = Vec::new();
@@ -1443,7 +1474,8 @@ impl SourceSubtitle {
     /// Whether `stream` is this entry as it stands: its text kept and every field it sets the
     /// same, none it no longer sets left over.
     fn shown_by(&self, stream: &Value) -> bool {
-        let fresh = self.stream(0, None);
+        // With the text it keeps: a VobSub's language is its `.idx`'s.
+        let fresh = self.stream(0, stream.get("_content").and_then(Value::as_str).map(str::to_string));
         self.kept_by(stream)
             && fresh.iter().all(|(field, value)| matches!(field.as_str(), "id" | "key") || stream.get(field) == Some(value))
             && SUBTITLE_FIELDS.iter().all(|field| fresh.contains_key(*field) || stream.get(*field).is_none())
@@ -1467,7 +1499,12 @@ impl SourceSubtitle {
             fields.insert("forced".to_string(), json!(true));
         }
         fields.insert("codec".to_string(), json!(self.format));
-        fields.extend(self.language.as_deref().map(mediainfo::code_language).unwrap_or_default());
+        // A VobSub is the language its `.idx` names, whatever the source read off its name: a real
+        // PMS lists `Movie.en.forced.idx` holding `id: de` as Deutsch Forced, and an `.idx` of four
+        // languages as one stream of its LAST (McBain's da, fi, no, sv: Svenska; plexscratch42's
+        // 1.42.2, 2026-11-04, `fixtures/subtitles/vobsub_s1422.json`).
+        let language = text.as_deref().filter(|_| self.sub.is_some()).and_then(idx_language);
+        fields.extend(language.as_deref().or(self.language.as_deref()).map(mediainfo::code_language).unwrap_or_default());
         if self.hearing_impaired {
             fields.insert("hearingImpaired".to_string(), json!(true));
         }
@@ -1480,8 +1517,21 @@ impl SourceSubtitle {
         if let Some(size) = self.size {
             fields.insert("_sourceSize".to_string(), json!(size));
         }
+        if let Some((sub, size)) = &self.sub {
+            fields.insert("_sourceSub".to_string(), json!(sub));
+            if let Some(size) = size {
+                fields.insert("_sourceSubSize".to_string(), json!(size));
+            }
+        }
         fields
     }
+}
+
+/// The language a VobSub `.idx` names last (`id: de, index: 0`): the one a real PMS lists it as.
+fn idx_language(idx: &str) -> Option<String> {
+    idx.lines()
+        .filter_map(|line| line.trim().strip_prefix("id:")?.split(',').next().map(str::trim).filter(|code| !code.is_empty() && *code != "--").map(str::to_string))
+        .last()
 }
 
 /// Seasons left as they were made from an unidentified first episode -- the local agent's
@@ -1498,7 +1548,7 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
         let Some(plex) = guard.plex.clone() else {
             return 0;
         };
-        let wanted: Vec<(String, Value, i64, String, Map<String, Value>)> = guard
+        let wanted: Vec<(String, Value, i64, String, Map<String, Value>, String)> = guard
             .catalog
             .hot()
             .lazy()
@@ -1511,18 +1561,26 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
             .filter_map(|season| {
                 let key = key_of(&season)?;
                 let index = season.get("index").and_then(Field::as_i64)?;
-                let show = guard.catalog.get(&season.get("parentRatingKey").map(string_value)?)?;
-                // A show an id names: `title:` ones are the retired name search's, left as they are.
-                let identity = show.get("_identity").filter(present).filter(|id| !string_value(id).starts_with("title:"))?.clone();
-                // Plex's guid for the show, as the episodes' identification named it.
-                let named = guard.catalog.children_refs(&key).into_iter().find_map(|episode| {
-                    episode.pointer("/_identify/plex").and_then(Value::as_str).filter(|guid| guid.starts_with("plex://show/")).map(str::to_string)
+                // Shows and episodes read and let go of (`Lazy::with_body`): this runs at a claimed
+                // start, outside any request, and a season none of whose episodes Plex named reads them all.
+                let show = guard.catalog.lazy_get(&season.get("parentRatingKey").map(string_value)?)?;
+                let (identity, artwork) = show.with_body(|show| {
+                    // A show an id names: `title:` ones are the retired name search's, left as they are.
+                    let identity = show.get("_identity").filter(present).filter(|id| !string_value(id).starts_with("title:"))?.clone();
+                    let artwork: Map<String, Value> = [("_show_poster", "_poster_url"), ("_show_art", "_art_url")]
+                        .into_iter()
+                        .filter_map(|(hint, field)| Some((hint.to_string(), show.get(field).filter(present)?.clone())))
+                        .collect();
+                    Some((identity, artwork))
                 })?;
-                let artwork = [("_show_poster", "_poster_url"), ("_show_art", "_art_url")]
-                    .into_iter()
-                    .filter_map(|(hint, field)| Some((hint.to_string(), show.get(field).filter(present)?.clone())))
-                    .collect();
-                Some((key, identity, index, named, artwork))
+                // Plex's guid for the show, as the episodes' identification named it.
+                let named = guard.catalog.lazy_by(crate::catalog::By::Parent, &key).into_iter().find_map(|episode| {
+                    episode.with_body(|episode| {
+                        episode.pointer("/_identify/plex").and_then(Value::as_str).filter(|guid| guid.starts_with("plex://show/")).map(str::to_string)
+                    })
+                })?;
+                let language = guard.section_language(&season.get("librarySectionID").map(string_value).unwrap_or_default());
+                Some((key, identity, index, named, artwork, language))
             })
             .collect();
         (wanted, plex)
@@ -1531,15 +1589,17 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
         return 0;
     }
     // -- off the lock: the season each one's identity builds --------------------------------
-    let mut children: HashMap<String, HashMap<String, Value>> = HashMap::new();
+    let mut children: HashMap<(String, String), HashMap<String, Value>> = HashMap::new();
     let built: Vec<(String, Value)> = wanted
         .into_iter()
-        .filter_map(|(key, identity, index, show, artwork)| {
+        .filter_map(|(key, identity, index, show, artwork, language)| {
             let mut leaf = artwork;
             for (field, value) in [("_kind", json!("tv")), ("_tmdb_id", identity), ("_season", json!(index)), ("_episode", json!(0))] {
                 leaf.insert(field.to_string(), value);
             }
-            let seasons = children.entry(show.clone()).or_insert_with(|| crate::identify::plex_children_rows(plex.as_ref(), &show));
+            let seasons = children
+                .entry((show.clone(), language.clone()))
+                .or_insert_with(|| crate::identify::plex_children_rows(&plex.in_language(&language), &show));
             if let Some(season) = seasons.get(&index.to_string()) {
                 crate::metadata::season_hints(&mut leaf, season);
             }
@@ -1559,6 +1619,141 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
         write_or_log(snapshot);
     }
     refreshed
+}
+
+/// The rows `describe_again` takes the lock for at once at a start. On that copy, on a two-core
+/// test host under a load of 5 to 15, 50 held it 30 ms choosing and 53 ms applying at the median
+/// (65 and 150 ms at the 90th percentile), the pass as long as before (244 s against 258 s).
+pub(super) const DESCRIBE_BATCH: usize = 50;
+
+/// Rows described before rex kept all of what Plex's agent says of a title (`metadata::agent_fields`:
+/// no `_described`), given it from the answers that described them, as `plex_cache.db` keeps them
+/// (`plexmeta::Kept`, asked nothing): the production rex held 232 shows with theme music and 2,531
+/// films with a clear logo, and served none, and six of each one's people (2026-11-04). A film or
+/// show by the ids its source placed it with, checked against the guid it has; an episode by its
+/// own guid among its season's episodes. What a person picked, uploaded or locked stays, and a
+/// row matched by hand is left to its match. Each row is marked once, given anything or not, in
+/// batches of `batch` with the lock let go between them, each batch going on from the row the last
+/// one stopped at: on a copy of the production rex (40,019 rows to describe) batches of 500 each
+/// started again from the first row and held the lock 0.5 s choosing and 0.65 s applying at the
+/// median (0.9 s and 1.7 s at the 90th percentile), so for four minutes after a start one Plex
+/// request in ten waited half a second and some up to six (2026-11-04). Finding nothing from where it stood, it goes round once more from the first row,
+/// for rows that moved. Answers how many rows were given some.
+pub(super) fn describe_again(shared: &SharedRuntime, batch: usize) -> usize {
+    let mut given = 0;
+    let (mut from, mut wrapped) = (0, false);
+    loop {
+        // -- under the lock: which rows, by their hot fields; what names each, off its body --
+        let (wanted, plex, reached) = {
+            let guard = lock(shared);
+            let Some(plex) = guard.plex.clone() else {
+                return given;
+            };
+            let named = |row: &crate::catalog::RowRef<'_>| {
+                let kind = row.get("type").and_then(Field::as_str).unwrap_or_default();
+                matches!(kind, "movie" | "show" | "episode")
+                    && row.get("_scanned").is_some_and(truthy)
+                    && row.get("_described").is_none()
+                    && row.get("_matched").is_none()
+                    && row.get("guid").and_then(Field::as_str).is_some_and(|guid| guid.starts_with(&format!("plex://{kind}/")))
+            };
+            let mut reached = from;
+            let wanted: Vec<(String, Value, Value)> = guard
+                .catalog
+                .hot()
+                .lazy()
+                .skip(from)
+                .filter(named)
+                .take(batch)
+                .inspect(|row| reached = row.hot.position + 1)
+                .filter_map(|row| {
+                    let key = key_of(&row)?;
+                    let kind = row.get("type").and_then(Field::as_str)?.to_string();
+                    // A show is named by its episodes' ids: those of its first episode.
+                    let leaf = match kind.as_str() {
+                        "show" => guard.leaves_refs(&key).into_iter().next(),
+                        _ => guard.catalog.lazy_get(&key),
+                    };
+                    let names = leaf.map(|leaf| leaf.with_body(|body| json!({"ids": row_ids(body), "placed": version_placed(body, 0)})));
+                    let row = row.with_body(|body| json!({"kind": kind, "guid": body.get("guid"), "parentGuid": body.get("parentGuid")}));
+                    Some((key, row, names.unwrap_or(Value::Null)))
+                })
+                .collect();
+            (wanted, plex, reached)
+        };
+        if wanted.is_empty() {
+            if from == 0 || wrapped {
+                return given;
+            }
+            (from, wrapped) = (0, true);
+            continue;
+        }
+        from = reached;
+        // -- off the lock: each one's agent fields, from the kept answers alone ---------------
+        let kept = super::plexmeta::Kept(&plex);
+        let mut episodes: HashMap<String, HashMap<String, Value>> = HashMap::new();
+        let found: Vec<(String, Vec<(&'static str, Option<Value>)>)> = wanted
+            .into_iter()
+            .map(|(key, row, names)| {
+                let kind = row["kind"].as_str().unwrap_or_default();
+                let guid = row["guid"].as_str().unwrap_or_default();
+                let fields = if kind == "episode" {
+                    let season = row["parentGuid"].as_str().unwrap_or_default();
+                    let rows = episodes.entry(season.to_string()).or_insert_with(|| crate::identify::plex_children_rows(&kept, season));
+                    rows.values().find(|episode| episode["guid"].as_str() == Some(guid))
+                        .map(|episode| crate::metadata::agent_fields(episode, "episode"))
+                } else {
+                    super::scan::identified_by(names["ids"].as_object(), names.get("placed").filter(|placed| !placed.is_null()), kind)
+                        .map(|(named, tmdb, imdb)| crate::identify::placed(Some(&kept), named, tmdb, imdb.as_deref()))
+                        .filter(|identity| identity.plex.as_deref() == Some(guid))
+                        .and_then(|identity| identity.row)
+                        .map(|title| crate::metadata::agent_fields(&title, kind))
+                };
+                (key, fields.unwrap_or_default())
+            })
+            .collect();
+        // -- under the lock: apply, and mark -------------------------------------------------
+        let mut guard = lock(shared);
+        for (key, fields) in found {
+            let Some(object) = guard.catalog.get_mut(&key).and_then(Value::as_object_mut) else {
+                continue;
+            };
+            let mut gave = false;
+            for (field, value) in fields {
+                let Some(value) = value else {
+                    continue;
+                };
+                // A person's upload is its own (`_theme_url` names it), and so is what they locked.
+                let lock = match field {
+                    "Role" => "actor",
+                    "originalTitle" => "originalTitle",
+                    "Network" => "network",
+                    field if field.starts_with('_') => field,
+                    field => &field.to_ascii_lowercase(),
+                };
+                let mine = field.starts_with('_') && object.get(field).is_some_and(|stored| !stored.is_null());
+                if mine || super::edit::field_locked(object, lock) || object.get(field) == Some(&value) {
+                    continue;
+                }
+                object.insert(field.to_string(), value);
+                gave = true;
+            }
+            object.insert("_described".to_string(), json!(crate::metadata::DESCRIBED));
+            if gave {
+                given += 1;
+                if let Some(row) = guard.catalog.get_mut(&key) {
+                    number_catalog_tags(std::slice::from_mut(row));
+                }
+            }
+        }
+        guard.dirty = true;
+        let snapshot = guard.flush_state();
+        drop(guard);
+        write_or_log(snapshot);
+        info!("FEED described {given} row(s) again from Plex's kept answers");
+        // Let the requests that queued behind this batch in before the next one takes the lock.
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 }
 
 /// How long a row the retry left on the blank tile waits for its next try: an hour after
@@ -1713,13 +1908,15 @@ pub(super) fn retry_blank(shared: &SharedRuntime, limit: usize) -> usize {
             // Only what its source placed: rows pushed before DMM placed anything still carry ids
             // zurg's own Plex gave, an episode's among them (Pawn Stars' 1559521), and trusted
             // as they are those would name junk titles; they stay as they are, for Fix Match.
-            if !guard.blank(row.body())
-                || version_placed(row.body(), 0).is_none()
-                || super::scan::identified_by(row.get("_ids").and_then(Field::as_object), version_placed(row.body(), 0), library).is_none()
-            {
-                continue;
-            }
-            let (Some(key), Some(item)) = (key_of(&row), pushed_item(row.body())) else {
+            // Each read and let go of (`Lazy::with_body`): no request trims what this thread reads,
+            // and the passes at a claim take every row placed while there was no agent (a sponsor's 7,035).
+            let item = row.with_body(|body| {
+                let retried = guard.blank(body)
+                    && version_placed(body, 0).is_some()
+                    && super::scan::identified_by(body.get("_ids").and_then(Value::as_object), version_placed(body, 0), library).is_some();
+                retried.then(|| pushed_item(body)).flatten()
+            });
+            let (Some(key), Some(item)) = (key_of(&row), item) else {
                 continue;
             };
             let group = row.get("grandparentRatingKey").map(string_value).unwrap_or_else(|| key.clone());
@@ -1995,6 +2192,7 @@ const IDENTITY_FIELDS: &[&str] = &[
     "_identity", "_identify", "_tmdb_id", "_kind", "_season", "_episode", "_show_title",
     "_show_summary", "_show_year", "_show_guid", "_season_guid", "_generatedTitle", "_release",
     "_release_path", "_probePending", "_hash", "_placed", "_titleGuid", "_show_titleGuid",
+    "Network", "_theme_url", "_clearLogo_url", "_squareArt_url", "_described",
 ];
 
 /// Whether a library folder names a directory the item's path sits in: `/mnt/zurg/movies`
@@ -2132,8 +2330,10 @@ impl Runtime {
             .hot()
             .lazy()
             .filter_map(|row| {
-                let all = crate::catalog::releases(row.body());
-                let mine: Vec<String> = all.iter().filter(|(of, _, _, _)| of == source).map(|(_, sid, _, _)| sid.clone()).collect();
+                // The hot row's releases: read whole, every row of the library was held for the
+                // delete's ask, +78 MB on 45 MB of rows (test_perf_memory's, 2026-11-02).
+                let all: Vec<_> = row.hot.releases().collect();
+                let mine: Vec<String> = all.iter().filter(|release| release.source == source).map(|release| release.sid.to_string()).collect();
                 let whole = mine.len() == all.len();
                 Some((key_of(&row)?, mine, whole)).filter(|(_, mine, _)| !mine.is_empty())
             })
@@ -2253,7 +2453,7 @@ impl Runtime {
                 let folder = folder.trim_end_matches('/');
                 folder == entry.name || folder.ends_with(&format!("/{}", entry.name))
             };
-            for (kind, title) in [("movie", &entry.movies), ("show", &entry.shows), ("artist", &entry.music)] {
+            for (kind, title) in [("movie", &entry.movies), ("show", &entry.shows), ("artist", &entry.music), ("photo", &entry.photos)] {
                 let Some(title) = title else {
                     continue;
                 };
@@ -2313,6 +2513,7 @@ impl Runtime {
             key: string_value(section.get("key").unwrap_or(&Value::Null)),
             kind: section.get("type").and_then(Value::as_str).unwrap_or_default().to_string(),
             title: string_value(section.get("title").unwrap_or(&Value::Null)),
+            language: self.section_language(&string_value(section.get("key").unwrap_or(&Value::Null))),
             plex: self.plex.clone(),
         };
         let playable = |section: &&Value| matches!(section.get("type").and_then(Field::as_str), Some("movie" | "show"));
@@ -2878,6 +3079,8 @@ impl Runtime {
             for field in SUBTITLE_FIELDS {
                 merged.shift_remove(field);
             }
+            // A kept text still says what the stream is (a VobSub's language).
+            let text = text.or_else(|| merged.get("_content").and_then(Value::as_str).map(str::to_string));
             merged.extend(subtitle.stream(stream_id, text));
             fresh.push((subtitle.path.as_str(), Value::Object(merged)));
         }
@@ -3466,6 +3669,7 @@ impl Runtime {
             for field in [
                 "title", "summary", "year", "guid", "Guid", "contentRating", "studio", "Genre", "Country",
                 "Role", "rating", "audienceRating", "tagline", "_poster_url", "_art_url", "_titleGuid",
+                "Network", "originalTitle", "_theme_url", "_clearLogo_url", "_squareArt_url", "_described",
             ] {
                 match fresh.get(field).filter(|value| field == "_titleGuid" || !value.is_null()) {
                     Some(value) => {
@@ -3686,6 +3890,55 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn describing_again_at_a_start_lets_requests_in_between_short_batches() {
+        // A copy of the production rex had 40,019 rows to describe: batches of 500, each found by
+        // reading from the first row again, held the lock up to 6 s for four minutes (2026-11-04).
+        let dir = std::env::temp_dir().join(format!("rex-describe-again-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let rows = 3000;
+        let items: Vec<Value> = (0..rows)
+            .map(|n| json!({"ratingKey": (100000 + n).to_string(), "key": format!("/library/metadata/{}", 100000 + n),
+                            "type": "movie", "title": format!("M{n}"), "librarySectionID": 1, "_scanned": true,
+                            "guid": format!("plex://movie/{n:024x}"), "summary": "x".repeat(400)}))
+            .chain([json!({"ratingKey": "99", "key": "/library/metadata/99", "type": "movie", "title": "Matched", "librarySectionID": 1,
+                           "_scanned": true, "_matched": true, "guid": "plex://movie/000000000000000000000063"})])
+            .collect();
+        let catalog = dir.join("catalog.json");
+        std::fs::write(&catalog, serde_json::to_vec(&json!({"machineIdentifier": "describe-again", "friendlyName": "d",
+            "sections": [{"key": "1", "type": "movie", "title": "Movies", "uuid": "d"}], "items": items})).unwrap()).unwrap();
+        let mut runtime = Runtime::load(RuntimeOptions { catalog, state: Some(dir.join("state.disabled")), assert_claimed: true, ..RuntimeOptions::default() }).unwrap();
+        let claim = Arc::new(Mutex::new(super::super::plextv::Claim::load("describe-again", dir.join("claim_state.json"), "d", "1.43.5.11029-6bf8af3f0")));
+        runtime.plex = Some(Arc::new(super::super::plexmeta::PlexMeta::new(claim, dir.join("plex_cache.json"))));
+        let shared: SharedRuntime = Arc::new(Mutex::new(runtime));
+        let described = |shared: &SharedRuntime| lock(shared).catalog.hot().lazy().filter(|row| row.get("_described").is_some()).count();
+        let describing = { let shared = Arc::clone(&shared); std::thread::spawn(move || describe_again(&shared, DESCRIBE_BATCH)) };
+        // A request's view of it: the rows are marked a batch at a time under the lock, so each
+        // count a request can see between batches is one the pass let it in at.
+        let mut seen = std::collections::BTreeSet::new();
+        while !describing.is_finished() {
+            seen.insert(described(&shared));
+            std::thread::sleep(std::time::Duration::from_micros(200));
+        }
+        describing.join().unwrap();
+        let all = described(&shared);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(all, rows, "every row its source placed, and not the one matched by hand");
+        // Batches of 500 let a request in seven times at most; 50 let it in up to sixty.
+        assert!(seen.len() > 3 * rows / 500, "requests got in between batches {} times: {seen:?}", seen.len());
+    }
+
+    #[test]
+    fn a_vobsub_is_the_language_its_idx_names_last() {
+        // Real ones (`fixtures/subtitles/vobsub/`): Samurai Champloo E20's forced track and McBain's four.
+        let read = |name: &str| String::from_utf8_lossy(&std::fs::read(format!("{}/../tests/fixtures/subtitles/vobsub/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()).into_owned();
+        assert_eq!(idx_language(&read("stars-samurai.champloo.e20.1080p-forced.idx")).as_deref(), Some("de"));
+        assert_eq!(idx_language(&read("mcbain.1080p-hd4u.idx")).as_deref(), Some("sv"));
+        assert_eq!(idx_language("# VobSub index file, v7\r\nid: --, index: 0\r\n"), None);
+        assert_eq!(idx_language(""), None);
+    }
 
     #[test]
     fn a_media_of_parts_takes_its_last_parts_bitrate_and_sorts_first() {

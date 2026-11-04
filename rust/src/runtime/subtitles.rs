@@ -759,9 +759,11 @@ fn hash_of(part: &PartInfo) -> Option<String> {
 }
 
 /// Plex's own search, the request a claimed PMS makes (`plex_search_apply_s143.json`'s
-/// outbound): `plexHash` left out, which still answers (measured 2026-10-20).
-fn provider_candidates(search: &Search, hash: Option<&str>) -> Vec<Candidate> {
-    let Some(agent) = &search.agent else { return Vec::new() };
+/// outbound): `plexHash` left out, which still answers (measured 2026-10-20). None when the
+/// provider refused the request (400), which asking again does not change: a search with no
+/// `openSubtitlesHash` is one (`provider_matches_refusals.json`, 2026-11-04).
+fn provider_candidates(search: &Search, hash: Option<&str>) -> Option<Vec<Candidate>> {
+    let Some(agent) = &search.agent else { return Some(Vec::new()) };
     let mut query = vec![("filename", search.part.file.clone())];
     query.extend(search.guid.clone().map(|guid| ("guid", guid)));
     query.push(("lang", provider_language(&search.language)));
@@ -775,22 +777,28 @@ fn provider_candidates(search: &Search, hash: Option<&str>) -> Vec<Candidate> {
     let url = super::plextv::plextv_url(&format!("{PROVIDER}/library/streams/matches?{}", encode(&query)));
     let answer = match polite(&url, &agent.headers()) {
         Ok((200, body)) => serde_json::from_slice::<Value>(&body).unwrap_or(Value::Null),
+        Ok((400, _)) => {
+            info!("SUBTITLE Plex's provider answered 400 for {} ({}), which asking again does not change", search.part.file, search.language);
+            return None;
+        }
         Ok((status, _)) => {
             warning!("SUBTITLE Plex's provider answered {status} for {} ({})", search.part.file, search.language);
-            return Vec::new();
+            return Some(Vec::new());
         }
         Err(error) => {
             warning!("SUBTITLE Plex's provider unreachable: {error}");
-            return Vec::new();
+            return Some(Vec::new());
         }
     };
-    answer
-        .pointer("/MediaContainer/Stream")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|row| provider_candidate(row, &search.language))
-        .collect()
+    Some(
+        answer
+            .pointer("/MediaContainer/Stream")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|row| provider_candidate(row, &search.language))
+            .collect(),
+    )
 }
 
 /// One of the provider's rows: `{codec, id, key, language, languageCode, providerTitle, score,
@@ -812,7 +820,7 @@ fn provider_candidate(row: &Value, language: &str) -> Option<Candidate> {
     })
 }
 
-fn search_all(search: &Search, hash: Option<&str>) -> Vec<Candidate> {
+fn search_all(search: &Search, hash: Option<&str>) -> Option<Vec<Candidate>> {
     provider_candidates(search, hash)
 }
 
@@ -1137,6 +1145,45 @@ impl Runtime {
     }
 }
 
+/// The most a VobSub's `.sub` may hold, read whole: the largest of fun's 690 real ones was McBain's
+/// 12.9 MB of four languages (2026-11-04).
+pub(crate) const VOBSUB_SUB_CAP: usize = 64 << 20;
+
+/// A VobSub's `.sub` a client asked for (`/library/streams/{id}.sub`): read off the lock from the
+/// source that pushed it.
+#[derive(Debug)]
+pub(crate) struct VobSubRead {
+    source: Arc<source::Source>,
+    path: String,
+    /// `encoding=` asked for: a real PMS answers the bitmaps with every byte over 0x7f dropped
+    /// (Champloo's 28,672 B as 17,901), and Plezy asks for `.sub?encoding=utf-8`.
+    ascii: bool,
+}
+
+/// The `.sub`'s bytes as a real PMS serves them: `text/html`, as its `.idx` and every sidecar.
+pub(crate) fn vobsub_read(read: VobSubRead) -> Response {
+    let body = match read.source.open(&read.path, &[]) {
+        Ok(response) if response.status == 404 => return Response::error(404, "rex: not found"),
+        Ok(mut response) if (200..300).contains(&response.status) => response.read_body(VOBSUB_SUB_CAP),
+        Ok(response) => Err(format!("the source answered {}", response.status)),
+        Err(error) => Err(error),
+    };
+    match body {
+        Ok(body) => Response {
+            status: 200,
+            content_type: "text/html".to_string(),
+            body: if read.ascii { body.into_iter().filter(|byte| *byte < 0x80).collect() } else { body },
+            headers: Vec::new(),
+            close: false,
+            doc: None,
+        },
+        Err(error) => {
+            warning!("VobSub {} not read: {error}", read.path);
+            Response::error(502, "rex: subtitle source could not be read")
+        }
+    }
+}
+
 fn subtitle_response(content: &str) -> Response {
     Response { status: 200, content_type: "text/html".to_string(), body: content.as_bytes().to_vec(), headers: Vec::new(), close: false, doc: None }
 }
@@ -1221,6 +1268,31 @@ impl Runtime {
     }
 
     /// A guessed stream id must not disclose even original content.
+    /// A read of `/library/streams/{id}.{extension}` on a sidecar or upload (one with a `key`):
+    /// `None` reads the stream as it is (its own format's extension, a VobSub's `.idx`, or any
+    /// extension on an embedded track), a VobSub's `.sub` is read from its source, and any other
+    /// extension is the 404 a real PMS answers.
+    pub(super) fn external_stream(&self, row: &Value, stream_id: i64, extension: &str, query: &HashMap<String, String>) -> Option<Result<VobSubRead, Response>> {
+        let row = crate::catalog::unpacked(row);
+        let (part, stream) = row.get("Media").and_then(Field::as_array).into_iter().flatten()
+            .flat_map(|media| media.get("Part").and_then(Value::as_array).into_iter().flatten())
+            .find_map(|part| Some((part, crate::catalog::part_streams(part).iter().find(|stream| stream.get("id").and_then(Field::as_i64) == Some(stream_id))?.clone())))?;
+        stream.get("key")?;
+        let own = stream.get("format").or_else(|| stream.get("codec")).and_then(Value::as_str).unwrap_or_default();
+        let Some(sub) = stream.get("_sourceSub").and_then(Value::as_str) else {
+            return (extension != own).then(|| Err(Response::error(404, "rex: not found")));
+        };
+        match extension {
+            "idx" => None,
+            "sub" if self.visible(&row) => {
+                let file = part.get("file").and_then(Value::as_str).unwrap_or_default();
+                let Some((source, _)) = self.part_source(&row, file) else { return Some(Err(Response::error(502, "rex: source unavailable"))) };
+                Some(Ok(VobSubRead { source, path: sub.to_string(), ascii: query.contains_key("encoding") }))
+            }
+            _ => Some(Err(Response::error(404, "rex: not found"))),
+        }
+    }
+
     pub(super) fn prepare_subtitle_read(&self, row: &Value, stream_id: i64, query: &HashMap<String, String>) -> Result<SubtitleRead, Response> {
         if !self.visible(row) {
             return Err(Response::error(404, "rex: not found"));
@@ -1354,11 +1426,12 @@ fn spans(cues: &[(f64, f64)], starts: &[f64]) -> bool {
 
 // -- the jobs --------------------------------------------------------------------------------
 
-/// The subtitle jobs running, by item, and the automatic searches that found nothing.
+/// The subtitle jobs running, by item, and the automatic searches that found nothing: until
+/// when they are not run again, or None for one the provider refused, never again.
 #[derive(Debug, Default)]
 pub(crate) struct Jobs {
     running: Mutex<HashMap<String, usize>>,
-    misses: Mutex<HashMap<String, Instant>>,
+    misses: Mutex<HashMap<String, Option<Instant>>>,
     /// Automatic subtitles kept unchecked by a detail request (no text track to check against,
     /// and audio is read only for a play), by item and language: the stream a play checks.
     unchecked: Mutex<HashMap<String, i64>>,
@@ -1384,13 +1457,13 @@ impl Jobs {
     }
 
     fn missed(&self, what: &str) -> bool {
-        self.misses.lock().unwrap_or_else(PoisonError::into_inner).get(what).is_some_and(|at| at.elapsed() < MISS_FOR)
+        self.misses.lock().unwrap_or_else(PoisonError::into_inner).get(what).is_some_and(|until| until.is_none_or(|until| Instant::now() < until))
     }
 
-    fn miss(&self, what: String) {
+    fn miss(&self, what: String, refused: bool) {
         let mut misses = self.misses.lock().unwrap_or_else(PoisonError::into_inner);
-        misses.retain(|_, at| at.elapsed() < MISS_FOR);
-        misses.insert(what, Instant::now());
+        misses.retain(|_, until| until.is_none_or(|until| Instant::now() < until));
+        misses.insert(what, (!refused).then(|| Instant::now() + MISS_FOR));
     }
 
     fn unchecked(&self, what: &str) -> Option<i64> {
@@ -1456,12 +1529,13 @@ fn run(shared: &SharedRuntime, job: Job) {
     let _finish = Finish(Arc::clone(&job.jobs), job.key.clone());
     let Job { key, account, search, ffmpeg, audio_later, task, jobs } = job;
     let begun = Instant::now();
-    let (hash, candidates) = match &task {
-        Task::Apply { offer, .. } => (None, vec![offer.clone()]),
+    let (hash, candidates, refused) = match &task {
+        Task::Apply { offer, .. } => (None, vec![offer.clone()], false),
         Task::Automatic { .. } => {
             let hash = hash_of(&search.part);
             let found = search_all(&search, hash.as_deref());
-            (hash.filter(|_| search.part.hash.is_none()), found)
+            let refused = found.is_none();
+            (hash.filter(|_| search.part.hash.is_none()), found.unwrap_or_default(), refused)
         }
     };
     let windows = if candidates.is_empty() { None } else { reference(&search.part, ffmpeg.as_deref()) };
@@ -1519,9 +1593,11 @@ fn run(shared: &SharedRuntime, job: Job) {
         None if applied => warning!("SUBTITLE apply {key}: the subtitle could not be downloaded"),
         // The kept one stays as it was; it is not checked again.
         None if replaces.is_some() => jobs.set_unchecked(unchecked.clone(), None),
+        // Logged where the provider answered.
+        None if refused => jobs.miss(unchecked, true),
         None => {
             info!("SUBTITLE automatic {key}: nothing found in {}, not searched again for a day", search.language);
-            jobs.miss(format!("{key}\u{1f}{}", provider_language(&search.language)));
+            jobs.miss(unchecked, false);
         }
     }
     if let Task::Apply { mut activity, .. } = task {
@@ -1801,7 +1877,7 @@ impl Runtime {
         let asked = search.clone();
         let found = self.agent_answer(format!("subtitles\u{1f}{key}\u{1f}{language}"), move || {
             let hash = hash_of(&asked.part);
-            let candidates = search_all(&asked, hash.as_deref());
+            let candidates = search_all(&asked, hash.as_deref()).unwrap_or_default();
             json!({"hash": hash, "candidates": candidates.iter().map(Candidate::to_value).collect::<Vec<_>>()})
         });
         let Some(found) = found else {
@@ -1878,6 +1954,11 @@ impl Runtime {
         let prefs = if self.viewer.is_owner() { self.track_prefs.clone() } else { self.viewer.prefs.clone() };
         let Some(prefs) = prefs else { return };
         let row = crate::catalog::unpacked(row);
+        // Plex's provider places a release by its guid; a real PMS never searched without one
+        // (provider_matches_refusals.json's note). A search from the picker still runs.
+        if !row.get("guid").and_then(Field::as_str).is_some_and(|guid| guid.starts_with("plex://")) {
+            return;
+        }
         let streams = row
             .pointer("/Media/0/Part/0/Stream")
             .and_then(Value::as_array)
@@ -1934,6 +2015,22 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_search_the_provider_refused_is_not_run_again_the_next_day() {
+        let jobs = Jobs::default();
+        jobs.miss("empty".to_string(), false);
+        jobs.miss("refused".to_string(), true);
+        assert!(jobs.missed("empty") && jobs.missed("refused"));
+        // A day later.
+        for until in jobs.misses.lock().unwrap().values_mut().flatten() {
+            *until = Instant::now();
+        }
+        assert!(!jobs.missed("empty"));
+        assert!(jobs.missed("refused"));
+        jobs.miss("another".to_string(), false);
+        assert!(jobs.missed("refused"), "the day's expiry sweep keeps a refusal");
+    }
 
     #[test]
     fn opensubtitles_hash_is_size_plus_head_and_tail_words() {
@@ -2282,7 +2379,7 @@ mod tests {
                 year: field("year"),
                 part: part.clone(),
             };
-            let found = search_all(&search, hash.as_deref());
+            let found = search_all(&search, hash.as_deref()).unwrap_or_default();
             println!("{language}: {} from Plex's provider", found.len());
             assert!(!found.is_empty(), "the provider answers");
             {

@@ -20,6 +20,12 @@ const SECONDARY_TAGS: &[(&str, &str)] = &[
     ("network", "Network"),
 ];
 
+/// A music library's tag axes beside those, and the element each reads: plexav answers its rows'
+/// own agent tags where a video library's are the empty cross-type answer (2026-11-04,
+/// `fixtures/music/axes.json`): `mood` of artists, albums and tracks, `style` of artists and albums,
+/// `format` of albums.
+const MUSIC_TAGS: &[(&str, &str)] = &[("mood", "Mood"), ("style", "Style"), ("format", "Format"), ("subformat", "Subformat")];
+
 /// Field axes and the column each reads.
 const SECONDARY_FIELDS: &[(&str, &str)] = &[
     ("year", "year"),
@@ -392,7 +398,7 @@ impl Runtime {
         query: &HashMap<String, String>,
         pairs: &[(String, String)],
     ) -> Option<Response> {
-        let is_tag = lookup(SECONDARY_TAGS, leaf).is_some();
+        let is_tag = lookup(SECONDARY_TAGS, leaf).is_some() || lookup(MUSIC_TAGS, leaf).is_some() && self.music_section(section_id);
         let is_field = lookup(SECONDARY_FIELDS, leaf).is_some();
         if leaf == "firstCharacter" {
             if let Some(status) = Self::axis_type_refusal(query, 500, 500) {
@@ -570,8 +576,18 @@ impl Runtime {
                 })
                 .collect();
         }
+        if leaf == "mood" && self.music_section(section_id) {
+            // plexav's album Mood is the agent's merged with its tracks', so `mood?type=9` is both.
+            let tracks: Vec<AnyRow<'_>> = rows
+                .iter()
+                .filter(|row| row.get("type").and_then(Field::as_str) == Some("album"))
+                .flat_map(|row| self.leaves_refs(&key_of(row).unwrap_or_default()))
+                .map(AnyRow::Ref)
+                .collect();
+            rows.extend(tracks);
+        }
         let mut entries = Vec::new();
-        if let Some(element) = lookup(SECONDARY_TAGS, leaf) {
+        if let Some(element) = lookup(SECONDARY_TAGS, leaf).or_else(|| lookup(MUSIC_TAGS, leaf)) {
             // By name, first tag of each kept, in name order: a list searched per tag was
             // rows x distinct names, seconds for a show library's directors under the lock.
             let mut seen: BTreeMap<String, Value> = BTreeMap::new();
@@ -674,7 +690,7 @@ impl Runtime {
         }
         let mut container = self.axis_container(
             section,
-            lookup(SECONDARY_TITLES, leaf),
+            lookup(SECONDARY_TITLES, leaf).or_else(|| lookup(CROSS_TYPE_AXES, leaf)),
             Map::from_iter([("Directory".to_string(), Value::Array(entries))]),
         );
         if leaf == "actor" {

@@ -1,0 +1,177 @@
+{
+ "source": "plexscratch42, Plex Media Server 1.42.2, ratingKey 1122, Media 0; a real ty file from samples.ffmpeg.org (TiVo/Top Gear-02-25-08-1.ty (its first 8 MiB)); probed with ffprobe 8.1.2 over the server's own part URL, 2026-11-04",
+ "extension": "ty",
+ "probe": {
+  "streams": [
+   {
+    "index": 0,
+    "codec_name": "mpeg2video",
+    "codec_long_name": "MPEG-2 video",
+    "profile": "Main",
+    "codec_type": "video",
+    "codec_tag_string": "[0][0][0][0]",
+    "codec_tag": "0x0000",
+    "width": 480,
+    "height": 480,
+    "coded_width": 0,
+    "coded_height": 0,
+    "has_b_frames": 1,
+    "sample_aspect_ratio": "4:3",
+    "display_aspect_ratio": "4:3",
+    "pix_fmt": "yuv420p",
+    "level": 8,
+    "color_range": "tv",
+    "chroma_location": "left",
+    "field_order": "tt",
+    "r_frame_rate": "30000/1001",
+    "avg_frame_rate": "30000/1001",
+    "time_base": "1/90000",
+    "start_pts": 20417885,
+    "start_time": "226.865389",
+    "extradata_size": 88,
+    "disposition": {
+     "default": 0,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    },
+    "side_data_list": [
+     {
+      "side_data_type": "CPB properties",
+      "max_bitrate": 15000000,
+      "min_bitrate": 0,
+      "avg_bitrate": 0,
+      "buffer_size": 1835008,
+      "vbv_delay": -1
+     }
+    ]
+   },
+   {
+    "index": 1,
+    "codec_name": "mp2",
+    "codec_long_name": "MP2 (MPEG audio layer 2)",
+    "codec_type": "audio",
+    "codec_tag_string": "[0][0][0][0]",
+    "codec_tag": "0x0000",
+    "mime_codec_string": "mp4a.40.33",
+    "sample_fmt": "s16p",
+    "sample_rate": "48000",
+    "channels": 2,
+    "channel_layout": "stereo",
+    "bits_per_sample": 0,
+    "initial_padding": 0,
+    "r_frame_rate": "0/0",
+    "avg_frame_rate": "0/0",
+    "time_base": "1/90000",
+    "start_pts": 20376954,
+    "start_time": "226.410600",
+    "bit_rate": "192000",
+    "disposition": {
+     "default": 0,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    }
+   }
+  ],
+  "format": {
+   "filename": "file.ty",
+   "nb_streams": 2,
+   "nb_programs": 0,
+   "nb_stream_groups": 0,
+   "format_name": "ty",
+   "format_long_name": "TiVo TY Stream",
+   "start_time": "226.410600",
+   "size": "8388608",
+   "probe_score": 100
+  }
+ },
+ "Media": {
+  "id": 262,
+  "width": 480,
+  "height": 480,
+  "aspectRatio": 1.33,
+  "audioChannels": 2,
+  "audioCodec": "mp2",
+  "videoCodec": "mpeg2video",
+  "videoResolution": "480",
+  "container": "ty",
+  "videoFrameRate": "NTSC",
+  "Part": [
+   {
+    "id": 262,
+    "key": "/library/parts/262/1793753094/file.ty",
+    "file": "/data2/videoext-movies/Videoext Probe ty (2020)/Videoext Probe ty (2020).ty",
+    "size": 8388608,
+    "container": "ty",
+    "Stream": [
+     {
+      "id": 493,
+      "streamType": 1,
+      "codec": "mpeg2video",
+      "index": 0,
+      "anamorphic": true,
+      "codedHeight": 480,
+      "codedWidth": 480,
+      "frameRate": 29.97,
+      "height": 480,
+      "pixelAspectRatio": "4:3",
+      "refFrames": 1,
+      "scanType": "interlaced",
+      "width": 480,
+      "displayTitle": "480i",
+      "extendedDisplayTitle": "480i (MPEG2VIDEO)"
+     },
+     {
+      "id": 494,
+      "streamType": 2,
+      "selected": true,
+      "codec": "mp2",
+      "index": 1,
+      "channels": 2,
+      "bitrate": 192,
+      "audioChannelLayout": "stereo",
+      "samplingRate": 48000,
+      "displayTitle": "Unknown (MP2 Stereo)",
+      "extendedDisplayTitle": "Unknown (MP2 Stereo)"
+     }
+    ]
+   }
+  ]
+ },
+ "webDisplayTitles": {
+  "0": "480i (MPEG2VIDEO)",
+  "1": "Unknown (MP2 Stereo)"
+ },
+ "shallow": true
+}

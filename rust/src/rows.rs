@@ -325,6 +325,26 @@ impl Rows {
         Some(unsafe { &*pointer })
     }
 
+    /// `visit` with the row at `position`, as `get` reads it, but a row read from the file is let
+    /// go of once `visit` returns rather than kept for `trim` (a row that cannot be read is `Null`).
+    /// For a pass outside a request, where no `trim` comes: the plex.tv thread's pass over every
+    /// row through `get` held the production server's whole library at once (`set_track_prefs`).
+    pub fn with_row<R>(&self, position: usize, visit: impl FnOnce(&Value) -> R) -> R {
+        let null = Value::Null;
+        if self.held_at(position) || self.overlay.as_ref().is_some_and(|overlay| overlay.covers(position)) {
+            return visit(self.get(position).unwrap_or(&null));
+        }
+        let cached = self.cache.borrow().rows.get(&position).map(|(row, _, _)| &**row as *const Value);
+        if let Some(row) = cached {
+            // SAFETY: as in `underlying`; the cache is not borrowed while `visit` runs.
+            return visit(unsafe { &*row });
+        }
+        match self.meta.get(position).and_then(|meta| meta.stored.as_deref()).and_then(|key| self.read(key)) {
+            Some(row) => visit(&row),
+            None => visit(&null),
+        }
+    }
+
     /// The row, mutably: held from now on, and unsaved.
     pub fn get_mut(&mut self, position: usize) -> Option<&mut Value> {
         self.sync();

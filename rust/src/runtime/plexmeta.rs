@@ -8,6 +8,9 @@
 //! Answers are cached beside the catalog under the keys the Python module writes: a row
 //! each in `plex_cache.db` (diskcache.rs), which imports `plex_cache.json` -- what
 //! `build_catalog.py --relink` writes -- once.
+//!
+//! Every call is asked in its library's language ([`PlexMeta::in_language`]), as a real PMS asks:
+//! rex sent none until 2026-11-04 (rex#9), so a de-DE library was described in English.
 
 use super::diskcache::DiskCache;
 use super::upstream;
@@ -30,6 +33,41 @@ fn stamped(incomplete: bool, mut answer: Value) -> Value {
         object.insert("_rexCachedAt".to_string(), json!(now()));
     }
     answer
+}
+
+/// A library's language as a PMS hands it to Plex's agent: the tag and the country its region names
+/// (de-DE DE, pt-BR BR, as en-US is US in both captures). A library with none is en-US, as its
+/// section answers it; a bare tag (`de`, set by hand: Add Library offers only regional ones,
+/// `agent_languages.json`) names no country, so none is sent rather than one guessed.
+fn locale(language: &str) -> (&str, Option<String>) {
+    let language = if language.is_empty() { "en-US" } else { language };
+    let country = language
+        .rsplit_once('-')
+        .map(|(_, region)| region)
+        .filter(|region| region.len() == 2 && region.chars().all(|c| c.is_ascii_alphabetic()))
+        .map(str::to_ascii_uppercase);
+    (language, country)
+}
+
+/// Where a PMS puts the language, as plexlab's and plexav's PMS 1.43.4 sent it (outbound captures,
+/// en-US libraries): `x-plex-language` and `x-plex-country` headers on `POST
+/// /library/metadata/matches` (`plexmeta_matches_s143.json`), and `X-Plex-Country` then
+/// `X-Plex-Language` last in the query of a GET of an item, its images and its extras
+/// (`music/agent.json`), so on rex's `children` too, which neither PMS asked (it reads an item with
+/// `includeChildren=1`); a music match by release id (`GET .../matches?guid=mbid://`) carries
+/// neither. The request's path and its extra headers.
+fn localised(method: &str, path: &str, language: &str) -> (String, Vec<(&'static str, String)>) {
+    let (language, country) = locale(language);
+    if method == "POST" {
+        let headers = std::iter::once(("X-Plex-Language", language.to_string())).chain(country.map(|country| ("X-Plex-Country", country)));
+        return (path.to_string(), headers.collect());
+    }
+    if !path.starts_with("/library/metadata/") || path.starts_with("/library/metadata/matches") {
+        return (path.to_string(), Vec::new());
+    }
+    let country = country.map(|country| format!("X-Plex-Country={country}&")).unwrap_or_default();
+    let joint = if path.contains('?') { '&' } else { '?' };
+    (format!("{path}{joint}{country}X-Plex-Language={language}"), Vec::new())
 }
 
 pub(crate) struct PlexMeta {
@@ -77,11 +115,52 @@ impl PlexMeta {
     pub(super) fn new(claim: super::plextv::SharedClaim, cache_path: PathBuf) -> Self {
         Self { claim, cache: DiskCache::open(&cache_path), cache_path }
     }
+
+    /// The agent as a library whose `language` is this asks it.
+    pub(crate) fn in_language<'a>(&'a self, language: &'a str) -> InLanguage<'a> {
+        InLanguage { agent: self, language }
+    }
 }
 
-impl crate::identify::PlexSource for PlexMeta {
+/// The cache key an answer is kept under: the Python module's.
+fn cache_key(method: &str, path: &str, body: Option<&Value>) -> String {
+    format!("{method} {path} {}", body.map(python_json).unwrap_or_default())
+}
+
+/// Plex's agent as the answers kept in `plex_cache.db` alone: asked nothing, so what a row was
+/// described from is read again as it was, and a pass over the library waits on no network. Read
+/// by the key every answer was kept under before rex asked in each library's language (en-US's).
+pub(super) struct Kept<'a>(pub(super) &'a PlexMeta);
+
+impl crate::identify::PlexSource for Kept<'_> {
     fn call(&self, method: &str, path: &str, body: Option<&Value>) -> Option<Value> {
-        let key = format!("{method} {path} {}", body.map(python_json).unwrap_or_default());
+        self.0.cache.get(&cache_key(method, path, body))
+    }
+}
+
+/// Plex's agent asked in one library's language.
+pub(crate) struct InLanguage<'a> {
+    agent: &'a PlexMeta,
+    language: &'a str,
+}
+
+impl crate::identify::PlexSource for InLanguage<'_> {
+    fn call(&self, method: &str, path: &str, body: Option<&Value>) -> Option<Value> {
+        self.agent.call(self.language, method, path, body)
+    }
+}
+
+impl PlexMeta {
+    fn call(&self, language: &str, method: &str, path: &str, body: Option<&Value>) -> Option<Value> {
+        let key = cache_key(method, path, body);
+        // Each language its own answer, so a library whose language changes is asked again rather
+        // than shown what another language was told. en-US keeps the key it was kept under while
+        // rex sent no language, so English libraries keep what they hold.
+        let key = match locale(language).0 {
+            "en-US" => key,
+            other => format!("{other} {key}"),
+        };
+        let (asked, localised_headers) = localised(method, path, language);
         // A match or children list with no rows may be filled later: kept a day, then asked
         // again (the production rex drew Camp CrunchLabs on the blank tile after its poster was
         // added, 2026-10-12, when every answer was kept for good).
@@ -114,6 +193,7 @@ impl crate::identify::PlexSource for PlexMeta {
                 ("Content-Type", "application/json".to_string()),
                 ("X-Plex-Provider-Version", "6.5.0".to_string()),
             ]);
+            headers.extend(localised_headers);
             headers
         };
         let payload = body.map(Value::to_string).unwrap_or_default();
@@ -128,7 +208,7 @@ impl crate::identify::PlexSource for PlexMeta {
             }
             upstream::fetch(
                 method,
-                &super::plextv::plextv_url(&format!("{PROVIDER}{path}")),
+                &super::plextv::plextv_url(&format!("{PROVIDER}{asked}")),
                 &headers,
                 payload.as_bytes(),
                 Duration::from_secs(25),
@@ -183,17 +263,18 @@ pub(crate) fn relink(items: &mut [Value], catalog: &Path, client: String, name: 
     // or a version watcher. Offline it retains the packaged/persisted current identity.
     super::plextv::refresh_version(&claim);
     let agent = PlexMeta::new(claim, claim_file.with_file_name("plex_cache.json"));
+    // Guids only, which name a title whatever its language: asked as the en-US default.
     struct Agent(PlexMeta);
     impl crate::metadata::PlexProvider for Agent {
         /// `PlexProvider.match`: the first external id, `tmdb://` ones first, whose match is
         /// a `plex://` item of the kind asked for.
         fn match_item(&mut self, kind: &str, external_ids: &[String]) -> Option<(String, Option<String>)> {
-            let answer = crate::identify::plex_match(&self.0, kind, external_ids)?;
+            let answer = crate::identify::plex_match(&self.0.in_language("en-US"), kind, external_ids)?;
             let slug = answer.row.get("slug").and_then(Value::as_str).map(str::to_string);
             Some((answer.guid, slug))
         }
         fn children(&mut self, guid: &str) -> HashMap<String, String> {
-            crate::identify::plex_children(&self.0, guid)
+            crate::identify::plex_children(&self.0.in_language("en-US"), guid)
         }
     }
     Some(crate::metadata::apply_plex_guids_with_provider(items, &mut Agent(agent)))
@@ -209,5 +290,38 @@ mod tests {
             python_json(&json!({"type": 1, "title": "Amélie", "excludeElements": "Media", "year": 2001})),
             "{\"excludeElements\": \"Media\", \"title\": \"Am\\u00e9lie\", \"type\": 1, \"year\": 2001}"
         );
+    }
+
+    /// en-US is asked exactly as plexlab's and plexav's PMS asked: the match's headers, and each
+    /// item GET's query in its recorded order once identify's path is localised.
+    #[test]
+    fn a_library_language_is_sent_where_a_pms_sends_it() {
+        let matches: Value = serde_json::from_str(include_str!("../../../tests/fixtures/plexmeta_matches_s143.json")).unwrap();
+        let sent: Vec<(String, String)> = matches["request"]["req_headers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|pair| (pair[0].as_str().unwrap().to_string(), pair[1].as_str().unwrap().to_string()))
+            .filter(|(name, _)| matches!(name.as_str(), "x-plex-language" | "x-plex-country"))
+            .collect();
+        let (path, headers) = localised("POST", "/library/metadata/matches", "en-US");
+        let ours: Vec<(String, String)> = headers.into_iter().map(|(name, value)| (name.to_ascii_lowercase(), value)).collect();
+        assert_eq!((path.as_str(), ours), ("/library/metadata/matches", sent));
+        let agent: Value = serde_json::from_str(include_str!("../../../tests/fixtures/music/agent.json")).unwrap();
+        for asked in agent["answers"].as_array().unwrap() {
+            let query: Vec<String> = asked["query"].as_array().unwrap().iter().map(|pair| format!("{}={}", pair[0].as_str().unwrap(), pair[1].as_str().unwrap())).collect();
+            let own: Vec<&String> = query.iter().filter(|pair| !pair.starts_with("X-Plex-")).collect();
+            let path = asked["path"].as_str().unwrap();
+            let identify = if own.is_empty() { path.to_string() } else { format!("{path}?{}", own.iter().map(|pair| pair.as_str()).collect::<Vec<_>>().join("&")) };
+            assert_eq!(localised("GET", &identify, "en-US"), (format!("{path}?{}", query.join("&")), Vec::new()));
+        }
+        // Another library's language, and the country its tag names.
+        assert_eq!(
+            localised("POST", "/library/metadata/matches", "de-DE").1,
+            vec![("X-Plex-Language", "de-DE".to_string()), ("X-Plex-Country", "DE".to_string())]
+        );
+        assert_eq!(localised("GET", "/library/metadata/5d9c/children", "pt-BR").0, "/library/metadata/5d9c/children?X-Plex-Country=BR&X-Plex-Language=pt-BR");
+        assert_eq!(localised("GET", "/library/metadata/5d9c", "de").0, "/library/metadata/5d9c?X-Plex-Language=de");
+        assert_eq!(localised("GET", "/library/metadata/5d9c", "").0, "/library/metadata/5d9c?X-Plex-Country=US&X-Plex-Language=en-US");
     }
 }

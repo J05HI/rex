@@ -1,0 +1,399 @@
+{
+ "_provenance": "Recorded 2026-11-04 on plexscratch42 (PMS 1.42.2.10156, unclaimed, offline): the exact decision request Plex for Android 2026.19.1 (Pixel 6) sent rex for a movie with a source's VobSub pair selected at 720p (2 Mbps), its MDE having decided 'Subtitles as idx in file unsupported ... Server required to burn subtitles' (subtitles=burn), replayed with that item's VobSub selected; tokens and device ids left out. The decision only: plexscratch42 cannot download its transcoder's codecs, so it starts no conversion.",
+ "query": [
+  [
+   "directPlay",
+   "0"
+  ],
+  [
+   "directStream",
+   "0"
+  ],
+  [
+   "directStreamAudio",
+   "1"
+  ],
+  [
+   "protocol",
+   "hls"
+  ],
+  [
+   "fastSeek",
+   "1"
+  ],
+  [
+   "path",
+   "/library/metadata/100073"
+  ],
+  [
+   "session",
+   "vobsub-android-burn"
+  ],
+  [
+   "mediaIndex",
+   "0"
+  ],
+  [
+   "partIndex",
+   "0"
+  ],
+  [
+   "mediaBufferSize",
+   "50000"
+  ],
+  [
+   "hasMDE",
+   "1"
+  ],
+  [
+   "subtitleSize",
+   "0"
+  ],
+  [
+   "videoQuality",
+   "60"
+  ],
+  [
+   "videoResolution",
+   "1024x720"
+  ],
+  [
+   "audioBoost",
+   "100"
+  ],
+  [
+   "autoAdjustSubtitle",
+   "1"
+  ],
+  [
+   "boostDialog",
+   "0"
+  ],
+  [
+   "normalizeLoudness",
+   "0"
+  ],
+  [
+   "subtitles",
+   "burn"
+  ],
+  [
+   "maxVideoBitrate",
+   "2000"
+  ],
+  [
+   "location",
+   "lan"
+  ],
+  [
+   "X-Plex-Client-Profile-Extra",
+   "add-transcode-target(type=videoProfile&context=all&protocol=hls&container=mkv&videoCodec=h264,hevc,vp8,vp9&audioCodec=aac,pcm,mp3,ac3,dca,eac3&subtitleCodec=ass,ssa,pgs,srt,smi,dvd_subtitle,mov_text,eia_608,eia_708,vobsub,vtt,webvtt,text,ttxt,tx3g)+add-limitation(scope=videoTranscodeTarget&scopeName=h264&scopeType=videoCodec&context=all&protocol=hls&type=upperBound&name=video.width&value=3840)+add-limitation(scope=videoTranscodeTarget&scopeName=h264&scopeType=videoCodec&context=all&protocol=hls&type=upperBound&name=video.height&value=3840)+add-limitation(scope=videoTranscodeTarget&scopeName=hevc&scopeType=videoCodec&context=all&protocol=hls&type=upperBound&name=video.bitDepth&value=10)+add-limitation(scope=videoTranscodeTarget&scopeName=hevc&scopeType=videoCodec&context=all&protocol=hls&type=upperBound&name=video.width&value=3840)+add-limitation(scope=videoTranscodeTarget&scopeName=hevc&scopeType=videoCodec&context=all&protocol=hls&type=upperBound&name=video.height&value=3840)+add-transcode-target-codec(scope=videoTranscodeTarget&scopeName=mp3&scopeType=audioCodec&context=all&protocol=http)+add-transcode-target-codec(scope=videoTranscodeTarget&scopeName=ac3&scopeType=audioCodec&context=all&protocol=http)+add-transcode-target-codec(scope=videoTranscodeTarget&scopeName=eac3&scopeType=audioCodec&context=all&protocol=http)+add-transcode-target-codec(scope=videoTranscodeTarget&scopeName=dca&scopeType=audioCodec&context=all&protocol=http)+add-transcode-target-codec(scope=videoTranscodeTarget&scopeName=opus&scopeType=audioCodec&context=all&protocol=http)"
+  ],
+  [
+   "X-Plex-Client-Profile-Name",
+   "Generic"
+  ],
+  [
+   "X-Plex-Product",
+   "Plex for Android (Mobile)"
+  ],
+  [
+   "X-Plex-Platform",
+   "Android"
+  ],
+  [
+   "X-Plex-Platform-Version",
+   "16"
+  ],
+  [
+   "X-Plex-Model",
+   "oriole"
+  ],
+  [
+   "X-Plex-Device",
+   "Pixel 6"
+  ],
+  [
+   "X-Plex-Device-Name",
+   "Pixel 6"
+  ],
+  [
+   "X-Plex-Device-Vendor",
+   "Google"
+  ],
+  [
+   "X-Plex-Device-Screen-Resolution",
+   "1080x2400"
+  ],
+  [
+   "X-Plex-Device-Screen-Density",
+   "2.625"
+  ],
+  [
+   "X-Plex-Version",
+   "2026.19.1"
+  ],
+  [
+   "X-Plex-Language",
+   "en"
+  ],
+  [
+   "X-Plex-Features",
+   "external-media,indirect-media"
+  ],
+  [
+   "X-Plex-Provider-Version",
+   "7.6.0"
+  ],
+  [
+   "X-Plex-DRM",
+   "widevine:video"
+  ],
+  [
+   "X-Plex-Client-Identifier",
+   "pixel6-plex-android"
+  ]
+ ],
+ "decisions": {
+  "Vobsub Pair": {
+   "key": 1164,
+   "status": 200,
+   "decision": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": "1",
+     "directPlayDecisionCode": 3000,
+     "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+     "generalDecisionCode": 1001,
+     "generalDecisionText": "Direct play not available; Conversion OK.",
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": "31",
+     "librarySectionTitle": "vobsub-movies",
+     "librarySectionUUID": "2a2257ce-182f-4e33-b7fe-4860177a63e9",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": "1758205129",
+     "resourceSession": "pixel6-plex-android",
+     "transcodeDecisionCode": 1001,
+     "transcodeDecisionText": "Direct play not available; Conversion OK.",
+     "Metadata": [
+      {
+       "addedAt": 1793754149,
+       "art": "/library/metadata/1164/art/1793754773",
+       "duration": 120021,
+       "guid": "local://1164",
+       "key": "/library/metadata/1164",
+       "librarySectionID": "31",
+       "librarySectionKey": "/library/sections/31",
+       "librarySectionTitle": "vobsub-movies",
+       "ratingKey": "1164",
+       "subtype": "clip",
+       "thumb": "/library/metadata/1164/thumb/1793754773",
+       "title": "Vobsub Pair",
+       "type": "movie",
+       "updatedAt": 1793754773,
+       "year": 2004,
+       "Media": [
+        {
+         "audioProfile": "lc",
+         "id": "301",
+         "videoProfile": "constrained baseline",
+         "audioChannels": 2,
+         "audioCodec": "mp3",
+         "bitrate": 1865,
+         "container": "mkv",
+         "duration": 120021,
+         "height": 576,
+         "protocol": "hls",
+         "videoCodec": "h264",
+         "videoFrameRate": "24p",
+         "videoResolution": "480p",
+         "width": 1024,
+         "selected": true,
+         "Part": [
+          {
+           "audioProfile": "lc",
+           "id": "301",
+           "videoProfile": "constrained baseline",
+           "bitrate": 1865,
+           "container": "mkv",
+           "duration": 120021,
+           "height": 576,
+           "protocol": "hls",
+           "width": 1024,
+           "decision": "transcode",
+           "selected": true,
+           "Stream": [
+            {
+             "bitrate": 1769,
+             "codec": "h264",
+             "displayTitle": "1080p",
+             "extendedDisplayTitle": "1080p (H.264 Constrained Baseline)",
+             "frameRate": 24.0,
+             "height": 576,
+             "id": "573",
+             "streamType": 1,
+             "width": 1024,
+             "decision": "transcode",
+             "location": "segments-av"
+            },
+            {
+             "bitrate": 96,
+             "bitrateMode": "vbr",
+             "channels": 2,
+             "codec": "mp3",
+             "displayTitle": "Unknown (AAC Stereo)",
+             "extendedDisplayTitle": "Unknown (AAC Stereo)",
+             "id": "574",
+             "selected": true,
+             "streamType": 2,
+             "decision": "transcode",
+             "location": "segments-av"
+            },
+            {
+             "burn": "1",
+             "codec": "idx",
+             "displayTitle": "Deutsch",
+             "extendedDisplayTitle": "Deutsch (VOBSUB External)",
+             "file": "/data2/vobsub-movies/Vobsub Pair (2004)/Vobsub Pair (2004).idx",
+             "id": "580",
+             "key": "/library/streams/580",
+             "language": "Deutsch",
+             "languageCode": "deu",
+             "languageTag": "de",
+             "selected": true,
+             "streamType": 3,
+             "decision": "burn",
+             "location": "segments-av"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "Vobsub Embedded": {
+   "key": 1160,
+   "status": 200,
+   "decision": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": "1",
+     "directPlayDecisionCode": 3000,
+     "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+     "generalDecisionCode": 1001,
+     "generalDecisionText": "Direct play not available; Conversion OK.",
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": "31",
+     "librarySectionTitle": "vobsub-movies",
+     "librarySectionUUID": "2a2257ce-182f-4e33-b7fe-4860177a63e9",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": "1758205129",
+     "resourceSession": "pixel6-plex-android",
+     "transcodeDecisionCode": 1001,
+     "transcodeDecisionText": "Direct play not available; Conversion OK.",
+     "Metadata": [
+      {
+       "addedAt": 1793754148,
+       "art": "/library/metadata/1160/art/1793754653",
+       "duration": 1295993,
+       "guid": "local://1160",
+       "key": "/library/metadata/1160",
+       "librarySectionID": "31",
+       "librarySectionKey": "/library/sections/31",
+       "librarySectionTitle": "vobsub-movies",
+       "ratingKey": "1160",
+       "subtype": "clip",
+       "thumb": "/library/metadata/1160/thumb/1793754653",
+       "title": "Vobsub Embedded",
+       "type": "movie",
+       "updatedAt": 1793754653,
+       "year": 2004,
+       "Media": [
+        {
+         "audioProfile": "lc",
+         "id": "297",
+         "videoProfile": "constrained baseline",
+         "audioChannels": 2,
+         "audioCodec": "mp3",
+         "bitrate": 1865,
+         "container": "mkv",
+         "duration": 1295993,
+         "height": 576,
+         "protocol": "hls",
+         "videoCodec": "h264",
+         "videoFrameRate": "24p",
+         "videoResolution": "480p",
+         "width": 1024,
+         "selected": true,
+         "Part": [
+          {
+           "audioProfile": "lc",
+           "id": "297",
+           "videoProfile": "constrained baseline",
+           "bitrate": 1865,
+           "container": "mkv",
+           "duration": 1295993,
+           "height": 576,
+           "protocol": "hls",
+           "width": 1024,
+           "decision": "transcode",
+           "selected": true,
+           "Stream": [
+            {
+             "bitrate": 1769,
+             "codec": "h264",
+             "displayTitle": "1080p",
+             "extendedDisplayTitle": "1080p (H.264 Constrained Baseline)",
+             "frameRate": 24.0,
+             "height": 576,
+             "id": "559",
+             "streamType": 1,
+             "width": 1024,
+             "decision": "transcode",
+             "location": "segments-av"
+            },
+            {
+             "bitrate": 96,
+             "bitrateMode": "vbr",
+             "channels": 2,
+             "codec": "mp3",
+             "displayTitle": "Unknown (AAC Stereo)",
+             "extendedDisplayTitle": "Unknown (AAC Stereo)",
+             "id": "560",
+             "selected": true,
+             "streamType": 2,
+             "decision": "transcode",
+             "location": "segments-av"
+            },
+            {
+             "bitrate": 0,
+             "burn": "1",
+             "codec": "vobsub",
+             "default": true,
+             "displayTitle": "Deutsch",
+             "extendedDisplayTitle": "Deutsch (VOBSUB)",
+             "id": "561",
+             "language": "Deutsch",
+             "languageCode": "deu",
+             "languageTag": "de",
+             "selected": true,
+             "streamType": 3,
+             "decision": "burn",
+             "location": "segments-av"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  }
+ }
+}

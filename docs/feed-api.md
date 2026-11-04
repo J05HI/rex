@@ -63,9 +63,9 @@ internet, which needs a token once rex is claimed, but not the feed.
 | `user`, `password` | Basic auth for `url` (optional) |
 | `bearer` | `Authorization: Bearer` for `url` instead (optional) |
 | `mount` | Optional, a label: the folder Plex apps show its files under in Get Info (`<mount>/<path>`, default `/<path>`) and its libraries under (default rex's own, `/mnt/rex`). Playback of what a source pushes never uses it |
-| `directories` | Optional: the directories that get a library of their own ([below](#libraries-a-source-declares)). Each entry is `name`, one directory as the first segment of the source's item paths (non-empty, no `/`), and `shows`, `movies` and/or `music`, the title of its show, movie and music library (non-empty strings; at least one). Absent, `null` or `[]` declares nothing. A malformed entry is ignored, never the registration |
+| `directories` | Optional: the directories that get a library of their own ([below](#libraries-a-source-declares)). Each entry is `name`, one directory as the first segment of the source's item paths (non-empty, no `/`), and `shows`, `movies`, `music` and/or `photos`, the title of its show, movie, music and photo library (non-empty strings; at least one). Absent, `null` or `[]` declares nothing. A malformed entry is ignored, never the registration |
 | `trash` | Optional: `false` deletes what the source removes (a snapshot leaving it out, or a `DELETE`) instead of keeping it in the trash for its file to come back. For files that never come back, such as live channels that end: the production server's Live Sports library held 2,115 trashed channels beside 853 live ones (2026-11-01). Absent or `true`: the trash, as for a missing file (deleted at once only under `autoEmptyTrash`) |
-| `artwork` | Optional: `"source"` makes the artist pictures this source pushes (`display.artist.poster` and `art` on its tracks) its artists' pictures even where Plex's agent named the artist, in place of the agent's. Absent: the agent's pictures for an artist it named. Either way a person's upload or pick stays theirs. Takes effect on the next push that changes a track's `display` |
+| `artwork` | Optional: `"source"` makes the artist pictures this source pushes (`display.artist.poster` and `art` on its tracks) its artists' pictures even where Plex's agent named the artist, in place of the agent's. Absent: the agent's pictures for an artist it named. Either way a person's upload or pick stays theirs. Takes effect on the next push of its tracks, changed or not |
 
 `{name}` is letters, digits, `-` and `_`. A registration creates the source or replaces the
 one of that name, and the next part read streams from what it names, without a restart.
@@ -91,7 +91,7 @@ nothing was:
 ### Libraries a source declares
 
 A directory named in `directories` is a library of its own, made when the source registers:
-a movie library titled as the entry's `movies` and a show library titled as its `shows`, whichever it has,
+a movie library titled as the entry's `movies`, a show library as its `shows`, a music library as its `music` and a photo library as its `photos`, whichever it has,
 on the folder `<mount>/<name>` (with no `mount`, under the parent of the first library's
 folder, `/mnt/rex` for a library rex seeded). rex logs `SECTION create Anime (show) for myapp's anime`, and
 Plex clients see it as one added in Add Library. Then:
@@ -104,7 +104,7 @@ Plex clients see it as one added in Add Library. Then:
   **an unplaced file** (no `kind`) to the first library holding the folder. rex makes the movie
   library first, so when it makes both that is the movie library, as unplaced files go to a movie
   library anywhere else; a directory with only a show library takes its unplaced files there. A type the entry does not title goes to the first library of
-  its kind, as an undeclared directory's do.
+  its kind, as an undeclared directory's do. A track goes to its music library and a picture to its photo library ([Tracks](#tracks), [Photos](#photos)).
 - **Rows already shown move** to the new library on the source's next push, as they are, on
   their keys: identification, a Fix Match, every account's watch state and a person's edits
   stay. An episode goes under its show there, else under a copy of the show and season it
@@ -303,7 +303,7 @@ The `media_info` above is cut down to show its shape. Send ffprobe's whole outpu
 | `path` | yes | Where the bytes are: `<source url>/<path>`. Its first directory also picks the library (below) |
 | `media_info` | yes, in practice | ffprobe's `-show_format -show_streams` JSON (go-ffprobe's `ProbeData` is the same shape). Absent, `null` or with no `streams`: the item is **held**, because Plex Web will not play an item without streams (findings, "An item without a probe cannot play"). A file keeps the streams of the probe it was first shown with: a later one changes only its `chapters` (an `.m3u8` is the exception, below), so a file whose bytes change is a new `id` |
 | `ids` | recommended | `imdb` (`tt…`), `tmdb`, `tvdb`; for a track, its album's `mbid` or `plex` ([Tracks](#tracks)). With `kind`, the title: `imdb` and `tmdb` are the movie's or the **show's** ids, never an episode's, and either one is enough (rex fills in the other from Plex). Without `kind`, only `tmdb` names anything (a TMDB id set by hand at the source): a title of its library's kind, when TMDB has one; `imdb` alone and `tvdb` are kept on the row and name nothing (below) |
-| `kind` | no | `movie`, `episode`, `extra`, `track` or `unplaced`: what the source knows the file is. `track` is music ([Tracks](#tracks)). `movie` or `episode` **places** the file (below): it picks the movie or show library, and its `ids` are the title. `extra` makes it a clip of its release's title (below). `unplaced`: the source looked and nothing places the file, so a placement it pushed before is taken back (below). Anything else, or absent: nothing places it, and rex does not guess from its name
+| `kind` | no | `movie`, `episode`, `extra`, `track`, `photo` or `unplaced`: what the source knows the file is. `track` is music ([Tracks](#tracks)), `photo` a picture ([Photos](#photos)). `movie` or `episode` **places** the file (below): it picks the movie or show library, and its `ids` are the title. `extra` makes it a clip of its release's title (below). `unplaced`: the source looked and nothing places the file, so a placement it pushed before is taken back (below). Anything else, or absent: nothing places it, and rex does not guess from its name
 | `extra_type` | with `kind: extra` | The clip's type: `trailer`, `deleted`, `featurette`, `behindthescenes`, `interview`, `scene`, `short`, `opening`, `ending` or `other` (Plex's local-extras types and creditless openings and endings). Anything else, or absent, is `other` |
 | `season`, `episode` | no | With `kind: episode`, the episode on **TMDB's** numbering of the show `ids.tmdb` names (`season` 0 is Specials). The row is placed exactly there. Absent: season 1, in the release's file order (below) |
 | `episode_end` | no | The last episode of a file holding several (`E01E02` -> 2). Kept on the row; the file is placed on `episode`, as rex places every multi-episode file on its first |
@@ -405,7 +405,10 @@ What the fields do:
   addressable: the listing names every id on the row's key, a push updates its own Part, a
   part read streams from its own source and path. A row of several releases is not re-identified by one of them.
 - **Only video, or a track.** An item whose file is not a video (by extension) or is a sample is rejected,
-  as Plex's scanners skip them. An `.m3u8` file is a video when its `media_info` is an HLS
+  as Plex's scanners skip them. The videos are the extensions a real PMS makes a playable Part of
+  (findings, "Which files are videos"): `3g2 3gp asf avc avi avs bivx divx dv dvr-ms evo fli flv
+  m2t m2ts m2v m4v mkv mov mp4 mpeg mpg mts nsv nuv ogm ogv pva qt rm rmvb svq3 tp ts ty vdr vob vp3
+  webm wmv wtv xvid`, and `mk3d`; never a playlist, a DVD's `.ifo`/`.bup` or an `.iso`. An `.m3u8` file is a video when its `media_info` is an HLS
   probe (`format_name` `hls`): a source that serves a playlist (a YouTube relay) names it
   so. Such a Part is never direct played; a client's read of it is sent to a conversion.
   One whose probe has no duration is a live channel (a Stremio addon's TV): its conversion's
@@ -413,7 +416,8 @@ What the fields do:
   and is never marked watched. A later push of an `.m3u8` id whose probe has its streams at
   other indexes or of other codecs (the channel from another mirror) replaces the row's streams.
   With a [`channel`](#live-tv) it is also a channel of Live TV's guide.
-  An audio file is taken only as a `kind: "track"` ([Tracks](#tracks)), and a track must be one.
+  An audio file is taken only as a `kind: "track"` ([Tracks](#tracks)), and a track must be one; a
+  picture only as a `kind: "photo"` ([Photos](#photos)).
 - **One file, one id.** A new `id` whose `file` another id of the same source already has, in
   rex or earlier in the same push, is rejected as `<file> is already <id>'s file`. To change
   an item's id, push it with a file of its own, or remove the old id first.
@@ -425,8 +429,10 @@ What the fields do:
 
 ## Tracks
 
-Music is pushed as tracks: `"kind": "track"`, an audio file (`flac`, `mp3`, `m4a`, `aac`, `ogg`,
-`oga`, `opus`, `wav`, `alac`, `aif`, `aiff`, `wma`, `ape`, `wv`, `dsf`, `mka`) and its ffprobe JSON in
+Music is pushed as tracks: `"kind": "track"`, an audio file (`flac`, `mp3`, `m4a`, `m4b`, `aac`, `ogg`,
+`oga`, `opus`, `wav`, `alac`, `aif`, `aiff`, `wma`, `ape`, `wv`, `dsf`, `dsd`, `mka`, `ac3`, `dts`,
+`mp2`, `mpa`, `mpc`, `mp+`, `mpp`, `rm`, `rma`, `shn`: every extension plexav's PMS 1.43.4 made a
+track of, one small file each, 2026-11-04; it made none of a `.tak`) and its ffprobe JSON in
 `media_info`, as for a video. rex places it in a music library (one of type `artist`) as a real
 PMS shows one: artist, album, track (Plex's types 8, 9 and 10), measured on plexav, a PMS 1.43.4
 with a four-album library, through Plex Web, Plex for Android and Plexamp
@@ -486,8 +492,53 @@ with a four-album library, through Plex Web, Plex for Android and Plexamp
   quality below original) gets a conversion through rex's FFmpeg, as PMS converts: AAC in MP4 over
   DASH (Plex Web), MP3 over HLS (Plex for Android, in Matroska segments), at 95% of the asked
   bitrate, one-second segments. Without an FFmpeg that request is refused.
+- **Audiobooks are albums.** Plex has no audiobook library: audiobook players (Chronicle, Plexamp)
+  read a music library whose albums are books, a chaptered `.m4b` a track of its own or a book in
+  one file per chapter. Send an `.m4b`'s chapters as a video's, in `media_info.chapters` (ffprobe's
+  `-show_chapters`): they are its `Chapter`s, plexav's titles, indexes and millisecond offsets,
+  where a client asks with `includeChapters=1` (`tests/fixtures/music/chronicle.jsonl`). A track
+  keeps a resume point only in a library whose "Store track progress" (`enableTrackOffsets`, an
+  advanced setting of the library, off by default) is on, as PMS keeps one; an album's scrobble
+  marks each of its tracks played.
 - **What rex does not do.** No sonic analysis (no Stations, radio, mixes or sonically similar
   tracks), and no analysis of its own of any file: loudness and lyrics are what the source pushes.
+
+## Photos
+
+Pictures are pushed as photos: `"kind": "photo"`, an image file (`jpg`, `jpeg`, `png`, `gif`, `webp`).
+rex places it in a photo library (one of type `photo`) as a real PMS shows a folder of pictures:
+each folder an album, each picture a photo, measured on plexscratch (PMS 1.43.4) through Plex Web's
+own Add Library and its walk of the library, viewer and slideshow (`tests/fixtures/photos/`).
+
+```json
+{"id": "comics/Witch Hat Atelier (Digital)/Witch Hat Atelier v01 (2019).cbz/003.jpg",
+ "path": "comics/Witch Hat Atelier (Digital)/Witch Hat Atelier v01 (2019).cbz/003.jpg",
+ "kind": "photo", "size": 412345,
+ "media_info": {"format": {"format_name": "image2"}, "streams": [{"index": 0, "codec_type": "video", "codec_name": "mjpeg", "width": 1200, "height": 1660}]}}
+```
+
+| Field | Meaning |
+|---|---|
+| `path` | Where the bytes are, as for any item. Its folders below its first directory are its albums, outermost first, each titled exactly as the folder is named, extension and all: a real PMS shows a folder `Witch Test v01 (2019) (Digital).cbz` as an album of that title. A picture directly in the first directory is at the library's top |
+| `media_info` | Optional: ffprobe's JSON of the picture. Its stream's `width` and `height` are the photo's size (`aspectRatio` PMS's bucket of them); without it the photo has no size. A photo is never held for a probe |
+| `display` | Optional: its `title` (default the file name without its extension, as PMS titles a picture) and `date` (`YYYY-MM-DD`, the date taken; default the day it arrived) |
+| `library` | A photo library's key; default the photo library whose folder holds the file, else one whose folder ends in the item's first directory, else the first photo library |
+
+- **rex reads no picture.** No EXIF, no size of its own: titles, albums and dates are the source's,
+  as above. An album's cover, background and composite are its first picture (rex draws no mosaic).
+- **Titles are in natural order.** An album lists its albums and pictures by title, digits by their
+  value (`page 2` before `page 10`), as PMS listed `page 1`, `page 2`, `page 10`; a slideshow of an
+  album or of the library plays every picture below it in that order.
+- **Pictures are served as they are.** A client's `/photo/:/transcode` of a photo and its thumb
+  answer the picture itself, read from the source as its Part is: rex has no resizer.
+- **A photo library is needed.** rex makes none on a push: add one in Plex (Add Library, Photos) or
+  declare one (`directories: [{"name": "comics", "photos": "Comics"}]`). A picture no photo library
+  takes is rejected, `no photo library holds <file>`.
+- **Moved and removed as any item.** A push with other folders moves the picture to those albums on
+  its key; an album left with nothing goes.
+- **Which clients show it.** Plex Web browses, views and plays a slideshow. Plex for Android
+  2026.21.0 lists no photo library at all, on a real PMS either: it sends people to the separate
+  Plex Photos app (plexscratch, 2026-11-04).
 
 ## Display
 
@@ -543,14 +594,17 @@ next to `Movie (2010).mkv`, is pushed with the item it belongs to:
 ```json
 "subtitles": [
   {"path": "movies/Sintel (2010)/Sintel (2010).en.srt", "language": "en", "size": 50},
-  {"path": "movies/Sintel (2010)/Sintel (2010).de.forced.srt", "language": "ger", "forced": true, "size": 1834}
+  {"path": "movies/Sintel (2010)/Sintel (2010).de.forced.srt", "language": "ger", "forced": true, "size": 1834},
+  {"path": "movies/Sintel (2010)/Subs/sintel.idx", "size": 1245, "sub": "movies/Sintel (2010)/Subs/sintel.sub", "sub_size": 28672}
 ]
 ```
 
 | Field | Required | Meaning |
 |---|---|---|
-| `path` | yes | Where its text is: `<source url>/<path>`, read as a Part's bytes are (the source's credentials, its redirects). Its extension, lower-cased, is its format: `srt`, `ass`, `ssa`, `smi`, `txt` or `psb`, what an upload takes |
-| `language` | no | ISO 639-1 (`en`) or 639-2 (`eng`, `ger` or `deu`), as the source read it. rex reads nothing off the file's name: without one the subtitle has no language, as an upload has none |
+| `path` | yes | Where its text is: `<source url>/<path>`, read as a Part's bytes are (the source's credentials, its redirects). Its extension, lower-cased, is its format: `srt`, `ass`, `ssa`, `smi`, `txt` or `psb`, what an upload takes, or `idx`, a VobSub's index (with `sub`) |
+| `sub` | with an `.idx` | A VobSub's `.sub`, the bitmaps its `.idx` indexes: where they are under the source's url, read as `path` is. An `.idx` without one is left out |
+| `sub_size` | recommended with `sub` | The `.sub`'s bytes |
+| `language` | no | ISO 639-1 (`en`) or 639-2 (`eng`, `ger` or `deu`), as the source read it. rex reads nothing off the file's name: without one the subtitle has no language, as an upload has none. A VobSub is the language its `.idx` names (`id: de`), the last when it names several, and this only when it names none |
 | `forced`, `hearing_impaired` | no | `true` flags it as the same flags on an embedded track do (`English Forced`, `English SDH`); a forced one is passed over when tracks are picked by language |
 | `size` | recommended | Bytes. The text is read when the path is new to the Part or its `size` changed, never otherwise; without a `size`, once |
 
@@ -559,7 +613,17 @@ several), in the shape a real PMS gives a subtitle file beside the video: `Engli
 (SRT External)`, a `/library/streams/{id}` key serving its text as UTF-8 (measured on a real
 1.43 library, `tests/fixtures/decisions/rows.json`). Clients list, pick, download and burn it in
 as they do an upload, and it is selected only where the account's track settings would select
-an embedded track.
+an embedded track. The key with its format's extension (`.srt`, `.ass`) is the same; with any
+other it is the 404 a real PMS answers.
+
+A VobSub pair is one subtitle whatever its `.idx` holds, as a real 1.42.2 lists one once it has
+analysed the file (`tests/fixtures/subtitles/vobsub_s1422.json`): codec and format `idx`,
+`Deutsch (VOBSUB External)`. Its `.idx` is read at the push, as a text is (4 MiB at most); its
+`.sub` (64 MiB at most) only when a client asks for it. The key and its `.idx` serve the `.idx`,
+its `.sub` the bitmaps as the source has them (with `encoding=`, every byte over 0x7f dropped, as
+a real PMS answers Plezy's `.sub?encoding=utf-8`). A conversion burns its first track into the
+picture, or muxes it as `dvd_subtitle` into the Matroska segments of a client whose target lists
+`vobsub` (Plex for Android, Plex for iOS), as the reference does.
 
 - **Absent keeps, `[]` removes.** A push without `subtitles`, or with `null`, leaves the row's
   as they are, as an absent `chapters` does; `[]` removes this item's. A source with none sends
@@ -569,8 +633,9 @@ an embedded track.
   its language and flags follow each push.
 - **Read off the lock.** The texts are read once the push is applied, without holding a Plex
   request, at most 4 MiB each.
-- **Nothing costs the item.** An entry with another extension, a field of the wrong type, a
-  path with an empty, `.` or `..` segment, or text over 4 MiB is left out and logged once with
+- **Nothing costs the item.** An entry with another extension, an `.idx` without its `.sub`, a
+  field of the wrong type, a path with an empty, `.` or `..` segment, or text over 4 MiB is left
+  out and logged once with
   why (`FEED myapp <id>: subtitle <path>: <why>; left out`); the item is taken. A text the source
   does not serve yet (`subtitle <path> not read: the source answered 404`) arrives with a later
   push, and one that fails to read again keeps the text it had.

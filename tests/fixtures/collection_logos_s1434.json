@@ -1,0 +1,1225 @@
+{
+ "reference": "Two real PMS 1.43.4.10903, both online, each with the harness clips (harness/scripts/make-media.sh) in a Movies library: `unclaimed` is plexlab on kids (claimed=\"0\" since 2026-10-22), `claimed` a throwaway pms-docker container on kids claimed to a test account without Plex Pass for this recording, then signed out and its plex.tv device deleted. Each was sent python-plexapi's request shapes below with curl from inside its container (the owner's token on the claimed one), collection made by plexapi's createCollection request; bodies are the JSON answers, Metadata of the film's own agent candidates dropped.",
+ "date": "2026-11-04",
+ "client": "python-plexapi 4.18.2 (Kometa calls 4.18.3; these methods are unchanged), recorded through a requests response hook on PlexServer._session while it ran createCollection, logos, uploadLogo(filepath=, url=), setLogo, uploadTheme(filepath=), themes, sortUpdate('alpha'/'custom'), reload and a film's uploadLogo(url=) against rex (9f7d8bdc refused the uploads, so setLogo and sortUpdate('custom')'s PUT were recorded against the fix; the shapes are plexapi's whatever the answer); the filepath uploads are a 1x1 PNG the recorder made; `plexapi` keeps each call's method, path and body length. Kometa (modules/plex.py, builder.py) reaches these through upload_logo and collection_order_query (rex#15).",
+ "findings": [
+  "collectionSort's enumValues is '0:Release date|1:Alphabetical|2:Custom' on the claimed server and '0:Release date|1:Alphabetical' on the unclaimed one; both store and read back 2.",
+  "POST .../clearLogos?url= and .../themes?url= on a collection: empty 200, upload://{clearLogos,themes}/<sha1 of the fetched bytes>, listed newest first and selected; the row gains Image type clearLogo /library/metadata/{id}/clearLogo/{v}, a theme attribute, and locked clearLogo/theme Fields.",
+  "Any bytes the url answers are kept (a GitHub README, its own /identity); a url it cannot fetch is 406 (a poster's is 502); no url and no body 406.",
+  "PUT .../clearLogos?url= and .../themes?url= are 404 on a collection and a film alike; python-plexapi's setLogo sends PUT .../clearLogo?url=<ratingKey>, 200 with the new path as its body; without url 400.",
+  "A film's POST /library/metadata/1/clearLogos?url= is 200."
+ ],
+ "plexapi": [
+  {
+   "call": "createCollection",
+   "method": "POST",
+   "path": "/library/collections?sectionId=1&smart=0&title=Probe635&type=1&uri=server%3A%2F%2F78a364ad887787f74e834a5c48c987d3e6fb165a%2Fcom.plexapp.plugins.library%2Flibrary%2Fmetadata%2F1%2C3",
+   "body_bytes": 0
+  },
+  {
+   "call": "logos",
+   "method": "GET",
+   "path": "/library/metadata/50001/clearLogos",
+   "body_bytes": 0
+  },
+  {
+   "call": "uploadLogo(filepath)",
+   "method": "POST",
+   "path": "/library/metadata/50001/clearLogos",
+   "body_bytes": 69
+  },
+  {
+   "call": "uploadLogo(url)",
+   "method": "POST",
+   "path": "/library/metadata/50001/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "body_bytes": 0
+  },
+  {
+   "call": "logos",
+   "method": "GET",
+   "path": "/library/metadata/50001/clearLogos",
+   "body_bytes": 0
+  },
+  {
+   "call": "setLogo",
+   "method": "PUT",
+   "path": "/library/metadata/50001/clearLogo?url=upload%3A%2F%2FclearLogos%2F2732f12a8f18d27cf0fa78ef41091bfa1ccec9ce",
+   "body_bytes": 0
+  },
+  {
+   "call": "uploadTheme(filepath)",
+   "method": "POST",
+   "path": "/library/metadata/50001/themes",
+   "body_bytes": 69
+  },
+  {
+   "call": "themes",
+   "method": "GET",
+   "path": "/library/metadata/50001/themes",
+   "body_bytes": 0
+  },
+  {
+   "call": "sortUpdate(alpha)",
+   "method": "GET",
+   "path": "/library/collections/50001?includePreferences=1",
+   "body_bytes": 0
+  },
+  {
+   "call": "sortUpdate(alpha)",
+   "method": "PUT",
+   "path": "/library/collections/50001/prefs?collectionSort=1",
+   "body_bytes": 0
+  },
+  {
+   "call": "sortUpdate(custom)",
+   "method": "GET",
+   "path": "/library/collections/50001?includePreferences=1",
+   "body_bytes": 0
+  },
+  {
+   "call": "sortUpdate(custom)",
+   "method": "PUT",
+   "path": "/library/collections/50001/prefs?collectionSort=2",
+   "body_bytes": 0
+  },
+  {
+   "call": "reload",
+   "method": "GET",
+   "path": "/library/collections/50001?includeBandwidths=1&includeChapters=1&includeFields=thumbBlurHash%2CartBlurHash&includeGeolocation=1&includeLoudnessRamps=1&includeMarkers=1",
+   "body_bytes": 0
+  },
+  {
+   "call": "film uploadLogo(url)",
+   "method": "POST",
+   "path": "/library/metadata/1/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "body_bytes": 0
+  },
+  {
+   "call": "delete",
+   "method": "DELETE",
+   "path": "/library/collections/50001",
+   "body_bytes": 0
+  }
+ ],
+ "claimed": [
+  {
+   "method": "POST",
+   "path": "/library/collections?uri=server%3A%2F%2F92b20219881fd8048be112f989b8eeaed1a531ee%2Fcom.plexapp.plugins.library%2Flibrary%2Fmetadata%2F1,3&type=1&title=Probe635&smart=0&sectionId=1",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "Metadata": [
+      {
+       "ratingKey": "7",
+       "key": "/library/collections/7/children",
+       "guid": "collection://76703015-8c69-48a2-9ac5-789ce85a939d",
+       "type": "collection",
+       "title": "Probe635",
+       "subtype": "movie",
+       "summary": "",
+       "index": 63,
+       "ratingCount": 1,
+       "thumb": "/library/collections/7/composite/1793770506?width=400&height=600",
+       "addedAt": 1793770506,
+       "updatedAt": 1793770506,
+       "childCount": 2,
+       "maxYear": "2008",
+       "minYear": "2006"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/collections/7?includePreferences=1",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "fea65791-55de-4667-9787-c28763147221",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "7",
+       "key": "/library/collections/7/children",
+       "guid": "collection://76703015-8c69-48a2-9ac5-789ce85a939d",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 63,
+       "ratingCount": 1,
+       "thumb": "/library/collections/7/composite/1793770506?width=400&height=600",
+       "addedAt": 1793770506,
+       "updatedAt": 1793770506,
+       "childCount": 2,
+       "maxYear": "2008",
+       "minYear": "2006",
+       "Preferences": {
+        "Setting": [
+         {
+          "id": "collectionMode",
+          "label": "Collection Mode",
+          "summary": "How the items in the collection are displayed on the Library tab.",
+          "type": "text",
+          "default": "-1",
+          "value": "-1",
+          "hidden": false,
+          "advanced": false,
+          "group": "",
+          "enumValues": "-1:Library default|1:Hide items in this collection|2:Show this collection and its items|0:Hide this collection but show its items"
+         },
+         {
+          "id": "collectionSort",
+          "label": "Collection order",
+          "summary": "How to sort the items in the collection.",
+          "type": "text",
+          "default": "0",
+          "value": "0",
+          "hidden": false,
+          "advanced": false,
+          "group": "",
+          "enumValues": "0:Release date|1:Alphabetical|2:Custom"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7/clearLogos",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 0,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7/clearLogos",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "ratingKey": "upload://clearLogos/68e51b417003a91578d0615d3462f0b9e4795890",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "selected": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/collections/7",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "fea65791-55de-4667-9787-c28763147221",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "7",
+       "key": "/library/collections/7/children",
+       "guid": "collection://76703015-8c69-48a2-9ac5-789ce85a939d",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 63,
+       "ratingCount": 1,
+       "thumb": "/library/collections/7/composite/1793770507?width=400&height=600",
+       "addedAt": 1793770506,
+       "updatedAt": 1793770507,
+       "childCount": 2,
+       "maxYear": "2008",
+       "minYear": "2006",
+       "Image": [
+        {
+         "alt": "Probe635",
+         "type": "clearLogo",
+         "url": "/library/metadata/7/clearLogo/1793770507"
+        }
+       ],
+       "Field": [
+        {
+         "locked": true,
+         "name": "clearLogo"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "fea65791-55de-4667-9787-c28763147221",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "7",
+       "key": "/library/collections/7/children",
+       "guid": "collection://76703015-8c69-48a2-9ac5-789ce85a939d",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 63,
+       "ratingCount": 1,
+       "thumb": "/library/collections/7/composite/1793770507?width=400&height=600",
+       "addedAt": 1793770506,
+       "updatedAt": 1793770507,
+       "childCount": 2,
+       "maxYear": "2008",
+       "minYear": "2006",
+       "Image": [
+        {
+         "alt": "Probe635",
+         "type": "clearLogo",
+         "url": "/library/metadata/7/clearLogo/1793770507"
+        }
+       ],
+       "Field": [
+        {
+         "locked": true,
+         "name": "clearLogo"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2FKometa-Team%2FDefault-Images%2Fmaster%2FREADME.md",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/clearLogos?url=https%3A%2F%2Fnot-a-real-host.invalid%2Fx.png",
+   "status": 406,
+   "body": "<html><head><title>Not Acceptable</title></head><body><h1>406 Not Acceptable</h1></body></html>"
+  },
+  {
+   "method": "PUT",
+   "path": "/library/metadata/7/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 404,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>"
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7/themes",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 0,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/themes?url=https%3A%2F%2Ftvthemes.plexapp.com%2F73739.mp3",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7/themes",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2Fthemes%2F9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "ratingKey": "upload://themes/9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2Fthemes%2F9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "selected": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "PUT",
+   "path": "/library/collections/7/prefs?collectionSort=2",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/collections/7?includePreferences=1",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "fea65791-55de-4667-9787-c28763147221",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "7",
+       "key": "/library/collections/7/children",
+       "guid": "collection://76703015-8c69-48a2-9ac5-789ce85a939d",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 63,
+       "ratingCount": 1,
+       "thumb": "/library/collections/7/composite/1793770507?width=400&height=600",
+       "theme": "/library/metadata/7/theme/1793770507",
+       "addedAt": 1793770506,
+       "updatedAt": 1793770507,
+       "childCount": 2,
+       "collectionSort": "2",
+       "maxYear": "2008",
+       "minYear": "2006",
+       "Image": [
+        {
+         "alt": "Probe635",
+         "type": "clearLogo",
+         "url": "/library/metadata/7/clearLogo/1793770507"
+        }
+       ],
+       "Field": [
+        {
+         "locked": true,
+         "name": "theme"
+        },
+        {
+         "locked": true,
+         "name": "clearLogo"
+        }
+       ],
+       "Preferences": {
+        "Setting": [
+         {
+          "id": "collectionMode",
+          "label": "Collection Mode",
+          "summary": "How the items in the collection are displayed on the Library tab.",
+          "type": "text",
+          "default": "-1",
+          "value": "-1",
+          "hidden": false,
+          "advanced": false,
+          "group": "",
+          "enumValues": "-1:Library default|1:Hide items in this collection|2:Show this collection and its items|0:Hide this collection but show its items"
+         },
+         {
+          "id": "collectionSort",
+          "label": "Collection order",
+          "summary": "How to sort the items in the collection.",
+          "type": "text",
+          "default": "0",
+          "value": "2",
+          "hidden": false,
+          "advanced": false,
+          "group": "",
+          "enumValues": "0:Release date|1:Alphabetical|2:Custom"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/posters?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7/posters",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 2,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2Fposters%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "ratingKey": "upload://posters/68e51b417003a91578d0615d3462f0b9e4795890",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2Fposters%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "selected": true
+      },
+      {
+       "key": "/library/collections/7/composite/1793770506?width=400&height=600",
+       "ratingKey": "default://",
+       "thumb": "/library/collections/7/composite/1793770506?width=200&height=300",
+       "selected": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7/clearLogos",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 2,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2Fa5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "ratingKey": "upload://clearLogos/a5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2Fa5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "selected": true
+      },
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "ratingKey": "upload://clearLogos/68e51b417003a91578d0615d3462f0b9e4795890",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "selected": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "PUT",
+   "path": "/library/metadata/7/clearLogo?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+   "status": 200,
+   "body": "/library/metadata/7/clearLogo/1793770522"
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7/clearLogos",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 2,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2Fa5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "ratingKey": "upload://clearLogos/a5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2Fa5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "selected": false
+      },
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "ratingKey": "upload://clearLogos/68e51b417003a91578d0615d3462f0b9e4795890",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "selected": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/collections/7",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "fea65791-55de-4667-9787-c28763147221",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "7",
+       "key": "/library/collections/7/children",
+       "guid": "collection://76703015-8c69-48a2-9ac5-789ce85a939d",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 63,
+       "ratingCount": 1,
+       "thumb": "/library/metadata/7/thumb/1793770522",
+       "theme": "/library/metadata/7/theme/1793770522",
+       "addedAt": 1793770506,
+       "updatedAt": 1793770522,
+       "childCount": 2,
+       "collectionSort": "2",
+       "maxYear": "2008",
+       "minYear": "2006",
+       "Image": [
+        {
+         "alt": "Probe635",
+         "type": "coverPoster",
+         "url": "/library/metadata/7/thumb/1793770522"
+        },
+        {
+         "alt": "Probe635",
+         "type": "clearLogo",
+         "url": "/library/metadata/7/clearLogo/1793770522"
+        }
+       ],
+       "UltraBlurColors": {
+        "topLeft": "123048",
+        "topRight": "034340",
+        "bottomRight": "440403",
+        "bottomLeft": "04402f"
+       },
+       "Field": [
+        {
+         "locked": true,
+         "name": "thumb"
+        },
+        {
+         "locked": true,
+         "name": "theme"
+        },
+        {
+         "locked": true,
+         "name": "clearLogo"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/1/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/1/clearLogos",
+   "status": 200,
+   "body": "(the film's agent candidates; not kept)"
+  },
+  {
+   "method": "PUT",
+   "path": "/library/metadata/1/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 404,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>"
+  },
+  {
+   "method": "PUT",
+   "path": "/library/metadata/7/themes?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 404,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>"
+  },
+  {
+   "method": "PUT",
+   "path": "/library/metadata/7/theme?url=upload%3A%2F%2Fthemes%2F9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+   "status": 500,
+   "body": "<html><head><title>Internal Server Error</title></head><body><h1>500 Internal Server Error</h1></body></html>"
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/themes?url=https%3A%2F%2Fraw.githubusercontent.com%2FKometa-Team%2FDefault-Images%2Fmaster%2FREADME.md",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/themes?url=https%3A%2F%2Fnot-a-real-host.invalid%2Fx.mp3",
+   "status": 406,
+   "body": "<html><head><title>Not Acceptable</title></head><body><h1>406 Not Acceptable</h1></body></html>"
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/clearLogos?url=http%3A%2F%2F127.0.0.1%3A32400%2Fidentity",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/7/clearLogos",
+   "status": 406,
+   "body": "<html><head><title>Not Acceptable</title></head><body><h1>406 Not Acceptable</h1></body></html>"
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/1/clearLogos?url=https%3A%2F%2Fnot-a-real-host.invalid%2Fx.png",
+   "status": 406,
+   "body": "<html><head><title>Not Acceptable</title></head><body><h1>406 Not Acceptable</h1></body></html>"
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/1/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2FKometa-Team%2FDefault-Images%2Fmaster%2FREADME.md",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/7/themes",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 2,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2Fthemes%2Fa5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "ratingKey": "upload://themes/a5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2Fthemes%2Fa5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "selected": true
+      },
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2Fthemes%2F9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "ratingKey": "upload://themes/9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2Fthemes%2F9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "selected": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "PUT",
+   "path": "/library/metadata/7/clearLogo",
+   "status": 400,
+   "body": "<html><head><title>Bad Request</title></head><body><h1>400 Bad Request</h1></body></html>"
+  },
+  {
+   "method": "GET",
+   "path": "/library/collections/7/clearLogos",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 3,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2Ff1d76d7b479c93782da5852b9734c9d699b39c17",
+       "ratingKey": "upload://clearLogos/f1d76d7b479c93782da5852b9734c9d699b39c17",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2Ff1d76d7b479c93782da5852b9734c9d699b39c17",
+       "selected": true
+      },
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2Fa5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "ratingKey": "upload://clearLogos/a5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2Fa5629d21cace4ad8b5c63abd7c32a59f859c07bd",
+       "selected": false
+      },
+      {
+       "key": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "ratingKey": "upload://clearLogos/68e51b417003a91578d0615d3462f0b9e4795890",
+       "thumb": "/library/metadata/7/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "selected": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/collections/7/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 200,
+   "body": ""
+  }
+ ],
+ "unclaimed": [
+  {
+   "method": "POST",
+   "path": "/library/collections?uri=server%3A%2F%2F78a364ad887787f74e834a5c48c987d3e6fb165a%2Fcom.plexapp.plugins.library%2Flibrary%2Fmetadata%2F1,3&type=1&title=Probe635&smart=0&sectionId=1",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "Metadata": [
+      {
+       "ratingKey": "128",
+       "key": "/library/collections/128/children",
+       "guid": "collection://4d949760-d659-4be2-8c0c-5ea1815c597f",
+       "type": "collection",
+       "title": "Probe635",
+       "subtype": "movie",
+       "summary": "",
+       "index": 483,
+       "ratingCount": 1,
+       "thumb": "/library/collections/128/composite/1793770226?width=400&height=600",
+       "addedAt": 1793770226,
+       "updatedAt": 1793770226,
+       "childCount": 2,
+       "maxYear": "2010",
+       "minYear": "2008"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/collections/128?includePreferences=1",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "128",
+       "key": "/library/collections/128/children",
+       "guid": "collection://4d949760-d659-4be2-8c0c-5ea1815c597f",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 483,
+       "ratingCount": 1,
+       "thumb": "/library/collections/128/composite/1793770226?width=400&height=600",
+       "addedAt": 1793770226,
+       "updatedAt": 1793770226,
+       "childCount": 2,
+       "maxYear": "2010",
+       "minYear": "2008",
+       "Preferences": {
+        "Setting": [
+         {
+          "id": "collectionMode",
+          "label": "Collection Mode",
+          "summary": "How the items in the collection are displayed on the Library tab.",
+          "type": "text",
+          "default": "-1",
+          "value": "-1",
+          "hidden": false,
+          "advanced": false,
+          "group": "",
+          "enumValues": "-1:Library default|1:Hide items in this collection|2:Show this collection and its items|0:Hide this collection but show its items"
+         },
+         {
+          "id": "collectionSort",
+          "label": "Collection order",
+          "summary": "How to sort the items in the collection.",
+          "type": "text",
+          "default": "0",
+          "value": "0",
+          "hidden": false,
+          "advanced": false,
+          "group": "",
+          "enumValues": "0:Release date|1:Alphabetical"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/128/clearLogos",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 0,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/128/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/128/clearLogos",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/128/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "ratingKey": "upload://clearLogos/68e51b417003a91578d0615d3462f0b9e4795890",
+       "thumb": "/library/metadata/128/file?url=upload%3A%2F%2FclearLogos%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "selected": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/collections/128",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "128",
+       "key": "/library/collections/128/children",
+       "guid": "collection://4d949760-d659-4be2-8c0c-5ea1815c597f",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 483,
+       "ratingCount": 1,
+       "thumb": "/library/collections/128/composite/1793770227?width=400&height=600",
+       "addedAt": 1793770226,
+       "updatedAt": 1793770227,
+       "childCount": 2,
+       "maxYear": "2010",
+       "minYear": "2008",
+       "Image": [
+        {
+         "alt": "Probe635",
+         "type": "clearLogo",
+         "url": "/library/metadata/128/clearLogo/1793770227"
+        }
+       ],
+       "Field": [
+        {
+         "locked": true,
+         "name": "clearLogo"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/128",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "128",
+       "key": "/library/collections/128/children",
+       "guid": "collection://4d949760-d659-4be2-8c0c-5ea1815c597f",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 483,
+       "ratingCount": 1,
+       "thumb": "/library/collections/128/composite/1793770227?width=400&height=600",
+       "addedAt": 1793770226,
+       "updatedAt": 1793770227,
+       "childCount": 2,
+       "maxYear": "2010",
+       "minYear": "2008",
+       "Image": [
+        {
+         "alt": "Probe635",
+         "type": "clearLogo",
+         "url": "/library/metadata/128/clearLogo/1793770227"
+        }
+       ],
+       "Field": [
+        {
+         "locked": true,
+         "name": "clearLogo"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/128/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2FKometa-Team%2FDefault-Images%2Fmaster%2FREADME.md",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/128/clearLogos?url=https%3A%2F%2Fnot-a-real-host.invalid%2Fx.png",
+   "status": 406,
+   "body": "<html><head><title>Not Acceptable</title></head><body><h1>406 Not Acceptable</h1></body></html>"
+  },
+  {
+   "method": "PUT",
+   "path": "/library/metadata/128/clearLogos?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 404,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>"
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/128/themes",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 0,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/128/themes?url=https%3A%2F%2Ftvthemes.plexapp.com%2F73739.mp3",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/128/themes",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/128/file?url=upload%3A%2F%2Fthemes%2F9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "ratingKey": "upload://themes/9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "thumb": "/library/metadata/128/file?url=upload%3A%2F%2Fthemes%2F9eaf3247c6f1e8f940dad8f2a2ed3f3fc9da738f",
+       "selected": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "PUT",
+   "path": "/library/collections/128/prefs?collectionSort=2",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/collections/128?includePreferences=1",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 1,
+     "allowSync": true,
+     "identifier": "com.plexapp.plugins.library",
+     "librarySectionID": 1,
+     "librarySectionTitle": "Movies",
+     "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "ratingKey": "128",
+       "key": "/library/collections/128/children",
+       "guid": "collection://4d949760-d659-4be2-8c0c-5ea1815c597f",
+       "type": "collection",
+       "title": "Probe635",
+       "librarySectionTitle": "Movies",
+       "librarySectionID": 1,
+       "librarySectionKey": "/library/sections/1",
+       "subtype": "movie",
+       "summary": "",
+       "index": 483,
+       "ratingCount": 1,
+       "thumb": "/library/collections/128/composite/1793770227?width=400&height=600",
+       "theme": "/library/metadata/128/theme/1793770227",
+       "addedAt": 1793770226,
+       "updatedAt": 1793770227,
+       "childCount": 2,
+       "collectionSort": "2",
+       "maxYear": "2010",
+       "minYear": "2008",
+       "Image": [
+        {
+         "alt": "Probe635",
+         "type": "clearLogo",
+         "url": "/library/metadata/128/clearLogo/1793770227"
+        }
+       ],
+       "Field": [
+        {
+         "locked": true,
+         "name": "theme"
+        },
+        {
+         "locked": true,
+         "name": "clearLogo"
+        }
+       ],
+       "Preferences": {
+        "Setting": [
+         {
+          "id": "collectionMode",
+          "label": "Collection Mode",
+          "summary": "How the items in the collection are displayed on the Library tab.",
+          "type": "text",
+          "default": "-1",
+          "value": "-1",
+          "hidden": false,
+          "advanced": false,
+          "group": "",
+          "enumValues": "-1:Library default|1:Hide items in this collection|2:Show this collection and its items|0:Hide this collection but show its items"
+         },
+         {
+          "id": "collectionSort",
+          "label": "Collection order",
+          "summary": "How to sort the items in the collection.",
+          "type": "text",
+          "default": "0",
+          "value": "2",
+          "hidden": false,
+          "advanced": false,
+          "group": "",
+          "enumValues": "0:Release date|1:Alphabetical"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/library/metadata/128/posters?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgithub%2Fexplore%2Fmain%2Ftopics%2Fpython%2Fpython.png",
+   "status": 200,
+   "body": ""
+  },
+  {
+   "method": "GET",
+   "path": "/library/metadata/128/posters",
+   "status": 200,
+   "body": {
+    "MediaContainer": {
+     "size": 2,
+     "identifier": "com.plexapp.plugins.library",
+     "mediaTagPrefix": "/system/bundle/media/flags/",
+     "mediaTagVersion": 1786914632,
+     "Metadata": [
+      {
+       "key": "/library/metadata/128/file?url=upload%3A%2F%2Fposters%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "ratingKey": "upload://posters/68e51b417003a91578d0615d3462f0b9e4795890",
+       "thumb": "/library/metadata/128/file?url=upload%3A%2F%2Fposters%2F68e51b417003a91578d0615d3462f0b9e4795890",
+       "selected": true
+      },
+      {
+       "key": "/library/collections/128/composite/1793770226?width=400&height=600",
+       "ratingKey": "default://",
+       "thumb": "/library/collections/128/composite/1793770226?width=200&height=300",
+       "selected": false
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

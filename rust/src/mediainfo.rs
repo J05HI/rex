@@ -212,9 +212,6 @@ fn aspect_ratio(stream: Option<&Row>) -> Option<f64> {
     let stream = stream?;
     let width = int_value(stream, "width")? as f64;
     let height = int_value(stream, "height")? as f64;
-    if width == 0.0 || height == 0.0 {
-        return None;
-    }
     let sar = str_value(stream, "sample_aspect_ratio")
         .and_then(|value| {
             let (n, d) = value.split_once(':')?;
@@ -224,14 +221,18 @@ fn aspect_ratio(stream: Option<&Row>) -> Option<f64> {
         })
         .filter(|value| *value > 0.0)
         .unwrap_or(1.0);
+    bucket_aspect(width * sar, height)
+}
+
+/// The nearest of PMS's aspect buckets to `width / height`: a video's, and a picture's too
+/// (plexscratch, 2026-11-04: a 1200x1660 page is 1.33, a 1200x287 banner 2.35).
+pub(crate) fn bucket_aspect(width: f64, height: f64) -> Option<f64> {
+    if width == 0.0 || height == 0.0 {
+        return None;
+    }
     [1.33, 1.66, 1.78, 1.85, 2.2, 2.35]
         .iter()
-        .min_by(|a, b| {
-            (**a - width * sar / height)
-                .abs()
-                .partial_cmp(&((**b - width * sar / height).abs()))
-                .unwrap()
-        })
+        .min_by(|a, b| (**a - width / height).abs().partial_cmp(&((**b - width / height).abs())).unwrap())
         .copied()
 }
 
@@ -497,10 +498,11 @@ pub fn subtitle_codec_label(row: &Row, external: &str) -> String {
     let codec = str_value(row, "codec")
         .unwrap_or_default()
         .to_ascii_uppercase();
-    let codec = if codec == "EIA_608" {
-        "Closed Captions".to_string()
-    } else {
-        codec
+    // A VobSub sidecar is its `.idx`, labelled as the bitmaps it is (`Deutsch (VOBSUB External)`).
+    let codec = match codec.as_str() {
+        "EIA_608" => "Closed Captions".to_string(),
+        "IDX" => "VOBSUB".to_string(),
+        _ => codec,
     };
     if !codec.is_empty()
         && str_value(row, "key")
@@ -1185,11 +1187,14 @@ pub fn build_media(
         .cloned()
         .collect();
     let video = videos.first();
+    // A probe with no duration (a raw `.avc`, `.m2v`, a `.fli`, `.nsv`, `.ty`) gives a Media and
+    // Part with none, as plexscratch42's 1.42.2 wrote them (`tests/fixtures/media/s42-1101-0.json`),
+    // not 0. Plex for Android still ends a raw `.avc`'s direct play at once either way (Pixel 6,
+    // 2026-11-04): a real PMS gives it the same "Direct play OK".
     let duration_ms = fmt
         .and_then(|x| x.get("duration"))
         .and_then(float_any)
-        .map(|x| (x * 1000.0).round() as i64)
-        .unwrap_or(0);
+        .map(|x| (x * 1000.0).round() as i64);
     let bitrate = fmt
         .and_then(|x| x.get("bit_rate"))
         .and_then(int_any)
@@ -1245,7 +1250,9 @@ pub fn build_media(
     let mut part = map();
     put(&mut part, "id", part_id);
     put(&mut part, "key", part_key);
-    put(&mut part, "duration", duration_ms);
+    if let Some(duration) = duration_ms {
+        put(&mut part, "duration", duration);
+    }
     put(&mut part, "file", file_path);
     put(&mut part, "size", size);
     put(&mut part, "container", container.clone());
@@ -1254,7 +1261,9 @@ pub fn build_media(
     put(&mut part, "Stream", Value::Array(rows));
     let mut media = map();
     put(&mut media, "id", media_id);
-    put(&mut media, "duration", duration_ms);
+    if let Some(duration) = duration_ms {
+        put(&mut media, "duration", duration);
+    }
     put_opt(&mut media, "bitrate", bitrate);
     put_opt(&mut media, "width", width);
     put_opt(&mut media, "height", height);
@@ -1763,10 +1772,21 @@ pub fn audio_media(media: &mut Value, probe: &Value) {
         }
     }
     let bitrate = own.or(file).map(kbps);
-    object.retain(|key, value| !value.is_null() && !key.starts_with("video") && !matches!(key.as_str(), "width" | "height" | "aspectRatio" | "audioProfile"));
+    // An AAC's `audioProfile` (`lc`) and a WAV's (`pcm_s16le`) are on its Media and Part there, and an
+    // MP4-family track is `optimizedForStreaming` whatever its atoms' order: plexav's 1.43.4 said so of
+    // FFmpeg's `.m4b` with its index last as of LibriVox's with it first, and of its ALAC `.m4a`
+    // (2026-11-04, `tests/fixtures/music/audio-formats.json`, `audiobook-probes.json`).
+    object.retain(|key, value| !value.is_null() && !key.starts_with("video") && !matches!(key.as_str(), "width" | "height" | "aspectRatio"));
+    let streamable = object.contains_key("optimizedForStreaming");
+    if streamable {
+        object.insert("optimizedForStreaming".to_string(), json!(1));
+    }
     for part in object.get_mut("Part").and_then(Value::as_array_mut).into_iter().flatten() {
         let Some(part) = part.as_object_mut() else { continue };
-        part.retain(|key, value| !value.is_null() && !matches!(key.as_str(), "videoProfile" | "audioProfile"));
+        part.retain(|key, value| !value.is_null() && key != "videoProfile");
+        if streamable {
+            part.insert("optimizedForStreaming".to_string(), json!(true));
+        }
         for stream in part.get_mut("Stream").and_then(Value::as_array_mut).into_iter().flatten() {
             let Some(stream) = stream.as_object_mut() else { continue };
             if stream.get("streamType").and_then(Value::as_i64) != Some(2) {
@@ -1813,6 +1833,36 @@ pub fn audio_media(media: &mut Value, probe: &Value) {
 mod music_tests {
     use super::*;
 
+    /// One small file of every audio extension plexav's music scanner reads, and the LibriVox book
+    /// as `.m4b` and `.mp3`s (2026-11-04): ffprobe's JSON for each and the Media PMS 1.43.4 wrote.
+    /// Its `.dts` (FFmpeg's own encoder's) it analysed no stream of, so it has no codec to compare;
+    /// its 5 s `.flac` it gave no Media bitrate, where the 45 s FLACs of `media.json` had one by the
+    /// frames rule, so a FLAC's bitrate is left to that test.
+    #[test]
+    fn every_audio_format_is_described_as_plexav_describes_it() {
+        for fixture in [include_str!("../../tests/fixtures/music/audio-formats.json"), include_str!("../../tests/fixtures/music/audiobook-probes.json")] {
+            let recorded: Value = serde_json::from_str(fixture).unwrap();
+            for entry in recorded.as_array().unwrap().iter().filter(|entry| entry["track"].is_object()) {
+                let theirs = &entry["track"]["Media"][0];
+                let part = &theirs["Part"][0];
+                if theirs.get("audioCodec").is_none() {
+                    continue;
+                }
+                let mut ours = build_media(&entry["probe"], 1, 1, "/library/parts/1/1/file", part["file"].as_str().unwrap(), part["size"].as_i64().unwrap(), part["container"].as_str());
+                audio_media(&mut ours, &entry["probe"]);
+                for field in ["audioChannels", "audioCodec", "container", "audioProfile", "optimizedForStreaming", "has64bitOffsets", "bitrate"] {
+                    if field == "bitrate" && theirs["audioCodec"] == "flac" {
+                        continue;
+                    }
+                    assert_eq!(ours.get(field), theirs.get(field), "{} Media {field}", entry["file"]);
+                }
+                for field in ["container", "audioProfile", "optimizedForStreaming", "has64bitOffsets"] {
+                    assert_eq!(ours["Part"][0].get(field), part.get(field), "{} Part {field}", entry["file"]);
+                }
+            }
+        }
+    }
+
     /// plexav's own files: ffprobe's JSON for each and the Media PMS 1.43.4 wrote for it.
     #[test]
     fn a_track_is_described_as_plexav_describes_the_same_file() {
@@ -1822,8 +1872,11 @@ mod music_tests {
             let part = &theirs["Part"][0];
             let mut ours = build_media(&track["probe"], 1, 1, "/library/parts/1/1/file", part["file"].as_str().unwrap(), part["size"].as_i64().unwrap(), part["container"].as_str());
             audio_media(&mut ours, &track["probe"]);
-            for field in ["duration", "bitrate", "audioChannels", "audioCodec", "container"] {
-                assert_eq!(ours[field], theirs[field], "{} Media {field}", track["title"]);
+            for field in ["duration", "bitrate", "audioChannels", "audioCodec", "container", "audioProfile", "optimizedForStreaming", "has64bitOffsets"] {
+                assert_eq!(ours.get(field), theirs.get(field), "{} Media {field}", track["title"]);
+            }
+            for field in ["container", "audioProfile", "optimizedForStreaming", "has64bitOffsets"] {
+                assert_eq!(ours["Part"][0].get(field), part.get(field), "{} Part {field}", track["title"]);
             }
             // hasVoiceActivity: present in plexav's earlier reads, absent after its 2026-10-31 refresh.
             assert!(ours.as_object().unwrap().keys().all(|key| theirs.get(key).is_some() || key.starts_with('_') || key == "hasVoiceActivity"), "{ours}");

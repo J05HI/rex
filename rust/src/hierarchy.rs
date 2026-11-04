@@ -311,6 +311,18 @@ fn row_text(row: &(impl crate::hotrow::Row + ?Sized), key: &str) -> Option<Strin
         },
     })
 }
+/// A show's own fields its episode's description carries for it (`metadata::describe`): its cast,
+/// which the episode's own credits replace on the leaf, and what the show's row alone shows.
+pub const SHOW_HINTS: &[(&str, &str)] = &[
+    ("Role", "_show_Role"),
+    ("Network", "_show_Network"),
+    ("originalTitle", "_show_originalTitle"),
+    ("_theme_url", "_show_theme"),
+    ("_clearLogo_url", "_show_clearLogo"),
+    ("_squareArt_url", "_show_squareArt"),
+    ("_described", "_show_described"),
+];
+
 pub fn person_tag_key(name: &str) -> String {
     // "plexsim" is the pre-rename namespace, frozen: changing it re-mints every id it seeds.
     sha1_hex(&format!("plexsim-person:{}", name))[..24].to_string()
@@ -887,6 +899,11 @@ pub fn build(mut leaves: Vec<Value>) -> Vec<Value> {
             }
             put_opt(&mut show, "_poster_url", leaf.get("_show_poster").cloned());
             put_opt(&mut show, "_art_url", leaf.get("_show_art").cloned());
+            for (field, hint) in SHOW_HINTS {
+                if let Some(v) = leaf.get(*hint).filter(|v| !v.is_null()) {
+                    show.insert(field.to_string(), v.clone());
+                }
+            }
             rows.push(Value::Object(show));
             let idx = rows.len() - 1;
             shows.insert(tmdb.clone(), idx);
@@ -1068,7 +1085,10 @@ pub fn build(mut leaves: Vec<Value>) -> Vec<Value> {
                 "_season_year",
                 "_season_air",
                 "_season_summary",
-            ] {
+            ]
+            .into_iter()
+            .chain(SHOW_HINTS.iter().map(|(_, hint)| *hint))
+            {
                 row.shift_remove(key);
             }
         }

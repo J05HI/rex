@@ -1,0 +1,108 @@
+{
+ "source": "plexscratch42, Plex Media Server 1.42.2, ratingKey 1125, Media 0; a real vp3 file from samples.ffmpeg.org (game-formats/mgs1-vp3/mgs1-40.vp3); probed with ffprobe 8.1.2 over the server's own part URL, 2026-11-04",
+ "extension": "vp3",
+ "probe": {
+  "streams": [
+   {
+    "index": 0,
+    "codec_name": "vp3",
+    "codec_long_name": "On2 VP3",
+    "codec_type": "video",
+    "codec_tag_string": "VP31",
+    "codec_tag": "0x31335056",
+    "width": 480,
+    "height": 272,
+    "coded_width": 480,
+    "coded_height": 272,
+    "has_b_frames": 0,
+    "pix_fmt": "yuv420p",
+    "level": -99,
+    "chroma_location": "center",
+    "r_frame_rate": "30/1",
+    "avg_frame_rate": "30/1",
+    "time_base": "1/30",
+    "start_pts": 0,
+    "start_time": "0.000000",
+    "duration_ts": 1060,
+    "duration": "35.333333",
+    "nb_frames": "1060",
+    "disposition": {
+     "default": 0,
+     "dub": 0,
+     "original": 0,
+     "comment": 0,
+     "lyrics": 0,
+     "karaoke": 0,
+     "forced": 0,
+     "hearing_impaired": 0,
+     "visual_impaired": 0,
+     "clean_effects": 0,
+     "attached_pic": 0,
+     "timed_thumbnails": 0,
+     "non_diegetic": 0,
+     "captions": 0,
+     "descriptions": 0,
+     "metadata": 0,
+     "dependent": 0,
+     "still_image": 0,
+     "multilayer": 0
+    }
+   }
+  ],
+  "format": {
+   "filename": "file.vp3",
+   "nb_streams": 1,
+   "nb_programs": 0,
+   "nb_stream_groups": 0,
+   "format_name": "mgsts",
+   "format_long_name": "Metal Gear Solid: The Twin Snakes",
+   "start_time": "0.000000",
+   "duration": "35.333333",
+   "size": "2874656",
+   "bit_rate": "650865",
+   "probe_score": 100
+  }
+ },
+ "Media": {
+  "id": 265,
+  "duration": 35333,
+  "bitrate": 651,
+  "width": 480,
+  "height": 272,
+  "aspectRatio": 1.78,
+  "videoCodec": "vp3",
+  "videoResolution": "sd",
+  "container": "mgsts",
+  "videoFrameRate": "NTSC",
+  "Part": [
+   {
+    "id": 265,
+    "key": "/library/parts/265/1793753095/file.vp3",
+    "duration": 35333,
+    "file": "/data2/videoext-movies/Videoext Probe vp3 (2020)/Videoext Probe vp3 (2020).vp3",
+    "size": 2874656,
+    "container": "mgsts",
+    "Stream": [
+     {
+      "id": 499,
+      "streamType": 1,
+      "selected": true,
+      "codec": "vp3",
+      "index": 0,
+      "bitrate": 651,
+      "frameRate": 30.0,
+      "height": 272,
+      "refFrames": 1,
+      "width": 480,
+      "displayTitle": "SD",
+      "extendedDisplayTitle": "SD (VP3)"
+     }
+    ]
+   }
+  ]
+ },
+ "webDisplayTitles": {
+  "0": "SD (VP3)"
+ },
+ "shallow": true
+}

@@ -54,6 +54,7 @@ mod livetv;
 pub(crate) mod logging;
 mod merge;
 mod music;
+mod photos;
 mod markers;
 mod notify;
 mod playlists;
@@ -728,6 +729,8 @@ pub struct Runtime {
     /// thread of its own once the lock is released.
     pending_subtitle: Option<subtitles::Job>,
     pending_subtitle_read: Option<subtitles::ReadJob>,
+    /// A VobSub's `.sub` a stream read asked for: read off the lock from its source (`vobsub_read`).
+    pending_vobsub: Option<subtitles::VobSubRead>,
     analysis_jobs: Arc<analysis::Jobs>,
     blurs: Arc<blur::Blurs>,
     /// The subtitle jobs running, by item, and the searches that found nothing.
@@ -1060,6 +1063,7 @@ impl Runtime {
             pending_auto_collections: false,
             pending_subtitle: None,
             pending_subtitle_read: None,
+            pending_vobsub: None,
             analysis_jobs,
             blurs,
             subtitle_jobs: Arc::default(),
@@ -2299,6 +2303,18 @@ impl Runtime {
             .find(|section| section.get("key").map(string_value).as_deref() == Some(key))
     }
 
+    /// The language a library's metadata is asked for in (its `language`, en-US as its section
+    /// answers one with none): what a real PMS sends Plex's agent for it (`plexmeta::localised`).
+    fn section_language(&self, key: &str) -> String {
+        let language = self.section(key).and_then(|section| section.get("language")).and_then(Value::as_str);
+        language.filter(|language| !language.is_empty()).unwrap_or("en-US").to_string()
+    }
+
+    /// `section_language` of the library a row is in.
+    fn row_language(&self, row: &Value) -> String {
+        self.section_language(&row.get("librarySectionID").map(string_value).unwrap_or_default())
+    }
+
     fn section_rows(&self, key: &str) -> Vec<Value> {
         self.section_row_refs(key).into_iter().map(|row| row.body().clone()).collect()
     }
@@ -2554,6 +2570,13 @@ impl Runtime {
         if matches!(kind.as_str(), "artist" | "album") {
             self.music_play_counts(&key, object);
         }
+        // A season's and an episode's theme, clear logo and square art are their show's, read off
+        // it as it stands (plexlab: Firefly's Season 1 `parentTheme`, The Train Job
+        // `grandparentTheme`, and both rows' `clearLogo`/`backgroundSquare` Images, the show's paths).
+        let mut borrowed: Option<[Option<String>; 3]> = None;
+        // A show's networks are a filter and an axis only: plexlab lists Firefly under FOX and
+        // carries no `Network` on any of its rows.
+        object.shift_remove("Network");
         if kind == "show" {
             let seasons = self.children_refs(&key);
             let leaves = self.leaves_refs(&key);
@@ -2579,6 +2602,7 @@ impl Runtime {
             // Cycle 15: the EFFECTIVE flattenSeasons -- the item's unless it inherits.
             self.apply_flatten_projection(object);
         } else if kind == "season" {
+            borrowed = object.get("parentRatingKey").map(string_value).and_then(|show| self.show_assets(&show));
             let children = self.children_refs(&key);
             object.insert("leafCount".to_string(), json!(children.len()));
             object.insert(
@@ -2613,6 +2637,7 @@ impl Runtime {
                 }
             }
         } else if kind == "episode" {
+            borrowed = object.get("grandparentRatingKey").map(string_value).and_then(|show| self.show_assets(&show));
             if let Some(parent_key) = object.get("parentRatingKey").map(string_value) {
                 if let Some(parent) = self.catalog.lazy_get(&parent_key) {
                     if let Some(value) = parent
@@ -2747,13 +2772,40 @@ impl Runtime {
                 images.push(json!({"alt": title, "type": "background", "url": url}));
             }
         }
-        if let Some(url) = original.get("_clearLogo").and_then(Value::as_str) {
-            images.push(json!({"alt": title, "type": "clearLogo", "url": url}));
+        let [theme, logo, square] = borrowed.unwrap_or_default();
+        if matches!(kind.as_str(), "season" | "episode") {
+            let (field, after) = if kind == "season" { ("parentTheme", "parentThumb") } else { ("grandparentTheme", "grandparentArt") };
+            match theme {
+                Some(theme) => {
+                    object.shift_remove(field);
+                    let at = object.iter().position(|(key, _)| key == after).map_or(object.len(), |at| at + 1);
+                    object.shift_insert(at, field.to_string(), json!(theme));
+                }
+                None => {
+                    object.shift_remove(field);
+                }
+            }
+        }
+        let own = |field: &str| original.get(field).and_then(Value::as_str).filter(|url| !url.is_empty()).map(str::to_string);
+        if kind != "clip" {
+            for (kind, url) in [("clearLogo", own("_clearLogo").or(logo)), ("backgroundSquare", own("_squareArt").or(square))] {
+                if let Some(url) = url {
+                    images.push(json!({"alt": title, "type": kind, "url": url}));
+                }
+            }
         }
         if !images.is_empty() {
             object.insert("Image".to_string(), Value::Array(images));
         }
         row
+    }
+
+    /// A show's `theme` and the paths of its clear logo and square art, which its seasons and
+    /// episodes show as theirs.
+    fn show_assets(&self, show: &str) -> Option<[Option<String>; 3]> {
+        let row = self.catalog.lazy_get(show)?;
+        let path = |field: &str| row.get(field).and_then(|value| value.as_str().map(str::to_string)).filter(|path| !path.is_empty());
+        Some([path("theme"), path("_clearLogo"), path("_squareArt")])
     }
 
 
@@ -3284,10 +3336,11 @@ impl Runtime {
     /// measured on plexscratch42, an empty music library's `/prefs` equals that form row
     /// for row and value for value; rex answered an empty list.
     fn section_base_settings(&self, section_key: &str, kind: &str) -> Vec<Value> {
-        if kind == "artist" {
+        // A photo library's too (plexscratch, 2026-11-04: Visibility and the preview thumbnails).
+        if kind == "artist" || kind == "photo" {
             let section = self.section(section_key).cloned().unwrap_or(Value::Null);
             let (agent, _scanner, _group) = Self::section_agent(&section);
-            return self.form_pref_rows("8", &agent, &[]);
+            return self.form_pref_rows(if kind == "photo" { "13" } else { "8" }, &agent, &[]);
         }
         load_json_sidecar(&self.catalog_path, "section_prefs.json")
             .and_then(|value| value.get(kind).cloned())
@@ -3395,6 +3448,8 @@ impl Runtime {
         let (agent, scanner, group) = match section.get("type").and_then(Value::as_str) {
             Some("show") => ("tv.plex.agents.series", "Plex TV Series", 2),
             Some("artist") => ("tv.plex.agents.music", "Plex Music", 3),
+            // Plex Web's Add Library, Photos, on plexscratch (2026-11-04).
+            Some("photo") => ("tv.plex.agents.none", "Plex Photo Scanner", 4),
             _ => ("tv.plex.agents.movie", "Plex Movie", 1),
         };
         let own = |name: &str| {
@@ -3872,7 +3927,10 @@ impl Runtime {
             // Measured: a PMS with a DVR answers true; rex has one once a source pushes a channel.
             ("allowTuners", json!(self.has_livetv())),
             ("apiVersion", json!("1.2.3")),
-            ("backgroundProcessing", json!(true)),
+            // PMS 1.43.4 writes a constant true here, and Plex Web's Optimize... reads nothing
+            // else beside `transcoderVideo`: rex keeps no optimized versions, so it says false.
+            // The Conversions page reads `/playQueues?type=42`, not this (main-8792, 4.147.1).
+            ("backgroundProcessing", json!(false)),
             ("certificate", json!(true)),
             ("companionProxy", json!(true)),
             ("countryCode", json!("deu")),
@@ -5609,23 +5667,45 @@ impl Runtime {
         );
     }
 
+    /// A view field written to `key` and to every row sharing its guid: a real PMS keeps watch
+    /// state in `metadata_item_settings` by account and guid, with no item id, and reads it
+    /// `on metadata_item_settings.guid=metadata_items.guid` (PMS 1.43.4, #579), so one film in
+    /// two libraries is watched in both. Per account, as every row write is (`rows::Overlay`).
     fn update_view(&mut self, key: &str, field: &str, value: Option<Value>) -> bool {
-        let Some(row) = self.item_mut(key) else {
-            return false;
-        };
-        let Some(object) = row.as_object_mut() else {
-            return false;
-        };
-        match value {
-            Some(value) => {
-                object.insert(field.to_string(), value);
+        let mut written = false;
+        for key in self.guid_rows(key) {
+            let Some(object) = self.item_mut(&key).and_then(Value::as_object_mut) else {
+                continue;
+            };
+            match value.clone() {
+                Some(value) => {
+                    object.insert(field.to_string(), value);
+                }
+                None => {
+                    object.shift_remove(field);
+                }
             }
-            None => {
-                object.shift_remove(field);
-            }
+            written = true;
         }
-        self.dirty = true;
-        true
+        self.dirty |= written;
+        written
+    }
+
+    /// `key` and the other rows with its guid (`catalog::By::Guid`); `key` alone without one.
+    fn guid_rows(&self, key: &str) -> Vec<String> {
+        let mut keys = vec![key.to_string()];
+        if let Some(guid) = self.catalog.get(key).and_then(|row| row.get("guid")).and_then(Value::as_str) {
+            keys.extend(
+                self.catalog
+                    .lazy_by(crate::catalog::By::Guid, guid)
+                    .iter()
+                    // The lookup files by a hash: the text decides.
+                    .filter(|row| row.get("guid").and_then(Field::as_str) == Some(guid))
+                    .filter_map(key_of)
+                    .filter(|other| other != key),
+            );
+        }
+        keys
     }
 
     /// One row of `/status/sessions/history/all` (library.record_view).
@@ -7045,10 +7125,11 @@ impl Runtime {
                 return Some(Response::error(400, "rex: bad request"));
             };
             let wanted = percent_decode(&url.replace("%2E", "."));
-            let mine = columns
-                .get("_uploads")
-                .and_then(Value::as_array)
-                .is_some_and(|list| list.iter().any(|known| known.as_str() == Some(wanted.as_str())));
+            let mine = ["_uploads", "_clearLogos", "_themes"]
+                .iter()
+                .filter_map(|name| columns.get(*name).and_then(Value::as_array))
+                .flatten()
+                .any(|known| known.as_str() == Some(wanted.as_str()));
             return Some(match mine.then(|| self.upload(&wanted)).flatten() {
                 Some((body, content_type)) => serve(body, content_type, false),
                 None => Response::error(404, "rex: not found"),
@@ -8408,6 +8489,9 @@ impl Runtime {
             query.insert("location".to_string(), if self.playback_lan(&request.headers) { "lan" } else { "wan" }.to_string());
         }
         if let Some(response) = self.route_livetv(request, &path, &mut query) {
+            return response;
+        }
+        if let Some(response) = self.route_photos(request, &path, &query) {
             return response;
         }
         // A bare `/player` falls to the plug-in dispatcher for every verb but GET and
@@ -10796,7 +10880,8 @@ impl Runtime {
     /// written -- a rating, a scrobble, an unscrobble, a stored progress.
     fn stamp_view(&mut self, keys: &[String]) {
         let stamp = now();
-        for key in keys {
+        let keys: Vec<String> = keys.iter().flat_map(|key| self.guid_rows(key)).collect();
+        for key in &keys {
             if let Some(object) = self.catalog.get_mut(key).and_then(Value::as_object_mut) {
                 object.insert("_viewUpdatedAt".to_string(), json!(stamp));
             }
@@ -10908,9 +10993,19 @@ impl Runtime {
                 });
             }
             let near_end = completes && total > 0 && (offset as f64) >= total as f64 * 0.9;
+            // A track resumes only in a library with "Store track progress" on (`enableTrackOffsets`,
+            // off by default): plexav's 1.43.4 showed a paused audiobook's position with it on and
+            // none with it off, stamping `lastViewedAt` either way (2026-11-04,
+            // `tests/fixtures/music/chronicle.jsonl`).
+            let keeps_offset = row.get("type").and_then(Value::as_str) != Some("track") || {
+                let section = row.get("librarySectionID").map(string_value).unwrap_or_default();
+                self.section_prefs.get(&(section, "enableTrackOffsets".to_string())).is_some_and(|value| value == "true" || is_true_option(value))
+            };
             if (total > 0 || !completes) && offset > 60000 && !near_end {
                 let stamp = now();
-                self.update_view(key, "viewOffset", Some(json!(offset)));
+                if keeps_offset {
+                    self.update_view(key, "viewOffset", Some(json!(offset)));
+                }
                 self.update_view(key, "lastViewedAt", Some(json!(stamp)));
                 let mut stamped = vec![key.to_string()];
                 stamped.extend(self.parent_keys(key));
@@ -11229,7 +11324,9 @@ impl Runtime {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let targets = if matches!(kind.as_str(), "show" | "season") {
+        // An album's scrobble marks each of its tracks played, as a show's does its episodes:
+        // Chronicle marks a finished audiobook so (plexav 1.43.4, 2026-11-04, `chronicle.jsonl`).
+        let targets = if matches!(kind.as_str(), "show" | "season" | "album") {
             self.leaves(&key)
                 .into_iter()
                 .filter_map(|row| key_of(&row))
@@ -11282,7 +11379,7 @@ impl Runtime {
                 self.update_view(&parent, "viewCount", Some(json!(previous + 1)));
                 self.update_view(&parent, "lastViewedAt", Some(json!(stamp)));
             }
-        } else if !watched && matches!(kind.as_str(), "show" | "season") {
+        } else if !watched && matches!(kind.as_str(), "show" | "season" | "album") {
             self.update_view(&key, "viewCount", None);
             self.update_view(&key, "lastViewedAt", None);
         }
@@ -11515,6 +11612,17 @@ impl Runtime {
             return Response::error(400, "rex: bad request");
         }
         let media_index_raw = query.get("mediaIndex").cloned().unwrap_or_default();
+        // plexav's 1.43.4, 2026-11-04, music and video alike (`tests/fixtures/music/chronicle.jsonl`):
+        // `hasMDE=1` without direct play turned off (`directPlay=0`) needs a valid `mediaIndex` --
+        // absent, empty, -1, out of range or a word is a 400 ("hasMDE was specified along with
+        // directPlay without specifying a valid media and part index"), whatever `partIndex` says.
+        // Chronicle asks so and plays the listing's Part key on the refusal.
+        if query.get("hasMDE").map(String::as_str) == Some("1")
+            && query.get("directPlay").map(String::as_str) != Some("0")
+            && media_index_raw.parse::<usize>().ok().filter(|index| *index < media_rows.len()).is_none()
+        {
+            return Response::error(400, "rex: hasMDE without a valid mediaIndex");
+        }
         let media_index = if media_rows.len() > 1 {
             let Ok(index) = media_index_raw.parse::<usize>() else {
                 return Response::error(400, "rex: bad request");
@@ -11689,23 +11797,21 @@ impl Runtime {
                 "transcodeDecisionCode".to_string(),
                 json!(if blocked { 2003 } else { 4005 }),
             );
-            fields.insert(
-                "transcodeDecisionText".to_string(),
-                json!(if blocked {
-                    "File is unplayable. DoVi (Profile 5) color space is not supported."
-                        .to_string()
-                } else if capped {
-                    // Not measured: what a real PMS answers past its transcode limit was never
-                    // recorded, so this is the encoder-less refusal's shape with rex's own text.
-                    "Cannot convert this item. The server's limit of simultaneous video conversions is reached."
-                        .to_string()
-                } else {
-                    format!("Cannot convert this item. No conversion profile found for protocol {protocol}.")
-                }),
-            );
+            let convert = if blocked {
+                "File is unplayable. DoVi (Profile 5) color space is not supported.".to_string()
+            } else if capped {
+                // Not measured: what a real PMS answers past its transcode limit was never
+                // recorded, so this is the encoder-less refusal's shape with rex's own text.
+                "Cannot convert this item. The server's limit of simultaneous video conversions is reached."
+                    .to_string()
+            } else {
+                format!("Cannot convert this item. No conversion profile found for protocol {protocol}.")
+            };
+            fields.insert("transcodeDecisionText".to_string(), json!(convert));
             fields.insert("size".to_string(), json!(0));
+            // The answer's own two texts: rex-fun's 52 refusals said nothing of why (2026-11).
             info!(
-                "DECISION refused for path={}",
+                "DECISION refused for path={} -- {refusal} {convert}",
                 query.get("path").map_or("", String::as_str)
             );
             return Response::json(200, self.container(fields, false));
@@ -15597,6 +15703,48 @@ impl Runtime {
                         fields.insert("mixedParents".to_string(), json!(true));
                         fields.insert("title2".to_string(), json!("By Album"));
                         fields.insert("viewGroup".to_string(), json!("album"));
+                        // A music library's are its albums, paged as `/all?type=9` (plexav, for
+                        // python-plexapi's `MusicSection.albums()`, `fixtures/music/albums.json`).
+                        if self.music_section(section_key) {
+                            let (title, uuid) = (section.get("title").cloned().unwrap_or(Value::Null), section.get("uuid").cloned().unwrap_or(Value::Null));
+                            let mut typed = query.clone();
+                            typed.insert("type".to_string(), "9".to_string());
+                            let mut typed_pairs: Vec<(String, String)> = pairs.iter().filter(|(name, _)| name != "type").cloned().collect();
+                            typed_pairs.push(("type".to_string(), "9".to_string()));
+                            // In title order, where `/all?type=9` lists by artist.
+                            if !typed.contains_key("sort") {
+                                typed.insert("sort".to_string(), "titleSort".to_string());
+                                typed_pairs.push(("sort".to_string(), "titleSort".to_string()));
+                            }
+                            let mut listing = self.route_section_all(section_key, &[], &typed, &typed_pairs, request);
+                            if let Some(Value::Object(mut listed)) = listing.take_document().and_then(|mut document| document.get_mut("MediaContainer").map(Value::take)) {
+                                // Each row as a mixed-parent list names it: its library first, its
+                                // track count before `addedAt`, as plexav's rows are.
+                                for row in listed.get_mut("Metadata").and_then(Value::as_array_mut).into_iter().flatten() {
+                                    let tracks = self.children_refs(&key_of(row).unwrap_or_default()).len();
+                                    let Some(object) = row.as_object_mut() else { continue };
+                                    let mut out = Map::from_iter([
+                                        ("allowSync".to_string(), json!(true)),
+                                        ("librarySectionID".to_string(), section_key.parse::<i64>().map_or_else(|_| json!(section_key), |id| json!(id))),
+                                        ("librarySectionTitle".to_string(), title.clone()),
+                                        ("librarySectionUUID".to_string(), uuid.clone()),
+                                    ]);
+                                    for (name, value) in std::mem::take(object) {
+                                        if name == "addedAt" {
+                                            out.insert("leafCount".to_string(), json!(tracks));
+                                        }
+                                        out.entry(name).or_insert(value);
+                                    }
+                                    *object = out;
+                                }
+                                for name in ["size", "totalSize", "offset", "Metadata"] {
+                                    if let Some(value) = listed.shift_remove(name) {
+                                        fields.insert(name.to_string(), value);
+                                    }
+                                }
+                                return Response::json(200, self.container(fields, false));
+                            }
+                        }
                         fields.insert("size".to_string(), json!(0));
                         return Response::json(200, self.container(fields, false));
                     }
@@ -16911,15 +17059,20 @@ impl Runtime {
                 return Response::error(404, "rex: not found");
             }
             let raw_id = segments[2];
-            // Measured on both servers: `.srt` and `.vtt` are the sidecar extraction by
-            // extension, answered as the bare stream; any other dot stays in the id.
+            // Measured on both servers: `.srt` and `.vtt` on an embedded stream are the bare
+            // stream's answer; a write takes no other dot in the id.
             let bare_id = raw_id
                 .strip_suffix(".srt")
                 .or_else(|| raw_id.strip_suffix(".vtt"))
                 .unwrap_or(raw_id);
-            let stream_id = (!bare_id.is_empty() && bare_id.bytes().all(|b| b.is_ascii_digit()))
-                .then(|| bare_id.parse::<i64>().ok())
-                .flatten();
+            let numeric = |id: &str| (!id.is_empty() && id.bytes().all(|b| b.is_ascii_digit())).then(|| id.parse::<i64>().ok()).flatten();
+            // Measured on a 1.42.2 (`fixtures/subtitles/vobsub_s1422.json`): a read's `.{ext}` on a
+            // sidecar or upload is its own file only by its own format's extension (`.srt` on an
+            // SRT, `.ass` on an ASS, a VobSub's `.idx` and `.sub`) and a 404 by any other, `.vtt` on
+            // an SRT too; on an embedded track any extension is the bare stream's answer.
+            let extension = raw_id.split_once('.').map(|(_, extension)| extension);
+            let reading = matches!(request.method.as_str(), "GET" | "HEAD");
+            let stream_id = numeric(bare_id).or_else(|| raw_id.split_once('.').filter(|_| reading).and_then(|(digits, _)| numeric(digits)));
             let Some(stream_id) = stream_id else {
                 // Measured on the copy: a PUT to an id it does not have is a 400, and so
                 // is a DELETE of a NON-NUMERIC one -- `DELETE /library/streams/abc` is a
@@ -16934,10 +17087,22 @@ impl Runtime {
                 let row = self.catalog.rows_by(crate::catalog::By::Upload, &stream_id.to_string())
                     .into_iter().find_map(answer)
                     .or_else(|| self.stream_owner(stream_id))
-                    .or_else(|| self.catalog.hot().lazy().find_map(|row| answer(row.body())));
+                    // Every row read and let go of: an id no row holds read the library into the
+                    // row cache for the request, +118 MB on 45 MB of rows (test_perf_memory's, 2026-11-02).
+                    .or_else(|| self.catalog.hot().lazy().find_map(|row| row.with_body(answer)));
                 let Some(row) = row else { return Response::error(404, "rex: not found") };
                 if let Some(response) = self.music_lyrics(&row, stream_id, query, &request.headers) {
                     return response;
+                }
+                if let Some(extension) = extension {
+                    match self.external_stream(&row, stream_id, extension, query) {
+                        Some(Err(response)) => return response,
+                        Some(Ok(read)) => {
+                            self.pending_vobsub = Some(read);
+                            return Response::empty(200);
+                        }
+                        None => {}
+                    }
                 }
                 return match self.prepare_subtitle_read(&row, stream_id, query) {
                     Ok(subtitles::SubtitleRead::Ready(response)) => response,
@@ -16951,7 +17116,7 @@ impl Runtime {
             if request.method == "PUT" {
                 // Measured on a writable copy: a PUT to a stream it HAS is 200 with an
                 // empty body and stores nothing; one it does not have is a 400.
-                let known = self.catalog.hot().lazy().any(|row| row_has_stream(row.body(), stream_id));
+                let known = self.catalog.hot().lazy().any(|row| row.with_body(|body| row_has_stream(body, stream_id)));
                 if known {
                     return Response::empty(200);
                 }
@@ -16975,7 +17140,7 @@ impl Runtime {
                         .catalog
                         .hot()
                         .lazy()
-                        .filter(|row| row_has_stream(row.body(), stream_id))
+                        .filter(|row| row.with_body(|body| row_has_stream(body, stream_id)))
                         .filter_map(|row| key_of(&row))
                         .collect();
                 }
@@ -18923,7 +19088,7 @@ impl Runtime {
         if tail.len() > 1
             && !matches!(
                 tail[0],
-                "thumb" | "art" | "poster" | "banner" | "theme" | "clearLogo"
+                "thumb" | "art" | "poster" | "banner" | "theme" | "clearLogo" | "squareArt"
             )
             && !(tail.len() == 2
                 && matches!((tail[0], tail[1]), ("extras", "all") | ("users", "top")))
@@ -18932,7 +19097,7 @@ impl Runtime {
         }
         if matches!(
             tail[0],
-            "thumb" | "art" | "poster" | "banner" | "theme" | "clearLogo"
+            "thumb" | "art" | "poster" | "banner" | "theme" | "clearLogo" | "squareArt"
         ) && tail.len() > 2
         {
             return Response::error(404, "rex: not found");
@@ -18954,6 +19119,10 @@ impl Runtime {
                 // Cycle 15, measured on plexscratch: POSTing an EMPTY body to any
                 // artwork or subtitle candidate list is a 406 -- all seven alike, and
                 // for the subtitle upload the empty-body check runs before the title's.
+                // A `url` is an upload by url instead (1.43.4: an item's `clearLogos?url=` is
+                // a 200, collection_logos_s1434.json), fetched below.
+                "posters" | "arts" | "themes" | "clearLogos"
+                    if query.get("url").is_some_and(|url| !url.is_empty()) => {}
                 "posters" | "arts" | "thumbs" | "banners" | "themes" | "clearLogos"
                 | "subtitles"
                     if request.body.is_empty() =>
@@ -19629,7 +19798,14 @@ impl Runtime {
                     _ => Response::error(404, "rex: not found"),
                 }
             }
-            "thumbs" | "banners" | "themes" | "clearLogos" if request.method == "POST" => {
+            "themes" | "clearLogos" if request.method == "POST" => {
+                // A url is fetched, as on a collection (1.43.4, collection_logos_s1434.json).
+                match artwork::posted_any(request) {
+                    Ok(body) => self.upload_artwork(key, tail[0], &body),
+                    Err(refusal) => refusal,
+                }
+            }
+            "thumbs" | "banners" if request.method == "POST" => {
                 // Cycle 15: every candidate list answers a POST as an upload does.
                 if request.body.is_empty() {
                     return Response::error(406, "rex: not acceptable");
@@ -19637,28 +19813,21 @@ impl Runtime {
                 let body = request.body.clone();
                 self.upload_artwork(key, tail[0], &body)
             }
-            "clearLogos" | "themes" => {
+            "clearLogos" | "themes" | "squareArts" => {
                 if request.method != "GET" && request.method != "HEAD" {
                     return Response::error(404, "rex: not found");
                 }
                 // Measured: both are candidate lists in the tag container, EMPTY for an
                 // item with none.  Cycle 59: an UPLOAD is a candidate here, selected
-                // while the row carries it.
-                let field = if tail[0] == "clearLogos" {
-                    "clearLogo"
-                } else {
-                    "theme"
-                };
+                // while the row carries it. `squareArts` is 1.43.4's, which plexlab answers
+                // as it answers `clearLogos` (a movie's and a show's one each, a season's none).
+                let field = tail[0].trim_end_matches('s');
                 // `Photo` rows for clear logos and `Track` rows for theme music (plexlab,
                 // 1.43.4, both lists of a show). The default element is `Video`, and
                 // python-plexapi's `logos()`/`themes()` keep only rows of their own tag,
                 // so an uploaded candidate read back as an empty list.
-                let element = if field == "clearLogo" { "Photo" } else { "Track" };
-                let owned = if field == "clearLogo" {
-                    row.get("_clearLogo").is_some_and(|value| !value.is_null())
-                } else {
-                    artwork::owns_field(Some(row), "theme")
-                };
+                let element = if field == "theme" { "Track" } else { "Photo" };
+                let owned = artwork::owns_asset(row, field);
                 let current = owned
                     .then(|| {
                         row.get(&format!("_{field}_url"))
@@ -19666,7 +19835,7 @@ impl Runtime {
                             .map(str::to_string)
                     })
                     .flatten();
-                let entries = row
+                let mut entries = row
                     .get("_uploads")
                     .and_then(|uploads| uploads.get(field))
                     .and_then(Value::as_array)
@@ -19679,6 +19848,14 @@ impl Runtime {
                                "thumb": path, "selected": current.as_deref() == Some(upload)})
                     })
                     .collect::<Vec<_>>();
+                // The agent's own, first and selected while the row shows it (plexlab: the local
+                // copy PMS keeps of it, `selected`; rex keeps the agent's url, as `/posters` lists it).
+                let agent = row.get(&format!("_{field}_url")).and_then(Value::as_str).filter(|url| url.starts_with("http"))
+                    .or_else(|| row.get(&format!("_{field}_agent")).and_then(Value::as_str));
+                if let Some(url) = agent {
+                    entries.insert(0, json!({"_element": element, "key": url, "ratingKey": url, "thumb": url,
+                                             "selected": current.as_deref() == Some(url)}));
+                }
                 let mut fields = Map::new();
                 fields.insert("size".to_string(), json!(entries.len()));
                 fields.insert(
@@ -19692,19 +19869,18 @@ impl Runtime {
                 }
                 Response::json(200, self.container(fields, false))
             }
-            "theme" | "clearLogo" => {
+            "theme" | "clearLogo" | "squareArt" => {
                 // Cycle 59: an UPLOADED theme or logo is served from the row that owns
                 // it; cycle 60: only a READ serves it, and anything else is the 404.
-                let owned = if tail[0] == "clearLogo" {
-                    row.get("_clearLogo").is_some_and(|value| !value.is_null())
-                } else {
-                    artwork::owns_field(Some(row), "theme")
-                };
+                let owned = artwork::owns_asset(row, tail[0]);
                 let stored = row
                     .get(&format!("_{}_url", tail[0]))
                     .and_then(Value::as_str);
                 let served = owned && matches!(request.method.as_str(), "GET" | "HEAD");
-                match stored.filter(|_| served).and_then(|url| self.upload(url)) {
+                let Some(stored) = stored.filter(|_| served) else {
+                    return Response::error(404, "rex: not found");
+                };
+                match self.upload(stored) {
                     Some((body, content_type)) => {
                         // The oracle's `_serve_image` over an upload: `no-cache` and a
                         // byte range unit, like every other body path.
@@ -19715,7 +19891,18 @@ impl Runtime {
                             .push(("Accept-Ranges".to_string(), "bytes".to_string()));
                         response
                     }
-                    _ => Response::error(404, "rex: not found"),
+                    // What Plex's agent names, fetched off the lock: plexlab serves Firefly's theme
+                    // as `audio/mpeg3` and its PNG logo and square art as `image/jpeg`, at any
+                    // version and bare, ranged and HEAD alike, marked a local asset.
+                    None if stored.starts_with("https://") || stored.starts_with("http://") => {
+                        self.pending_image = Some(stored.to_string());
+                        let mut response = Response::bytes(200, if tail[0] == "theme" { "audio/mpeg3" } else { "image/jpeg" });
+                        for (name, value) in [("X-Plex-Local-Asset", "1"), ("Cache-Control", "no-cache"), ("Accept-Ranges", "bytes"), (TYPED_MARK, "1")] {
+                            response.headers.push((name.to_string(), value.to_string()));
+                        }
+                        response
+                    }
+                    None => Response::error(404, "rex: not found"),
                 }
             }
             "art" | "thumb" | "poster" => self.route_art(key, row, tail, query, request),
@@ -20111,8 +20298,10 @@ impl Runtime {
             &["movie", "show"]
         };
         let asked = title.clone();
+        let language = self.row_language(row);
         let Some(answers) = self.agent_answer(format!("matches\u{1f}{kinds:?}\u{1f}{title}\u{1f}{year:?}"), move || {
-            Value::Array(kinds.iter().map(|kind| Value::Array(crate::identify::plex_search(plex.as_ref(), kind, &asked, year))).collect())
+            let plex = plex.in_language(&language);
+            Value::Array(kinds.iter().map(|kind| Value::Array(crate::identify::plex_search(&plex, kind, &asked, year))).collect())
         }) else {
             return Response::empty(200);
         };
@@ -20199,10 +20388,12 @@ impl Runtime {
             return Some((None, None));
         };
         let guid = guid.to_string();
+        let language = self.row_language(row);
         let answer = self.agent_answer(format!("children\u{1f}{guid}\u{1f}{season}\u{1f}{episode}"), move || {
-            let season = crate::identify::plex_children_rows(plex.as_ref(), &guid).remove(&season.to_string());
+            let plex = plex.in_language(&language);
+            let season = crate::identify::plex_children_rows(&plex, &guid).remove(&season.to_string());
             let episode = season.as_ref().and_then(|season| {
-                crate::identify::plex_children_rows(plex.as_ref(), season.get("guid")?.as_str()?).remove(&episode.to_string())
+                crate::identify::plex_children_rows(&plex, season.get("guid")?.as_str()?).remove(&episode.to_string())
             });
             json!([season, episode])
         })?;
@@ -20219,13 +20410,15 @@ impl Runtime {
             return Some(Value::Null);
         };
         let guid = guid.to_string();
+        let language = self.row_language(row);
         self.agent_answer(format!("tree\u{1f}{guid}"), move || {
+            let plex = plex.in_language(&language);
             let mut tree = Map::new();
-            for (index, season) in crate::identify::plex_children_rows(plex.as_ref(), &guid) {
+            for (index, season) in crate::identify::plex_children_rows(&plex, &guid) {
                 let episodes: Map<String, Value> = season
                     .get("guid")
                     .and_then(Value::as_str)
-                    .map(|season| crate::identify::plex_children_rows(plex.as_ref(), season).into_iter().collect())
+                    .map(|season| crate::identify::plex_children_rows(&plex, season).into_iter().collect())
                     .unwrap_or_default();
                 tree.insert(index, json!({"season": season, "episodes": episodes}));
             }
@@ -21985,11 +22178,16 @@ impl Runtime {
             let mut media = row.get("Media").cloned().unwrap_or(Value::Null);
             crate::mediainfo::select_media_tracks(&mut media, &prefs)
         };
+        // Each row is read for the comparison and let go of. This runs on plex.tv's account
+        // refresh thread, outside any request, so nothing trims the rows `body` keeps: read
+        // through it, every claimed start held the library parsed at once, the production
+        // server's peaking at 1.57 GB of heap, 1,199 MB of it these rows, over an idle 95 MB
+        // (45,328 rows, heaptrack, 2026-11-02; `the_track_settings_pass_holds_one_row_at_a_time`).
         let keys: Vec<String> = self
             .catalog
             .hot()
             .lazy()
-            .filter(|row| differ(row.body()))
+            .filter(|row| row.with_body(&differ))
             .filter_map(|row| key_of(&row))
             .collect();
         for key in &keys {
@@ -23719,6 +23917,7 @@ pub fn serve(options: RuntimeOptions) -> Result<(), String> {
     let seasons = Arc::clone(&runtime);
     let _ = thread::Builder::new().name("season-repair".to_string()).spawn(move || {
         feed::repair_seasons(&seasons);
+        feed::describe_again(&seasons, feed::DESCRIBE_BATCH);
         loop {
             feed::retry_blank(&seasons, 50);
             thread::sleep(std::time::Duration::from_secs(600));
@@ -24246,6 +24445,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             guard.pending_ultrablur = None;
             guard.pending_claim = None;
             guard.pending_subtitle_read = None;
+            guard.pending_vobsub = None;
             guard.refused_for_token = false;
             crate::filters::clear_refusal();
             take_unsupported_sort();
@@ -24271,6 +24471,11 @@ fn handle_connection<S: Read + Write + PollRead>(
                 guard.agent_answers.remove(&key);
             }
             guard.pending_agent = None;
+            if let Some(read) = guard.pending_vobsub.take() {
+                drop(guard);
+                response = subtitles::vobsub_read(read);
+                guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+            }
             if let Some(job) = guard.pending_subtitle_read.take() {
                 drop(guard);
                 let result = subtitles::read(job);
@@ -24420,13 +24625,19 @@ fn handle_connection<S: Read + Write + PollRead>(
                 }
             }
         }
-        // `log_request`: under --verbose, every answered request line at DEBUG.
+        // `log_request`: under --verbose, every answered request line at DEBUG, then the app
+        // that asked, quoted as a combined log's user agent: a native app sends X-Plex-Product as
+        // a header, so its lines named no client (rex-fun, 2026-11: 275k of 341k).
+        let product = request.headers.get("x-plex-product").cloned().or_else(|| {
+            parse_query(&split_target(&request.target).1).into_iter().find(|(name, _)| name == "X-Plex-Product").map(|(_, value)| value)
+        });
         debug!(
-            "\"{} {} {}\" {} -",
+            "\"{} {} {}\" {} -{}",
             request.method,
             logging::redact_tokens(&request.target),
             request.version,
-            response.status
+            response.status,
+            product.filter(|product| !product.is_empty()).map_or(String::new(), |product| format!(" \"{}\"", product.replace('"', "'")))
         );
         // Cycle 30/49: a refusal of the request's ENVELOPE closes the socket -- the
         // malformed query pair among them -- while a refusal of its MEANING keeps it.
@@ -25716,7 +25927,7 @@ fn parse_query(query: &str) -> Vec<(String, String)> {
         })
         .collect()
 }
-fn percent_decode(value: &str) -> String {
+pub(crate) fn percent_decode(value: &str) -> String {
     let bytes = value.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
@@ -26132,6 +26343,8 @@ fn number_catalog_tags(items: &mut [Value]) {
         ("Style", "style"),
         // An album's `Format` (`Album`, `EP`, `Single`): a tag like the others (plexav, 2026-10-31).
         ("Format", "format"),
+        // A show's networks: plexlab's FOX is `network=177`, its Firefly's `By Network` key.
+        ("Network", "network"),
     ];
     for item in items {
         for (field, filter_name) in TAG_FIELDS {
@@ -26746,6 +26959,95 @@ mod migration_tests {
         eprintln!("deleted: {held} bytes, {} a key", held / 52_439);
         let _ = fs::remove_dir_all(&dir);
         assert!(held < 52_439 * 16, "{held} bytes");
+    }
+
+    /// The owner's track settings, handed over by plex.tv's account refresh on its own thread,
+    /// outside any request, are compared with every Part's selection. Every row read for it was
+    /// kept for the request's `trim`, which never came: a claimed start held the library parsed at
+    /// once, its peak 1.57 GB of heap on the production server's 45,328 rows (heaptrack, 2026-11-02).
+    /// Here, 4,000 rows of which 191 re-select: it peaked at 82.6 MB, every episode at 21.4 KB, and
+    /// kept 41.1 MB, the cache trimmed to its budget only by the save; read a row at a time, 7.4 MB
+    /// and 7.3 MB, the rows it wrote and their save (2026-11-02).
+    #[test]
+    fn the_track_settings_pass_holds_one_row_at_a_time() {
+        const ROWS: usize = 4_000;
+        let dir = work("track-prefs-peak");
+        let catalog_path = dir.join("catalog.json");
+        let state_path = dir.join("rex.db");
+        let mut document: Value = serde_json::from_str(include_str!("../../tests/catalog_ui.json")).unwrap();
+        let shape: Vec<Vec<usize>> = serde_json::from_str(include_str!("../tests/fixtures/fun_show_shape.json")).unwrap();
+        let episode: Value = serde_json::from_str(include_str!("../../tests/fixtures/fun_episode_row.json")).unwrap();
+        let (mut items, mut episodes, mut english) = (Vec::new(), Vec::new(), HashSet::new());
+        let mut key = 400_000;
+        'library: for seasons in &shape {
+            key += 1;
+            let show = key.to_string();
+            items.push(json!({"ratingKey": show, "type": "show", "title": format!("Show {key}"), "librarySectionID": 2, "_scanned": true}));
+            for (season, count) in seasons.iter().enumerate() {
+                key += 1;
+                let parent = key.to_string();
+                items.push(json!({"ratingKey": parent, "type": "season", "index": season + 1, "parentRatingKey": show, "librarySectionID": 2, "_scanned": true}));
+                for index in 1..=*count {
+                    key += 1;
+                    let mut row = episode.clone();
+                    for (name, value) in [("ratingKey", json!(key.to_string())), ("key", json!(format!("/library/metadata/{key}"))), ("index", json!(index)),
+                                          ("parentIndex", json!(season + 1)), ("parentRatingKey", json!(parent)), ("grandparentRatingKey", json!(show)),
+                                          ("librarySectionID", json!(2)), ("_scanned", json!(true))] {
+                        row[name] = value;
+                    }
+                    // The real row plays its first Russian track; one in twenty here its English one,
+                    // which an account wanting Russian moves back.
+                    if key % 20 == 0 {
+                        let streams = row.pointer_mut("/Media/0/Part/0/Stream").and_then(Value::as_array_mut).unwrap();
+                        streams[1].as_object_mut().unwrap().shift_remove("selected");
+                        streams[9]["selected"] = json!(true);
+                        english.insert(key.to_string());
+                    }
+                    episodes.push(key.to_string());
+                    items.push(row);
+                    if items.len() == ROWS {
+                        break 'library;
+                    }
+                }
+            }
+        }
+        document["items"] = Value::Array(items);
+        fs::write(&catalog_path, document.to_string()).unwrap();
+        drop(document);
+        let mut first = Runtime::load(options(&catalog_path, &state_path)).expect("a start");
+        first.save_state().unwrap();
+        drop(first);
+        let mut runtime = Runtime::load(options(&catalog_path, &state_path)).expect("a restart");
+        // As `serve` starts: the rows are the file's.
+        runtime.catalog.pack_pending();
+        // One row as a read from the file holds it (`Rows::read`).
+        let text = episode.to_string();
+        let before = crate::test_alloc::held();
+        let mut row: Value = serde_json::from_str(&text).unwrap();
+        crate::catalog::pack_streams(&mut row);
+        crate::catalog::compact(&mut row);
+        let one = (crate::test_alloc::held() - before) as usize;
+        drop(row);
+        let prefs = crate::mediainfo::TrackPrefs { auto_audio: true, audio: Some("ru".to_string()), subtitles: 0, subtitle: None };
+        let before = crate::test_alloc::held();
+        crate::test_alloc::reset_peak();
+        runtime.set_track_prefs(prefs);
+        let peak = (crate::test_alloc::peak() - before) as usize;
+        let kept = (crate::test_alloc::held() - before).max(0) as usize;
+        // Written, and so held until their save reaches the file: those re-selected, and only those.
+        let written: HashSet<String> = episodes.iter().filter(|key| matches!(runtime.catalog.held_row(key), Some(Some(_)))).cloned().collect();
+        assert_eq!(written, english, "the rows whose selection the settings change");
+        for key in &english {
+            let streams = crate::catalog::part_streams(runtime.catalog.get(key).unwrap().pointer("/Media/0/Part/0").unwrap()).into_owned();
+            let selected: Vec<i64> = streams.iter().filter(|stream| stream["selected"] == json!(true)).filter_map(|stream| stream["index"].as_i64()).collect();
+            assert_eq!(selected, [1], "{key} plays its first Russian track again");
+        }
+        eprintln!("{ROWS} rows, {} re-selected; a row read holds {one} bytes: the pass peaked at {peak} bytes, {kept} kept after it", english.len());
+        let _ = fs::remove_dir_all(&dir);
+        // What it keeps is the rows it wrote, held until their save is written, and that save; beyond
+        // that, a few rows at a time.
+        assert!(kept < 3 * english.len() * one, "kept {kept} bytes for {} rows written", english.len());
+        assert!(peak < kept + 8 * one, "peaked at {peak} bytes over the {kept} it keeps: {} rows of {one} bytes", (peak - kept) / one);
     }
 
     /// A deleted key is saved as it was given, whether or not a number spells it.
@@ -28109,22 +28411,30 @@ fn part_content_type(part: &Value) -> String {
         .to_ascii_lowercase()
         .as_str()
     {
+        // By extension, not container (plexscratch42, 2026-11-04): `.qt` is an mp4 Part read as
+        // quicktime, `.xvid` an avi read as x-msvideo where a `.bivx` avi is an octet-stream, and
+        // `.wtv` is `video/wtv`. Every other video extension `is_video` added then is an
+        // octet-stream, `.vob` too, and so is `.mk3d`: no string of the binary names it.
         "mkv" => "video/x-matroska",
         "mp4" | "m4v" => "video/mp4",
         "webm" => "video/webm",
-        "avi" | "divx" => "video/x-msvideo",
-        "mov" => "video/quicktime",
+        "avi" | "divx" | "xvid" => "video/x-msvideo",
+        "mov" | "qt" => "video/quicktime",
+        "wtv" => "video/wtv",
         "ts" => "video/MP2T",
         "mpg" | "mpeg" => "video/mpeg",
         "flv" => "video/x-flv",
         "wmv" => "video/x-ms-wmv",
-        // plexav's part reads of its tracks (2026-10-31, 2026-11-01): `.opus` and `.ogg` are
-        // octet-streams there too.
+        // plexav's part reads of its tracks (2026-10-31, 2026-11-01, 2026-11-04): `.opus`, `.ogg`,
+        // `.m4b` and the rest are octet-streams there too.
         "flac" => "audio/flac",
-        "mp3" => "audio/mpeg",
+        "mp3" | "mp2" | "mpa" => "audio/mpeg",
         "m4a" => "audio/mp4",
         "wav" => "audio/wav",
         "asf" => "video/x-ms-asf",
+        // plexscratch's part reads of its photo library's pictures (2026-11-04).
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
         _ => "application/octet-stream",
     }
     .to_string()
@@ -28393,15 +28703,22 @@ fn finish_file_checks(response: &mut Response, checks: Vec<FileCheck>) {
 /// `_serve_image`'s upstream half, outside the lock: the remote bytes and their type
 /// into the response the router shaped, or the 404 a failed fetch is.
 fn serve_remote_image(mut response: Response, url: &str, from_source: Option<&[(&'static str, String)]>) -> Response {
+    let typed = response.headers.iter().any(|(name, _)| name == TYPED_MARK);
+    response.headers.retain(|(name, _)| name != TYPED_MARK);
     match transcoder::fetch_remote_image(url, from_source) {
         Some((body, content_type)) => {
             response.body = body;
-            response.content_type = content_type;
+            if !typed {
+                response.content_type = content_type;
+            }
             response
         }
         None => Response::error(404, "rex: artwork unavailable"),
     }
 }
+
+/// A route's remote artwork answered as the type it names rather than the fetched one's.
+const TYPED_MARK: &str = "X-Rex-Typed";
 
 /// Content-Range sits right after Accept-Ranges, where the part read has always put it.
 fn insert_after_accept_ranges(response: &mut Response, content_range: String) {

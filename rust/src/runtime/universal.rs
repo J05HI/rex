@@ -277,6 +277,9 @@ pub(crate) struct Plan {
     pub text_to_srt: bool,
     /// A selected subtitle uploaded to rex: copied into Matroska segments, burned otherwise.
     pub sidecar: Option<Sidecar>,
+    /// A selected VobSub its source pushed beside the file: muxed into Matroska segments that
+    /// list it, burned otherwise.
+    pub vobsub: Option<VobSub>,
     /// A selected embedded text subtitle of a Matroska release, burned for a client that is
     /// not given Matroska: read out of the release before the run (`mkvsubs`).
     pub text_burn: Option<TextBurn>,
@@ -308,6 +311,41 @@ pub(crate) struct Sidecar {
     pub id: String,
     pub format: String,
     pub content: String,
+}
+
+/// A source's VobSub sidecar: its `.idx` text, written beside the run's segments, and its `.sub`,
+/// read from the source into the same folder before the first run (FFmpeg's vobsub demuxer opens
+/// the `.sub` of its `.idx`'s name, through no option a remote read could carry the login on).
+#[derive(Clone, Debug)]
+pub(crate) struct VobSub {
+    /// The Stream row's `id`, which the decision's row is matched by.
+    pub id: String,
+    pub idx: String,
+    pub sub_url: String,
+    /// Its listed language's ISO 639-2 code, which a real PMS tags the muxed track with.
+    pub language: Option<String>,
+    /// Muxed into the Matroska segments, else burned.
+    pub copy: bool,
+}
+
+impl VobSub {
+    /// Writes the pair beside the run's segments, the `.sub` read once a session.
+    fn write(&self, dir: &std::path::Path, auth: Option<&str>) -> Result<(), String> {
+        std::fs::write(dir.join("sidecar.idx"), &self.idx).map_err(|error| error.to_string())?;
+        let sub = dir.join("sidecar.sub");
+        if sub.exists() {
+            return Ok(());
+        }
+        let mut headers = vec![("User-Agent", super::upstream::UPSTREAM_UA.to_string())];
+        headers.extend(auth.map(|auth| ("Authorization", auth.to_string())));
+        let mut response = super::upstream::open("GET", &self.sub_url, &headers, b"", Duration::from_secs(30))?;
+        if !(200..300).contains(&response.status) {
+            return Err(format!("the source answered {} for its .sub", response.status));
+        }
+        let body = response.read_body(super::subtitles::VOBSUB_SUB_CAP)?;
+        let partial = dir.join("sidecar.sub.part");
+        std::fs::write(&partial, body).and_then(|_| std::fs::rename(&partial, &sub)).map_err(|error| error.to_string())
+    }
 }
 
 /// An embedded text subtitle to burn: its ffprobe index, and whether it is ASS/SSA.
@@ -377,10 +415,20 @@ fn dash_duration(milliseconds: i64) -> String {
 }
 
 impl Plan {
+    /// The image subtitle burned into the picture, as an FFmpeg stream: an embedded one, or a
+    /// VobSub sidecar's first track (input 1), the one a real PMS burns and muxes whichever
+    /// language it lists the `.idx` as (McBain's da of da, fi, no, sv: `vobsub_s1422.json`).
+    fn burned_image(&self) -> Option<String> {
+        self.subtitle.map(|index| format!("0:{index}")).or_else(|| self.vobsub.as_ref().filter(|vobsub| !vobsub.copy).map(|_| "1:0".to_string()))
+    }
+
     /// The output's container, as the decision and the session rows name it.
     pub fn container(&self) -> &'static str {
         if self.matroska {
             "mkv"
+        } else if self.protocol == Protocol::Http {
+            // Only a track's `container=mp3` target streams over http outside Matroska (Plezy's).
+            "mp3"
         } else {
             self.protocol.container()
         }
@@ -676,7 +724,7 @@ pub(crate) fn ladder(plan: &Plan, hardware: &Hardware) -> Vec<Path> {
         // A burned image subtitle stays on the device where it overlays with alpha there (the
         // probe's `alpha_subtitles`: VAAPI's `overlay_vaapi`); elsewhere the picture is decoded on
         // the CPU, where the bitmap is overlaid.
-        let overlays = plan.subtitle.is_none() || (hardware.alpha_subtitles && matches!(hardware.accel, Accel::Vaapi(_)) && plan.hardware_encode);
+        let overlays = plan.burned_image().is_none() || (hardware.alpha_subtitles && matches!(hardware.accel, Accel::Vaapi(_)) && plan.hardware_encode);
         if (tonemaps || !plan.hardware_encode) && deinterlaces && overlays && hardware.decode.contains(&decode_key(&video.source_codec, video.bit_depth)) {
             paths.push(if plan.hardware_encode { Path::Full } else { Path::DecodeOnly });
         }
@@ -689,14 +737,24 @@ pub(crate) fn ladder(plan: &Plan, hardware: &Hardware) -> Vec<Path> {
 /// The FFmpeg encoder for a codec a client profile names. FFmpeg's own `opus` and `vorbis`
 /// encoders are experimental and refused without `-strict -2`, and `pcm` names no encoder:
 /// a target listing one of them first (Plex Desktop's `opus,vorbis,flac`) failed every
-/// path of the ladder. The others are FFmpeg's names already (`mp3` is libmp3lame).
-fn audio_encoder(codec: &str) -> &str {
-    match codec {
+/// path of the ladder. The others are FFmpeg's names already (`mp3` is libmp3lame). The codec
+/// is the client's word, so any other name is `None` and never reaches FFmpeg: Plezy's
+/// undecoded `aac%2cac3%2ceac3%2cmp3` was "Unknown encoder" on every segment (rex#18).
+fn audio_encoder(codec: &str) -> Option<&'static str> {
+    Some(match codec {
         "opus" => "libopus",
         "vorbis" => "libvorbis",
         "pcm" => "pcm_s16le",
-        other => other,
-    }
+        "aac" => "aac",
+        "ac3" => "ac3",
+        "eac3" => "eac3",
+        "mp3" => "mp3",
+        "mp2" => "mp2",
+        "flac" => "flac",
+        "alac" => "alac",
+        "wmav2" => "wmav2",
+        _ => return None,
+    })
 }
 
 /// The FFmpeg command line for one run of a session, starting at `start` (a segment).
@@ -778,12 +836,18 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         }
         push(&mut args, &["-i", file]);
     }
+    if plan.vobsub.is_some() {
+        if offset > 0 {
+            push(&mut args, &["-ss", &offset.to_string()]);
+        }
+        push(&mut args, &["-f", "vobsub", "-i", &dir.join("sidecar.idx").to_string_lossy()]);
+    }
     // Silence where a live source's audio is missing now (`Session::silenced`), in the layout the
     // plan promised, encoded as its audio is.
     let silence_input = plan.audio.as_ref().filter(|_| plan.silent_audio).map(|audio| {
         let layout = match audio.channels { 1 => "mono", 6 => "5.1", _ => "stereo" };
         push(&mut args, &["-f", "lavfi", "-i", &format!("anullsrc=channel_layout={layout}:sample_rate={}", audio.sampling_rate)]);
-        if sidecar_file.is_some() && !Sidecar::burned(plan) { 2 } else { 1 }
+        if sidecar_file.is_some() && !Sidecar::burned(plan) || plan.vobsub.is_some() { 2 } else { 1 }
     });
     // The text drawn into the picture: an upload, or an embedded track once it has been read.
     let text_file = sidecar_file
@@ -821,8 +885,8 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
     // (Movistar Deportes' stream 0 turned audio, and its "video" took an audio filter; rex-fun
     // 2026-10-27).
     let video_input = video.map(|video| if video.index >= 0 && !plan.live() { format!("0:{}", video.index) } else { "0:v:0".to_string() });
-    let burn = plan.subtitle.filter(|_| converting);
-    if let (Some(input), None, None) = (&video_input, burn, &canvas) {
+    let burn = plan.burned_image().filter(|_| converting);
+    if let (Some(input), None, None) = (&video_input, &burn, &canvas) {
         push(&mut args, &["-map", input]);
     }
     // The media playlist lists every segment up to the Part's duration (`media_playlist`), the
@@ -880,7 +944,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         Some(seconds) => format!("{filter},tpad=stop_mode=clone:stop_duration={seconds:.3}"),
         None => filter,
     });
-    if let (Some(input), Some(subtitle), Some(filter)) = (&video_input, burn, &video_filter) {
+    if let (Some(input), Some(subtitle), Some(filter)) = (&video_input, &burn, &video_filter) {
         let graph = match video.filter(|_| path == Path::Full && device.is_some() && hardware.alpha_subtitles) {
             // The picture stays on the device; the bitmap is scaled to it on the CPU, where it
             // changes only per line, and laid over it there (`overlay_vaapi`). Overlaid on CPU
@@ -888,12 +952,12 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
             // where the device path runs at 1x (rex-fun, 2026-10-27: 10 s ready at 42.0 s, 10.6 s
             // without the subtitle).
             Some(video) => format!(
-                "[{input}]{filter}[main];[0:{subtitle}]scale={}:{},format=yuva420p,hwupload[sub];[main][sub]overlay_vaapi=eof_action=pass[v]",
+                "[{input}]{filter}[main];[{subtitle}]scale={}:{},format=yuva420p,hwupload[sub];[main][sub]overlay_vaapi=eof_action=pass[v]",
                 video.width, video.height
             ),
             // The subtitle is drawn at the source's size, before the scale and any upload;
             // FFmpeg turns the bitmap stream into frames for `overlay` itself.
-            None => format!("[{input}][0:{subtitle}]overlay=eof_action=pass,{filter}[v]"),
+            None => format!("[{input}][{subtitle}]overlay=eof_action=pass,{filter}[v]"),
         };
         push(&mut args, &["-filter_complex", &graph, "-map", "[v]"]);
     }
@@ -909,10 +973,16 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         };
         push(&mut args, &["-map", &map]);
     }
+    let muxed_vobsub = plan.vobsub.as_ref().filter(|vobsub| vobsub.copy && plan.matroska);
     let text = plan.text_subtitle.filter(|_| plan.matroska).map(|index| format!("0:{index}"))
-        .or_else(|| plan.sidecar.as_ref().filter(|_| plan.matroska).map(|_| "1:0".to_string()));
+        .or_else(|| plan.sidecar.as_ref().filter(|_| plan.matroska).map(|_| "1:0".to_string()))
+        .or_else(|| muxed_vobsub.map(|_| "1:0".to_string()));
     if let Some(input) = &text {
         push(&mut args, &["-map", input, "-c:s", if plan.text_to_srt && plan.text_subtitle.is_some() { "srt" } else { "copy" }]);
+    }
+    // Tagged as the language it is listed as, as the reference tags it (McBain's `swe`).
+    if let Some(language) = muxed_vobsub.and_then(|vobsub| vobsub.language.as_deref()) {
+        push(&mut args, &["-metadata:s:s:0", &format!("language={language}")]);
     }
     match video {
         Some(video) if video.copy => push(&mut args, &["-c:v", "copy"]),
@@ -940,7 +1010,9 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
             push(&mut args, &["-c:a", "copy"]);
         } else {
             push(&mut args, &[
-                "-c:a", audio_encoder(&audio.codec), "-ac", &audio.channels.to_string(), "-b:a", &format!("{}k", audio.bitrate),
+                // ponytail: `transcode_plan` refuses converting to a codec with no encoder; only a copy
+                // `plan_now` demoted can still name its list's head (dca), and aac stands in for it.
+                "-c:a", audio_encoder(&audio.codec).unwrap_or("aac"), "-ac", &audio.channels.to_string(), "-b:a", &format!("{}k", audio.bitrate),
                 "-ar", &audio.sampling_rate.to_string(),
                 "-af", &audio_filter(plan),
             ]);
@@ -979,7 +1051,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         if plan.copyts && offset > 0 {
             push(&mut args, &["-output_ts_offset", &offset.to_string()]);
         }
-        push(&mut args, &["-f", "matroska", "pipe:1"]);
+        push(&mut args, &["-f", if plan.matroska { "matroska" } else { "mp3" }, "pipe:1"]);
         return args;
     }
     if plan.protocol == Protocol::File {
@@ -1416,6 +1488,10 @@ pub(crate) fn serve_stream<S: Write>(stream: &mut S, response: &Response, plan: 
         }
         if let Some(sidecar) = &session.plan.sidecar {
             let _ = std::fs::write(session.dir.join(sidecar.file_name()), &sidecar.content);
+        }
+        if let Some(Err(error)) = session.plan.vobsub.as_ref().map(|vobsub| vobsub.write(&session.dir, session.plan.auth.as_deref())) {
+            failure = format!("cannot read its VobSub: {error}");
+            break;
         }
         if let Ok(mut last) = last_bytes.lock() {
             *last = Instant::now();
@@ -1942,6 +2018,9 @@ impl Transcoder {
                 if let Some(sidecar) = &plan.sidecar {
                     std::fs::write(dir.join(sidecar.file_name()), &sidecar.content).map_err(|error| error.to_string())?;
                 }
+                if let Some(vobsub) = &plan.vobsub {
+                    vobsub.write(&dir, plan.auth.as_deref())?;
+                }
                 let mut command = Command::new(&self.ffmpeg);
                 command.args(ffmpeg_args(plan, path, &hardware, 0, &dir)).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
                 let mut child = spawn_tied(command).map_err(|error| format!("cannot start transcoder: {error}"))?;
@@ -2248,6 +2327,9 @@ impl Transcoder {
             if let Err(err) = std::fs::write(session.dir.join(sidecar.file_name()), &sidecar.content) {
                 warning!("TRANSCODE {} cannot write its subtitle: {err}", session.id);
             }
+        }
+        if let Some(Err(err)) = session.plan.vobsub.as_ref().map(|vobsub| vobsub.write(&session.dir, session.plan.auth.as_deref())) {
+            warning!("TRANSCODE {} cannot read its VobSub: {err}", session.id);
         }
         let run = session.run.fetch_add(1, Ordering::SeqCst) + 1;
         debug!(
@@ -3188,31 +3270,42 @@ impl Runtime {
         // out of the release first (`text_burn`), since FFmpeg's `subtitles` filter reads its
         // whole file before the first frame.
         let burn = matches!(query.get("subtitles").map(String::as_str), None | Some("burn" | "auto"));
+        // A target in Matroska carries a selected embedded text subtitle it lists, as the
+        // reference copies an SRT into Plex for Android's and iOS's segments; an image one is
+        // still burned, a VobSub aside (below). ASS is copied too: the reference burns it, which rex cannot without
+        // reading the whole file first, and both apps list it.
+        // Plex HTPC on a Raspberry Pi names its http target's container `matroska`.
+        let matroska = wire == Protocol::Http || (wire == Protocol::Hls && target.get("container").and_then(Value::as_str) == Some("mkv"));
+        let subtitle_codecs = list(target.get("subtitleCodec"));
+        // A VobSub goes into Matroska segments that list it -- an embedded one copied, a source's
+        // pair muxed from its `.idx` -- as the reference does for Plex for Android's and iOS's
+        // Generic targets, and is burned for Plex Web (`fixtures/subtitles/vobsub_s1422.json`).
+        // A client that asks for it burned (`subtitles=burn`) gets it burned there too: Plex for
+        // Android's own request below Original does, and selects no muxed track
+        // (`vobsub_burn_android_s1422.json`, Pixel 6, 2026-11-04).
+        // PGS is still burned everywhere: no Matroska copy of one was measured.
+        let muxes_vobsub = matroska
+            && query.get("subtitles").map(String::as_str) != Some("burn")
+            && (names(&subtitle_codecs, "vobsub") || names(&subtitle_codecs, "dvd_subtitle"));
         let subtitle = streams
             .iter()
             .filter(|_| burn)
             .find(|stream| kind(stream) == Some(3) && stream.get("selected").is_some_and(truthy) && stream.get("key").is_none())
             .filter(|stream| {
                 let codec = stream.get("codec").map(string_value).unwrap_or_default().to_ascii_lowercase();
-                decision::IMAGE_SUBTITLES.contains(&codec.as_str())
+                decision::IMAGE_SUBTITLES.contains(&codec.as_str()) && !(codec == "vobsub" && muxes_vobsub)
             })
             .and_then(|stream| stream.get("index").and_then(Value::as_i64))
             .filter(|index| *index >= 0 && video_stream.is_some());
-        // A target in Matroska carries a selected embedded text subtitle it lists, as the
-        // reference copies an SRT into Plex for Android's and iOS's segments; an image one is
-        // still burned. ASS is copied too: the reference burns it, which rex cannot without
-        // reading the whole file first, and both apps list it.
-        // Plex HTPC on a Raspberry Pi names its http target's container `matroska`.
-        let matroska = wire == Protocol::Http || (wire == Protocol::Hls && target.get("container").and_then(Value::as_str) == Some("mkv"));
-        let subtitle_codecs = list(target.get("subtitleCodec"));
         let text_subtitle = streams
             .iter()
             .filter(|_| burn && matroska)
             .find(|stream| kind(stream) == Some(3) && stream.get("selected").is_some_and(truthy) && stream.get("key").is_none())
             .filter(|stream| {
                 let codec = stream.get("codec").map(string_value).unwrap_or_default().to_ascii_lowercase();
-                !decision::IMAGE_SUBTITLES.contains(&codec.as_str())
-                    && (names(&subtitle_codecs, &codec) || codec == "mov_text" && names(&subtitle_codecs, "srt"))
+                codec == "vobsub" && muxes_vobsub
+                    || !decision::IMAGE_SUBTITLES.contains(&codec.as_str())
+                        && (names(&subtitle_codecs, &codec) || codec == "mov_text" && names(&subtitle_codecs, "srt"))
             });
         // An MP4's timed text is converted to SRT as it is read; its packets come in the pass.
         let text_to_srt = text_subtitle.is_some_and(|stream| stream.get("codec").map(string_value).is_some_and(|codec| codec.eq_ignore_ascii_case("mov_text")));
@@ -3243,11 +3336,26 @@ impl Runtime {
                 let content = stream.get("_content").and_then(Value::as_str)?.to_string();
                 (fits && matches!(format.as_str(), "srt" | "ass" | "ssa")).then_some(Sidecar { id, format, content })
             });
+        // A source's VobSub pair (`_sourceSub`, its `.idx` text kept): FFmpeg's second input.
+        let vobsub = streams
+            .iter()
+            .filter(|_| burn && subtitle.is_none() && text_subtitle.is_none() && text_burn.is_none() && sidecar.is_none())
+            .find(|stream| kind(stream) == Some(3) && stream.get("selected").is_some_and(truthy) && stream.get("_sourceSub").is_some())
+            .and_then(|stream| {
+                let (sub_url, _) = source.ffmpeg_input(stream.get("_sourceSub")?.as_str()?);
+                (muxes_vobsub || video_stream.is_some()).then_some(VobSub {
+                    id: stream.get("id").map(string_value)?,
+                    idx: stream.get("_content")?.as_str()?.to_string(),
+                    sub_url,
+                    language: stream.get("languageCode").and_then(Value::as_str).filter(|code| !code.is_empty()).map(str::to_string),
+                    copy: muxes_vobsub,
+                })
+            });
         if let Some(value) = query.get("maxVideoBitrate") {
             if !value.parse::<i64>().is_ok_and(|value| (0..=1_000_000).contains(&value)) { return None; }
         }
         let max_kbps = query.get("maxVideoBitrate").and_then(|value| value.parse::<i64>().ok()).filter(|value| *value > 0)
-            .into_iter().chain(self.stream_bitrate_limit(query)).min();
+            .into_iter().chain(self.stream_bitrate_limit(query)).chain(decision::video_bitrate_cap(profile)).min();
         let cap = query.get("videoResolution").and_then(|value| {
             let (w, h) = value.split_once('x')?;
             let (w, h) = (w.trim().parse::<f64>().ok()?, h.trim().parse::<f64>().ok()?);
@@ -3258,6 +3366,7 @@ impl Runtime {
         if query.get("videoResolution").is_some_and(|value| !value.is_empty()) && cap.is_none() { return None; }
         if audio_stream.is_some_and(|stream| stream.get("channels").and_then(Value::as_i64).is_some_and(|channels| !(1..=64).contains(&channels))) { return None; }
         if video_stream.is_some_and(|stream| ["width", "height"].iter().any(|name| number_of(stream.get(*name)).is_some_and(|size| !(2.0..=16384.0).contains(&size)))) { return None; }
+        let out = if names(&audio_codecs, "aac") || audio_codecs.is_empty() { "aac".to_string() } else { audio_codecs[0].clone() };
         let mut audio = audio_stream.map(|stream| {
             let codec = stream.get("codec").map(string_value).unwrap_or_default().to_ascii_lowercase();
             let channels = stream.get("channels").and_then(Value::as_i64).unwrap_or(2).max(1);
@@ -3272,7 +3381,6 @@ impl Runtime {
                 && names(&audio_codecs, &codec)
                 && !(matroska && adts)
                 && decision::codec_limitation(profile, "VideoAudioCodec", &codec, media).is_none();
-            let out = if names(&audio_codecs, "aac") || audio_codecs.is_empty() { "aac".to_string() } else { audio_codecs[0].clone() };
             let ordinal = streams.iter().filter(|other| kind(other) == Some(2)).position(|other| other.get("index") == stream.get("index")).unwrap_or(0) as i64;
             if copy {
                 AudioPlan { index: stream.get("index").and_then(Value::as_i64).unwrap_or(-1), ordinal, copy, source_codec: codec.clone(), codec, convert_to: out, channels, bitrate: source_bitrate, sampling_rate }
@@ -3313,6 +3421,9 @@ impl Runtime {
                 }
             }
         });
+        // Refused only when converting: a list headed by a codec rex cannot encode (dca,ac3) still
+        // copies a source it names, which the gate before the copy decision refused.
+        if audio.as_ref().is_some_and(|audio| !audio.copy && audio_encoder(&audio.codec).is_none()) { return None; }
         // Reserve muxing headroom rather than raising small limits to a fixed minimum.
         let max_kbps = max_kbps.map(|max| max.saturating_mul(95) / 100);
         if let Some(max) = max_kbps {
@@ -3348,6 +3459,7 @@ impl Runtime {
                 && !paff_blind
                 && text_burn.is_none()
                 && !(sidecar.is_some() && !matroska)
+                && !vobsub.as_ref().is_some_and(|vobsub| !vobsub.copy)
                 && flag("directStream")
                 && names(&video_codecs, &codec)
                 && decision::codec_limitation(profile, "VideoCodec", &codec, media).is_none()
@@ -3418,6 +3530,7 @@ impl Runtime {
             text_subtitle,
             text_to_srt,
             sidecar,
+            vobsub,
             text_burn,
             incomplete_segments: query.get("X-Plex-Incomplete-Segments").map(String::as_str) == Some("1")
                 || headers.get("x-plex-incomplete-segments").map(String::as_str) == Some("1"),
@@ -3595,6 +3708,21 @@ impl Runtime {
                         stream.insert("burn".to_string(), json!("1"));
                         stream.insert("decision".to_string(), json!("burn"));
                     }
+                    // The reference's VobSub rows (`vobsub_s1422.json`): burned, its `format` left
+                    // out; muxed, the bitmaps it becomes, `transcode` and in `segments-subs`.
+                    (Some(3), _, _) if plan.vobsub.as_ref().is_some_and(|vobsub| stream.get("id").map(string_value).as_deref() == Some(vobsub.id.as_str())) => {
+                        stream.shift_remove("_content");
+                        if plan.vobsub.as_ref().is_some_and(|vobsub| vobsub.copy) {
+                            stream.insert("codec".to_string(), json!("vobsub"));
+                            stream.insert("format".to_string(), json!("vobsub"));
+                            stream.insert("decision".to_string(), json!("transcode"));
+                            stream.insert("location".to_string(), json!("segments-subs"));
+                            return Some(Value::Object(stream));
+                        }
+                        stream.shift_remove("format");
+                        stream.insert("burn".to_string(), json!("1"));
+                        stream.insert("decision".to_string(), json!("burn"));
+                    }
                     (Some(3), _, _) if plan.matroska && plan.text_subtitle.is_some() && stream.get("index").and_then(Value::as_i64) == plan.text_subtitle => {
                         // A converted subtitle names its new format and says `transcode`, as the
                         // reference's SRT turned ASS for Plex Web does (`subtitles_s1422.json`).
@@ -3676,10 +3804,11 @@ impl Runtime {
         match leaf {
             // Plex Desktop names no extension for `http` (its web client's `{dash: ".mpd",
             // hls: ".m3u8", http: ""}`); a bare `start` for any other protocol stays refused.
-            "start.m3u8" | "start.mpd" | "start" if leaf != "start" || query.get("protocol").map(String::as_str) == Some("http") => {
+            // Plezy's music quality presets ask for one MP3 at `start.mp3` (plexav, `plezy_http_mp3.json`).
+            "start.m3u8" | "start.mpd" | "start" | "start.mp3" if leaf != "start" || query.get("protocol").map(String::as_str) == Some("http") => {
                 let protocol = match leaf {
                     "start.mpd" => "dash",
-                    "start" => "http",
+                    "start" | "start.mp3" => "http",
                     _ => "hls",
                 };
                 let key = match self.decision_target(query, request) {
@@ -3719,7 +3848,7 @@ impl Runtime {
                 let content_type = match plan.protocol {
                     Protocol::Hls => "application/vnd.apple.mpegurl",
                     Protocol::Dash => "application/dash+xml",
-                    Protocol::Http => "video/x-matroska",
+                    Protocol::Http => if plan.matroska { "video/x-matroska" } else { "audio/mpeg" },
                     Protocol::File => return Some(Response::error(400, "rex: bad request")),
                 };
                 info!(
@@ -3979,6 +4108,7 @@ mod tests {
             text_subtitle: None,
             text_to_srt: false,
             sidecar: None,
+            vobsub: None,
             text_burn: None,
             incomplete_segments: true,
             copyts: false,
@@ -3993,6 +4123,15 @@ mod tests {
             boost_dialog: false,
             normalize_loudness: false,
         }
+    }
+
+    #[test]
+    fn an_audio_codec_rex_has_no_encoder_for_is_refused_not_handed_to_ffmpeg() {
+        assert_eq!(audio_encoder("aac%2cac3%2ceac3%2cmp3"), None);
+        assert_eq!(audio_encoder("-i"), None);
+        assert_eq!(audio_encoder("dca"), None);
+        assert_eq!(audio_encoder("opus"), Some("libopus"));
+        assert_eq!(audio_encoder("ac3"), Some("ac3"));
     }
 
     #[test]
@@ -4356,6 +4495,29 @@ mod tests {
         assert_eq!(head(&mkv.media_playlist()), head(reference));
         assert_eq!(mkv.container(), "mkv");
         assert!(!plan(false, 30_000).media_playlist().contains("EXT-X-MAP"));
+    }
+
+    #[test]
+    fn a_vobsub_sidecar_is_muxed_into_matroska_or_burned_from_its_first_track() {
+        let vobsub = VobSub { id: "9".into(), idx: "# VobSub index file, v7".into(), sub_url: "http://zurg/dav/movies/a.sub".into(),
+                              language: Some("swe".into()), copy: true };
+        let dir = std::path::Path::new("/rex/s");
+        let idx = format!("-f vobsub -i {}", dir.join("sidecar.idx").display());
+        let mut mkv = plan(false, 30_000);
+        mkv.matroska = true;
+        mkv.vobsub = Some(vobsub.clone());
+        let muxed = ffmpeg_args(&mkv, Path::Software, &Hardware::software(), 5, dir).join(" ");
+        // Its own seek, as an upload's, and tagged with the language it is listed as.
+        assert!(muxed.contains(&format!("-ss 10 -i http://zurg/dav/movies/a.mkv -ss 10 {idx}")), "{muxed}");
+        assert!(muxed.contains("-map 1:0 -c:s copy") && muxed.contains("-metadata:s:s:0 language=swe"), "{muxed}");
+        assert!(!muxed.contains("overlay"), "{muxed}");
+        let mut ts = plan(false, 30_000);
+        ts.vobsub = Some(VobSub { copy: false, ..vobsub });
+        let burned = ffmpeg_args(&ts, Path::Software, &Hardware::software(), 0, dir).join(" ");
+        assert!(burned.contains(&idx) && burned.contains("[0:0][1:0]overlay=eof_action=pass,"), "{burned}");
+        assert!(burned.contains("-sn") && !burned.contains("-c:s"), "{burned}");
+        assert_eq!(ts.burned_image().as_deref(), Some("1:0"));
+        assert_eq!(mkv.burned_image(), None);
     }
 
     #[test]

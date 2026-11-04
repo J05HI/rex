@@ -1,5 +1,5 @@
 {
- "_provenance": "Every cell is a plain-form decision measured against a real PMS: plexlab (1.43.4) and the 1.42.2 reference read-only over 24 rows chosen for their containers, codecs, channel counts, bit depths and subtitle kinds, and plexscratch (1.43.4) over one row MADE for the model -- two audio tracks that carry no language at all, muxed into its writable media directory with ffmpeg, scanned, and read back. `rows` holds each row's Media as the reference wrote it; `cells` holds what each of the 78 client profiles answered for it. The plexscratch row is recorded in BOTH of its states: `selected`, after a client has chosen a track with `PUT /library/parts/{id}?audioStreamID=`, and `pre-selection`, after `audioStreamID=-1` clears that -- the item's Stream rows are byte-identical in the two and 41 of the 78 answers are not. rex holds a chosen track, so `selected` is the state the model reproduces and `pre-selection` is recorded and not emulated. the 1.42.2 reference's row 19813 has the same shape -- two audio tracks naming no language -- and answers 68 of the 78 identically to the made row's `pre-selection` state, the other ten being its selected sidecar subtitle refusing earlier; it is recorded in that state for the same reason. Cycle 35 added the 1.42.2 reference's row 3831, a 4.6 GB mp4 whose h264 is `high 10` at 10 bits with 64-bit offsets: it is the corpus's only row that trips a `list=` limitation (Android's `video.profile`), its only `has64bitOffsets` true, and the witness for the ` [list]` suffix a `list=` refusal carries.  Cycle 36 adds two rows of the 1.42.2 reference driven against all 78 profiles: zen:1120, a Dolby Vision PROFILE 5 mkv/hevc/eac3 row -- the corpus's first, and the witness for the server's own `transcodeDecisionCode 2003` refusal -- and zen:1098, an m2ts whose Media carries TWO video Streams (a 4K base layer and a 1080p DoVi profile-7 enhancement layer with `DOVIBLPresent: false`) and the corpus's first `dca-ma`. 20 of the 156 cells were re-driven by the cycle's driver against the 1.42.2 reference and agreed 20/20, and 14 text indices were checked against the reference's own `directPlayDecisionText`.\nCycle 44 adds three rows of the 1.42.2 reference whose SELECTED EMBEDDED SUBTITLE is not the first embedded subtitle while the selected audio IS first -- 917, 4315 and 10442, all mkv/h264/eac3 with an eia_608 track ahead of the selected srt. That shape was absent from the corpus: in every row it held whose subtitle is not first (11901, 2157, 2925, 4969) the AUDIO is not first either, so the audio refusal fires first and hides it. Three profiles -- Samsung, RokuDLNA-5000X-7.x and RokuDLNA-6000X-7.x -- answer `Selected embedded subtitle stream is not the first embedded subtitle stream.` there, which the model had no rule for at all.\n",
+ "_provenance": "Every cell is a plain-form decision measured against a real PMS: plexlab (1.43.4) and the 1.42.2 reference read-only over 24 rows chosen for their containers, codecs, channel counts, bit depths and subtitle kinds, and plexscratch (1.43.4) over one row MADE for the model -- two audio tracks that carry no language at all, muxed into its writable media directory with ffmpeg, scanned, and read back. `rows` holds each row's Media as the reference wrote it; `cells` holds what each of the 78 client profiles answered for it. The plexscratch row is recorded in BOTH of its states: `selected`, after a client has chosen a track with `PUT /library/parts/{id}?audioStreamID=`, and `pre-selection`, after `audioStreamID=-1` clears that -- the item's Stream rows are byte-identical in the two and 41 of the 78 answers are not. rex holds a chosen track, so `selected` is the state the model reproduces and `pre-selection` is recorded and not emulated. the 1.42.2 reference's row 19813 has the same shape -- two audio tracks naming no language -- and answers 68 of the 78 identically to the made row's `pre-selection` state, the other ten being its selected sidecar subtitle refusing earlier; it is recorded in that state for the same reason. Cycle 35 added the 1.42.2 reference's row 3831, a 4.6 GB mp4 whose h264 is `high 10` at 10 bits with 64-bit offsets: it is the corpus's only row that trips a `list=` limitation (Android's `video.profile`), its only `has64bitOffsets` true, and the witness for the ` [list]` suffix a `list=` refusal carries.  Cycle 36 adds two rows of the 1.42.2 reference driven against all 78 profiles: zen:1120, a Dolby Vision PROFILE 5 mkv/hevc/eac3 row -- the corpus's first, and the witness for the server's own `transcodeDecisionCode 2003` refusal -- and zen:1098, an m2ts whose Media carries TWO video Streams (a 4K base layer and a 1080p DoVi profile-7 enhancement layer with `DOVIBLPresent: false`) and the corpus's first `dca-ma`. 20 of the 156 cells were re-driven by the cycle's driver against the 1.42.2 reference and agreed 20/20, and 14 text indices were checked against the reference's own `directPlayDecisionText`.\nCycle 44 adds three rows of the 1.42.2 reference whose SELECTED EMBEDDED SUBTITLE is not the first embedded subtitle while the selected audio IS first -- 917, 4315 and 10442, all mkv/h264/eac3 with an eia_608 track ahead of the selected srt. That shape was absent from the corpus: in every row it held whose subtitle is not first (11901, 2157, 2925, 4969) the AUDIO is not first either, so the audio refusal fires first and hides it. Three profiles -- Samsung, RokuDLNA-5000X-7.x and RokuDLNA-6000X-7.x -- answer `Selected embedded subtitle stream is not the first embedded subtitle stream.` there, which the model had no rule for at all.\nThe video-extension measurement of 2026-11-04 adds 26 rows of plexscratch42 (1.42.2), one per container a real PMS makes a Part of and the corpus had no row for -- 3g2, avc, avs, bivx, dv, dvr-ms, evo, fli, m2t, m2v, nsv, nuv, ogm, pva, qt, rm, rmvb, svq3, tp, ty, vdr, vp3, webm, wtv and xvid from its Plex Movie scanner and vob from its Plex TV Series scanner (the Movie scanner ignores .vob), each driven against all 78 profiles after its first audio stream was chosen. Their Media are the copy's shallow analysis, which is what that PMS decided on. Four of them (avc, fli, m2v, vp3) carry no audio stream, the corpus's first such rows: there Xbox 360's asf-only target answers 3000/2000/4007, \"Implementation for video encoder 'wmv2' not found.\", where a row with audio is its 400. Left out: the asx, sdp, strm and xsp Parts (no stream; every profile 400), viv (its video named `none`, every conversion 4007 for want of a decoder; ffprobe names no codec either) and the mkv control.",
  "texts": [
   "App cannot direct play this item. No direct play video profile exists for protocol http, with container mkv, and video codec h264.",
   "Direct play OK.",
@@ -37,7 +37,35 @@
   "This app cannot play this item. The reason is: video.profile limitation applies: high 10 != baseline|main|high [list].",
   "This app cannot play this item. The reason is: video.bitDepth limitation applies: 10 > 8.",
   "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpegts, and video codec hevc.",
-  "App cannot direct play this item. Selected embedded subtitle stream is not the first embedded subtitle stream."
+  "App cannot direct play this item. Selected embedded subtitle stream is not the first embedded subtitle stream.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mp4, and video codec mpeg4.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container h264, and video codec h264.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpeg, and video codec cavs.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container dv, and video codec dvvideo.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container asf, and video codec mpeg2video.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpeg, and video codec mpeg2video.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpeg, video codec mpeg2video, and audio codec ac3.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container flic, and video codec flic.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpegts, and video codec mpeg2video.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpegts, video codec mpeg2video, and audio codec mp2.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpegvideo, and video codec mpeg2video.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container nsv, and video codec vp3.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container nuv, and video codec nuv.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container ogg, and video codec mpeg4.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container pva, and video codec mpeg2video.",
+  "This app cannot play this item. The reason is: audio.bitrate limitation applies: 77 < 96.",
+  "This app cannot play this item. The reason is: video.width limitation applies: 1280 > 720.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container rm, and video codec rv20.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container rm, and video codec rv40.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mp4, and video codec svq3.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpegts, video codec mpeg2video, and audio codec ac3.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container ty, and video codec mpeg2video.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mpeg, video codec mpeg2video, and audio codec mp2.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mgsts, and video codec vp3.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mkv, and video codec vp9.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container mkv, video codec vp9, and audio codec opus.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container wtv, and video codec mpeg2video.",
+  "App cannot direct play this item. No direct play video profile exists for protocol http, with container wtv, video codec mpeg2video, and audio codec mp2."
  ],
  "rows": {
   "kids:1": {
@@ -4468,6 +4496,1505 @@
         "languageCode": "swe",
         "displayTitle": "Svenska",
         "extendedDisplayTitle": "Svenska (SRT)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1099": {
+   "Media": {
+    "id": 239,
+    "duration": 10000,
+    "bitrate": 1304,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "aac",
+    "videoCodec": "mpeg4",
+    "videoResolution": "720",
+    "container": "mp4",
+    "videoFrameRate": "24p",
+    "optimizedForStreaming": 1,
+    "audioProfile": "lc",
+    "has64bitOffsets": false,
+    "Part": [
+     {
+      "id": 239,
+      "key": "/library/parts/239/1793753081/file.3g2",
+      "duration": 10000,
+      "file": "/data2/videoext-movies/Videoext Probe 3g2 (2020)/Videoext Probe 3g2 (2020).3g2",
+      "size": 1630494,
+      "audioProfile": "lc",
+      "container": "mp4",
+      "has64bitOffsets": false,
+      "optimizedForStreaming": true,
+      "Stream": [
+       {
+        "id": 453,
+        "streamType": 1,
+        "default": true,
+        "codec": "mpeg4",
+        "index": 0,
+        "bitrate": 1233,
+        "codecID": "mp4v",
+        "frameRate": 24.0,
+        "height": 720,
+        "refFrames": 1,
+        "streamIdentifier": "1",
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (MPEG4)"
+       },
+       {
+        "id": 454,
+        "streamType": 2,
+        "selected": true,
+        "default": true,
+        "codec": "aac",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 67,
+        "profile": "lc",
+        "samplingRate": 48000,
+        "streamIdentifier": "2",
+        "displayTitle": "Unknown (AAC Mono)",
+        "extendedDisplayTitle": "Unknown (AAC Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1101": {
+   "Media": {
+    "id": 241,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "videoCodec": "h264",
+    "videoResolution": "720",
+    "container": "h264",
+    "videoFrameRate": "24p",
+    "videoProfile": "high",
+    "Part": [
+     {
+      "id": 241,
+      "key": "/library/parts/241/1793753083/file.avc",
+      "file": "/data2/videoext-movies/Videoext Probe avc (2020)/Videoext Probe avc (2020).avc",
+      "size": 998937,
+      "container": "h264",
+      "videoProfile": "high",
+      "Stream": [
+       {
+        "id": 455,
+        "streamType": 1,
+        "selected": true,
+        "codec": "h264",
+        "index": 0,
+        "codedHeight": 720,
+        "codedWidth": 1280,
+        "frameRate": 24.0,
+        "hasScalingMatrix": false,
+        "height": 720,
+        "level": 31,
+        "profile": "high",
+        "refFrames": 1,
+        "scanType": "progressive",
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (H.264)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1102": {
+   "Media": {
+    "id": 242,
+    "duration": 17400,
+    "bitrate": 1928,
+    "audioChannels": 2,
+    "audioCodec": "mp2",
+    "videoCodec": "cavs",
+    "container": "mpeg",
+    "Part": [
+     {
+      "id": 242,
+      "key": "/library/parts/242/1793753096/file.avs",
+      "duration": 17400,
+      "file": "/data2/videoext-movies/Videoext Probe avs (2020)/Videoext Probe avs (2020).avs",
+      "size": 4194304,
+      "container": "mpeg",
+      "Stream": [
+       {
+        "id": 456,
+        "streamType": 1,
+        "codec": "cavs",
+        "index": 1,
+        "bitrate": 1768,
+        "frameRate": 1.667,
+        "refFrames": 1,
+        "streamIdentifier": "480",
+        "displayTitle": "Unknown",
+        "extendedDisplayTitle": "Unknown (CAVS)"
+       },
+       {
+        "id": 457,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp2",
+        "index": 2,
+        "channels": 2,
+        "bitrate": 160,
+        "audioChannelLayout": "stereo",
+        "samplingRate": 48000,
+        "streamIdentifier": "448",
+        "displayTitle": "Unknown (MP2 Stereo)",
+        "extendedDisplayTitle": "Unknown (MP2 Stereo)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1103": {
+   "Media": {
+    "id": 243,
+    "duration": 10042,
+    "bitrate": 1381,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "mp3",
+    "videoCodec": "mpeg4",
+    "videoResolution": "720",
+    "container": "avi",
+    "videoFrameRate": "24p",
+    "videoProfile": "simple",
+    "Part": [
+     {
+      "id": 243,
+      "key": "/library/parts/243/1793753088/file.bivx",
+      "duration": 10042,
+      "file": "/data2/videoext-movies/Videoext Probe bivx (2020)/Videoext Probe bivx (2020).bivx",
+      "size": 1733602,
+      "container": "avi",
+      "videoProfile": "simple",
+      "Stream": [
+       {
+        "id": 458,
+        "streamType": 1,
+        "codec": "mpeg4",
+        "index": 0,
+        "bitrate": 1238,
+        "codecID": "DX50",
+        "codedHeight": 720,
+        "codedWidth": 1280,
+        "frameRate": 24.0,
+        "height": 720,
+        "level": 1,
+        "profile": "simple",
+        "refFrames": 1,
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (MPEG4)"
+       },
+       {
+        "id": 459,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp3",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 128,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "1",
+        "displayTitle": "Unknown (MP3 Mono)",
+        "extendedDisplayTitle": "Unknown (MP3 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1104": {
+   "Media": {
+    "id": 244,
+    "duration": 10000,
+    "bitrate": 28800,
+    "audioChannels": 2,
+    "audioCodec": "pcm",
+    "videoCodec": "dvvideo",
+    "container": "dv",
+    "videoFrameRate": "PAL",
+    "audioProfile": "pcm_s16le",
+    "Part": [
+     {
+      "id": 244,
+      "key": "/library/parts/244/1793753084/file.dv",
+      "duration": 10000,
+      "file": "/data2/videoext-movies/Videoext Probe dv (2020)/Videoext Probe dv (2020).dv",
+      "size": 36000000,
+      "audioProfile": "pcm_s16le",
+      "container": "dv",
+      "Stream": [
+       {
+        "id": 460,
+        "streamType": 1,
+        "codec": "dvvideo",
+        "index": 0,
+        "bitrate": 25000,
+        "anamorphic": true,
+        "frameRate": 25.0,
+        "pixelAspectRatio": "16:15",
+        "refFrames": 1,
+        "displayTitle": "Unknown",
+        "extendedDisplayTitle": "Unknown (DVVIDEO)"
+       },
+       {
+        "id": 461,
+        "streamType": 2,
+        "selected": true,
+        "codec": "pcm",
+        "index": 1,
+        "channels": 2,
+        "bitrate": 1536,
+        "audioChannelLayout": "stereo",
+        "profile": "pcm_s16le",
+        "samplingRate": 48000,
+        "displayTitle": "Unknown (PCM Stereo)",
+        "extendedDisplayTitle": "Unknown (PCM Stereo)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1105": {
+   "Media": {
+    "id": 245,
+    "duration": 34819,
+    "bitrate": 6166,
+    "width": 720,
+    "height": 576,
+    "aspectRatio": 1.78,
+    "audioChannels": 2,
+    "audioCodec": "ac3",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "576",
+    "container": "asf",
+    "videoFrameRate": "PAL",
+    "Part": [
+     {
+      "id": 245,
+      "key": "/library/parts/245/1793753097/file.dvr-ms",
+      "duration": 34819,
+      "file": "/data2/videoext-movies/Videoext Probe dvr-ms (2020)/Videoext Probe dvr-ms (2020).dvr-ms",
+      "size": 26838309,
+      "container": "asf",
+      "hasThumbnail": "1",
+      "Stream": [
+       {
+        "id": 463,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 2,
+        "bitrate": 5408,
+        "anamorphic": true,
+        "codedHeight": 576,
+        "codedWidth": 720,
+        "frameRate": 25.0,
+        "height": 576,
+        "pixelAspectRatio": "64:45",
+        "refFrames": 1,
+        "scanType": "interlaced",
+        "streamIdentifier": "1",
+        "width": 720,
+        "displayTitle": "480i",
+        "extendedDisplayTitle": "480i (MPEG2VIDEO)"
+       },
+       {
+        "id": 462,
+        "streamType": 2,
+        "selected": true,
+        "codec": "ac3",
+        "index": 1,
+        "channels": 2,
+        "bitrate": 759,
+        "audioChannelLayout": "stereo",
+        "streamIdentifier": "2",
+        "displayTitle": "Unknown (AC3 Stereo)",
+        "extendedDisplayTitle": "Unknown (AC3 Stereo)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1106": {
+   "Media": {
+    "id": 246,
+    "duration": 10005,
+    "bitrate": 2309,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "ac3",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "720",
+    "container": "mpeg",
+    "videoFrameRate": "24p",
+    "Part": [
+     {
+      "id": 246,
+      "key": "/library/parts/246/1793753085/file.evo",
+      "duration": 10005,
+      "file": "/data2/videoext-movies/Videoext Probe evo (2020)/Videoext Probe evo (2020).evo",
+      "size": 2887680,
+      "container": "mpeg",
+      "Stream": [
+       {
+        "id": 464,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 0,
+        "bitrate": 2117,
+        "codedHeight": 720,
+        "codedWidth": 1280,
+        "frameRate": 24.0,
+        "height": 720,
+        "refFrames": 1,
+        "scanType": "progressive",
+        "streamIdentifier": "480",
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (MPEG2VIDEO)"
+       },
+       {
+        "id": 465,
+        "streamType": 2,
+        "selected": true,
+        "codec": "ac3",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 192,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "128",
+        "displayTitle": "Unknown (AC3 Mono)",
+        "extendedDisplayTitle": "Unknown (AC3 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1107": {
+   "Media": {
+    "id": 247,
+    "width": 320,
+    "height": 200,
+    "aspectRatio": 1.66,
+    "videoCodec": "flic",
+    "videoResolution": "sd",
+    "container": "flic",
+    "Part": [
+     {
+      "id": 247,
+      "key": "/library/parts/247/1793753092/file.fli",
+      "file": "/data2/videoext-movies/Videoext Probe fli (2020)/Videoext Probe fli (2020).fli",
+      "size": 102180,
+      "container": "flic",
+      "Stream": [
+       {
+        "id": 466,
+        "streamType": 1,
+        "selected": true,
+        "codec": "flic",
+        "index": 0,
+        "frameRate": 14.0,
+        "height": 200,
+        "refFrames": 1,
+        "width": 320,
+        "displayTitle": "SD",
+        "extendedDisplayTitle": "SD (FLIC)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1108": {
+   "Media": {
+    "id": 248,
+    "duration": 10010,
+    "bitrate": 2378,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "mp2",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "720",
+    "container": "mpegts",
+    "videoFrameRate": "24p",
+    "Part": [
+     {
+      "id": 248,
+      "key": "/library/parts/248/1793753086/file.m2t",
+      "duration": 10010,
+      "file": "/data2/videoext-movies/Videoext Probe m2t (2020)/Videoext Probe m2t (2020).m2t",
+      "size": 2975664,
+      "container": "mpegts",
+      "packetLength": 188,
+      "Stream": [
+       {
+        "id": 467,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 0,
+        "bitrate": 2186,
+        "codedHeight": 720,
+        "codedWidth": 1280,
+        "frameRate": 24.0,
+        "height": 720,
+        "refFrames": 1,
+        "scanType": "progressive",
+        "streamIdentifier": "256",
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (MPEG2VIDEO)"
+       },
+       {
+        "id": 468,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp2",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 192,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "257",
+        "displayTitle": "Unknown (MP2 Mono)",
+        "extendedDisplayTitle": "Unknown (MP2 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1109": {
+   "Media": {
+    "id": 249,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "videoCodec": "mpeg2video",
+    "videoResolution": "720",
+    "container": "mpegvideo",
+    "videoFrameRate": "24p",
+    "Part": [
+     {
+      "id": 249,
+      "key": "/library/parts/249/1793753084/file.m2v",
+      "file": "/data2/videoext-movies/Videoext Probe m2v (2020)/Videoext Probe m2v (2020).m2v",
+      "size": 2606546,
+      "container": "mpegvideo",
+      "Stream": [
+       {
+        "id": 469,
+        "streamType": 1,
+        "selected": true,
+        "codec": "mpeg2video",
+        "index": 0,
+        "codedHeight": 720,
+        "codedWidth": 1280,
+        "frameRate": 24.0,
+        "height": 720,
+        "refFrames": 1,
+        "scanType": "progressive",
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (MPEG2VIDEO)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1111": {
+   "Media": {
+    "id": 251,
+    "width": 240,
+    "height": 192,
+    "aspectRatio": 1.33,
+    "audioChannels": 1,
+    "audioCodec": "mp3",
+    "videoCodec": "vp3",
+    "videoResolution": "sd",
+    "container": "nsv",
+    "Part": [
+     {
+      "id": 251,
+      "key": "/library/parts/251/1793753092/file.nsv",
+      "file": "/data2/videoext-movies/Videoext Probe nsv (2020)/Videoext Probe nsv (2020).nsv",
+      "size": 257283,
+      "container": "nsv",
+      "Stream": [
+       {
+        "id": 472,
+        "streamType": 1,
+        "codec": "vp3",
+        "index": 0,
+        "frameRate": 5.0,
+        "height": 192,
+        "refFrames": 1,
+        "width": 240,
+        "displayTitle": "SD",
+        "extendedDisplayTitle": "SD (VP3)"
+       },
+       {
+        "id": 473,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp3",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 16,
+        "audioChannelLayout": "mono",
+        "samplingRate": 22050,
+        "streamIdentifier": "1",
+        "displayTitle": "Unknown (MP3 Mono)",
+        "extendedDisplayTitle": "Unknown (MP3 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1112": {
+   "Media": {
+    "id": 252,
+    "duration": 32912,
+    "bitrate": 1411,
+    "width": 640,
+    "height": 512,
+    "aspectRatio": 1.33,
+    "audioChannels": 2,
+    "audioCodec": "pcm",
+    "videoCodec": "nuv",
+    "videoResolution": "480",
+    "container": "nuv",
+    "videoFrameRate": "PAL",
+    "audioProfile": "pcm_s16le",
+    "Part": [
+     {
+      "id": 252,
+      "key": "/library/parts/252/1793753093/file.nuv",
+      "duration": 32912,
+      "file": "/data2/videoext-movies/Videoext Probe nuv (2020)/Videoext Probe nuv (2020).nuv",
+      "size": 5802831,
+      "audioProfile": "pcm_s16le",
+      "container": "nuv",
+      "Stream": [
+       {
+        "id": 474,
+        "streamType": 1,
+        "codec": "nuv",
+        "index": 0,
+        "anamorphic": true,
+        "frameRate": 25.0,
+        "height": 512,
+        "pixelAspectRatio": "16:15",
+        "refFrames": 1,
+        "width": 640,
+        "displayTitle": "480p",
+        "extendedDisplayTitle": "480p (NUV)"
+       },
+       {
+        "id": 475,
+        "streamType": 2,
+        "selected": true,
+        "codec": "pcm",
+        "index": 1,
+        "channels": 2,
+        "bitrate": 1411,
+        "profile": "pcm_s16le",
+        "samplingRate": 32000,
+        "displayTitle": "Unknown (PCM Stereo)",
+        "extendedDisplayTitle": "Unknown (PCM Stereo)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1113": {
+   "Media": {
+    "id": 253,
+    "duration": 13320,
+    "bitrate": 2520,
+    "width": 640,
+    "height": 480,
+    "aspectRatio": 1.33,
+    "audioChannels": 2,
+    "audioCodec": "vorbis",
+    "videoCodec": "mpeg4",
+    "videoResolution": "480",
+    "container": "ogg",
+    "videoFrameRate": "24p",
+    "Part": [
+     {
+      "id": 253,
+      "key": "/library/parts/253/1793753096/file.ogm",
+      "duration": 13320,
+      "file": "/data2/videoext-movies/Videoext Probe ogm (2020)/Videoext Probe ogm (2020).ogm",
+      "size": 4196352,
+      "container": "ogg",
+      "Stream": [
+       {
+        "id": 476,
+        "streamType": 1,
+        "codec": "mpeg4",
+        "index": 0,
+        "bitrate": 2328,
+        "codecID": "DX50",
+        "codedHeight": 480,
+        "codedWidth": 640,
+        "frameRate": 23.976,
+        "height": 480,
+        "refFrames": 1,
+        "title": "The Vision of Escaflowne - Episode 01 - Declaration of Destiny",
+        "width": 640,
+        "displayTitle": "480p",
+        "extendedDisplayTitle": "The Vision of Escaflowne - Episode 01 - Declaration of Destiny (480p MPEG4)"
+       },
+       {
+        "id": 477,
+        "streamType": 2,
+        "selected": true,
+        "codec": "vorbis",
+        "index": 1,
+        "channels": 2,
+        "bitrate": 96,
+        "language": "english",
+        "languageTag": "english",
+        "languageCode": "",
+        "audioChannelLayout": "stereo",
+        "samplingRate": 48000,
+        "streamIdentifier": "1",
+        "displayTitle": "english (VORBIS Stereo)",
+        "extendedDisplayTitle": "english (VORBIS Stereo)"
+       },
+       {
+        "id": 478,
+        "streamType": 2,
+        "codec": "vorbis",
+        "index": 2,
+        "channels": 2,
+        "bitrate": 96,
+        "language": "japanese",
+        "languageTag": "japanese",
+        "languageCode": "",
+        "audioChannelLayout": "stereo",
+        "samplingRate": 48000,
+        "streamIdentifier": "2",
+        "displayTitle": "japanese (VORBIS Stereo)",
+        "extendedDisplayTitle": "japanese (VORBIS Stereo)"
+       },
+       {
+        "id": 479,
+        "streamType": 3,
+        "codec": "text",
+        "index": 3,
+        "language": "English (Formated)",
+        "languageTag": "English (Formated)",
+        "languageCode": "English (Formated)",
+        "streamIdentifier": "3",
+        "displayTitle": "English (Formated)",
+        "extendedDisplayTitle": "English (Formated) (TEXT)"
+       },
+       {
+        "id": 480,
+        "streamType": 3,
+        "codec": "text",
+        "index": 4,
+        "language": "English (Unformated)",
+        "languageTag": "English (Unformated)",
+        "languageCode": "English (Unformated)",
+        "streamIdentifier": "4",
+        "displayTitle": "English (Unformated)",
+        "extendedDisplayTitle": "English (Unformated) (TEXT)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1114": {
+   "Media": {
+    "id": 254,
+    "duration": 27088,
+    "bitrate": 3956,
+    "width": 544,
+    "height": 576,
+    "aspectRatio": 1.33,
+    "audioChannels": 2,
+    "audioCodec": "mp2",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "480",
+    "container": "pva",
+    "videoFrameRate": "PAL",
+    "Part": [
+     {
+      "id": 254,
+      "key": "/library/parts/254/1793753093/file.pva",
+      "duration": 27088,
+      "file": "/data2/videoext-movies/Videoext Probe pva (2020)/Videoext Probe pva (2020).pva",
+      "size": 13394720,
+      "container": "pva",
+      "Stream": [
+       {
+        "id": 481,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 0,
+        "bitrate": 3881,
+        "anamorphic": true,
+        "codedHeight": 576,
+        "codedWidth": 544,
+        "frameRate": 25.0,
+        "height": 576,
+        "pixelAspectRatio": "24:17",
+        "refFrames": 1,
+        "scanType": "interlaced",
+        "width": 544,
+        "displayTitle": "480i",
+        "extendedDisplayTitle": "480i (MPEG2VIDEO)"
+       },
+       {
+        "id": 482,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp2",
+        "index": 1,
+        "channels": 2,
+        "bitrate": 128,
+        "audioChannelLayout": "stereo",
+        "samplingRate": 48000,
+        "displayTitle": "Unknown (MP2 Stereo)",
+        "extendedDisplayTitle": "Unknown (MP2 Stereo)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1115": {
+   "Media": {
+    "id": 255,
+    "duration": 10000,
+    "bitrate": 886,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "aac",
+    "videoCodec": "h264",
+    "videoResolution": "720",
+    "container": "mp4",
+    "videoFrameRate": "24p",
+    "optimizedForStreaming": 1,
+    "audioProfile": "lc",
+    "has64bitOffsets": false,
+    "videoProfile": "high",
+    "Part": [
+     {
+      "id": 255,
+      "key": "/library/parts/255/1793753082/file.qt",
+      "duration": 10000,
+      "file": "/data2/videoext-movies/Videoext Probe qt (2020)/Videoext Probe qt (2020).qt",
+      "size": 1107130,
+      "audioProfile": "lc",
+      "container": "mp4",
+      "has64bitOffsets": false,
+      "optimizedForStreaming": true,
+      "videoProfile": "high",
+      "Stream": [
+       {
+        "id": 483,
+        "streamType": 1,
+        "default": true,
+        "codec": "h264",
+        "index": 0,
+        "bitrate": 802,
+        "codedHeight": 720,
+        "codedWidth": 1280,
+        "frameRate": 24.0,
+        "hasScalingMatrix": false,
+        "height": 720,
+        "level": 31,
+        "profile": "high",
+        "refFrames": 1,
+        "scanType": "progressive",
+        "streamIdentifier": "1",
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (H.264)"
+       },
+       {
+        "id": 484,
+        "streamType": 2,
+        "selected": true,
+        "default": true,
+        "codec": "aac",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 77,
+        "audioChannelLayout": "mono",
+        "profile": "lc",
+        "samplingRate": 48000,
+        "streamIdentifier": "2",
+        "displayTitle": "Unknown (AAC Mono)",
+        "extendedDisplayTitle": "Unknown (AAC Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1116": {
+   "Media": {
+    "id": 256,
+    "duration": 10016,
+    "bitrate": 661,
+    "width": 640,
+    "height": 360,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "ac3",
+    "videoCodec": "rv20",
+    "videoResolution": "sd",
+    "container": "rm",
+    "videoFrameRate": "24p",
+    "Part": [
+     {
+      "id": 256,
+      "key": "/library/parts/256/1793753107/file.rm",
+      "duration": 10016,
+      "file": "/data2/videoext-movies/Videoext Probe rm (2020)/Videoext Probe rm (2020).rm",
+      "size": 827426,
+      "container": "rm",
+      "Stream": [
+       {
+        "id": 485,
+        "streamType": 1,
+        "codec": "rv20",
+        "index": 0,
+        "bitrate": 400,
+        "frameRate": 24.0,
+        "height": 360,
+        "refFrames": 1,
+        "width": 640,
+        "displayTitle": "SD",
+        "extendedDisplayTitle": "SD (RV20)"
+       },
+       {
+        "id": 486,
+        "streamType": 2,
+        "selected": true,
+        "codec": "ac3",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 128,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "1",
+        "displayTitle": "Unknown (AC3 Mono)",
+        "extendedDisplayTitle": "Unknown (AC3 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1117": {
+   "Media": {
+    "id": 257,
+    "duration": 7287349,
+    "bitrate": 2,
+    "width": 576,
+    "height": 320,
+    "aspectRatio": 1.78,
+    "audioChannels": 2,
+    "audioCodec": "cook",
+    "videoCodec": "rv40",
+    "videoResolution": "sd",
+    "container": "rm",
+    "videoFrameRate": "24p",
+    "Part": [
+     {
+      "id": 257,
+      "key": "/library/parts/257/1793753095/file.rmvb",
+      "duration": 7287349,
+      "file": "/data2/videoext-movies/Videoext Probe rmvb (2020)/Videoext Probe rmvb (2020).rmvb",
+      "size": 2097152,
+      "container": "rm",
+      "Stream": [
+       {
+        "id": 488,
+        "streamType": 1,
+        "codec": "rv40",
+        "index": 1,
+        "bitrate": 701,
+        "frameRate": 23.976,
+        "height": 320,
+        "refFrames": 1,
+        "streamIdentifier": "1",
+        "width": 576,
+        "displayTitle": "SD",
+        "extendedDisplayTitle": "SD (RV40)"
+       },
+       {
+        "id": 487,
+        "streamType": 2,
+        "selected": true,
+        "codec": "cook",
+        "index": 0,
+        "channels": 2,
+        "bitrate": 96,
+        "samplingRate": 44100,
+        "displayTitle": "Unknown (COOK Stereo)",
+        "extendedDisplayTitle": "Unknown (COOK Stereo)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1120": {
+   "Media": {
+    "id": 260,
+    "duration": 43577,
+    "bitrate": 580,
+    "width": 320,
+    "height": 240,
+    "aspectRatio": 1.33,
+    "audioChannels": 1,
+    "audioCodec": "adpcm_ima_qt",
+    "videoCodec": "svq3",
+    "videoResolution": "sd",
+    "container": "mp4",
+    "videoFrameRate": "NTSC",
+    "optimizedForStreaming": 1,
+    "has64bitOffsets": false,
+    "Part": [
+     {
+      "id": 260,
+      "key": "/library/parts/260/1793753095/file.svq3",
+      "duration": 43577,
+      "file": "/data2/videoext-movies/Videoext Probe svq3 (2020)/Videoext Probe svq3 (2020).svq3",
+      "size": 3161989,
+      "container": "mp4",
+      "has64bitOffsets": false,
+      "optimizedForStreaming": true,
+      "Stream": [
+       {
+        "id": 489,
+        "streamType": 1,
+        "default": true,
+        "codec": "svq3",
+        "index": 0,
+        "bitrate": 392,
+        "language": "English",
+        "languageTag": "en",
+        "languageCode": "eng",
+        "frameRate": 30.016,
+        "height": 240,
+        "refFrames": 1,
+        "streamIdentifier": "1",
+        "width": 320,
+        "displayTitle": "SD",
+        "extendedDisplayTitle": "SD (SVQ3)"
+       },
+       {
+        "id": 490,
+        "streamType": 2,
+        "selected": true,
+        "default": true,
+        "codec": "adpcm_ima_qt",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 189,
+        "language": "English",
+        "languageTag": "en",
+        "languageCode": "eng",
+        "samplingRate": 44100,
+        "streamIdentifier": "2",
+        "displayTitle": "English (ADPCM_IMA_QT Mono)",
+        "extendedDisplayTitle": "English (ADPCM_IMA_QT Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1121": {
+   "Media": {
+    "id": 261,
+    "duration": 10016,
+    "bitrate": 2380,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "ac3",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "720",
+    "container": "mpegts",
+    "videoFrameRate": "24p",
+    "Part": [
+     {
+      "id": 261,
+      "key": "/library/parts/261/1793753086/file.tp",
+      "duration": 10016,
+      "file": "/data2/videoext-movies/Videoext Probe tp (2020)/Videoext Probe tp (2020).tp",
+      "size": 2979988,
+      "container": "mpegts",
+      "packetLength": 188,
+      "Stream": [
+       {
+        "id": 491,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 0,
+        "bitrate": 2188,
+        "codedHeight": 720,
+        "codedWidth": 1280,
+        "frameRate": 24.0,
+        "height": 720,
+        "refFrames": 1,
+        "scanType": "progressive",
+        "streamIdentifier": "256",
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (MPEG2VIDEO)"
+       },
+       {
+        "id": 492,
+        "streamType": 2,
+        "selected": true,
+        "codec": "ac3",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 192,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "257",
+        "displayTitle": "Unknown (AC3 Mono)",
+        "extendedDisplayTitle": "Unknown (AC3 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1122": {
+   "Media": {
+    "id": 262,
+    "width": 480,
+    "height": 480,
+    "aspectRatio": 1.33,
+    "audioChannels": 2,
+    "audioCodec": "mp2",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "480",
+    "container": "ty",
+    "videoFrameRate": "NTSC",
+    "Part": [
+     {
+      "id": 262,
+      "key": "/library/parts/262/1793753094/file.ty",
+      "file": "/data2/videoext-movies/Videoext Probe ty (2020)/Videoext Probe ty (2020).ty",
+      "size": 8388608,
+      "container": "ty",
+      "Stream": [
+       {
+        "id": 493,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 0,
+        "anamorphic": true,
+        "codedHeight": 480,
+        "codedWidth": 480,
+        "frameRate": 29.97,
+        "height": 480,
+        "pixelAspectRatio": "4:3",
+        "refFrames": 1,
+        "scanType": "interlaced",
+        "width": 480,
+        "displayTitle": "480i",
+        "extendedDisplayTitle": "480i (MPEG2VIDEO)"
+       },
+       {
+        "id": 494,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp2",
+        "index": 1,
+        "channels": 2,
+        "bitrate": 192,
+        "audioChannelLayout": "stereo",
+        "samplingRate": 48000,
+        "displayTitle": "Unknown (MP2 Stereo)",
+        "extendedDisplayTitle": "Unknown (MP2 Stereo)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1123": {
+   "Media": {
+    "id": 263,
+    "duration": 10010,
+    "bitrate": 2288,
+    "width": 720,
+    "height": 576,
+    "aspectRatio": 1.33,
+    "audioChannels": 1,
+    "audioCodec": "mp2",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "576",
+    "container": "mpeg",
+    "videoFrameRate": "PAL",
+    "Part": [
+     {
+      "id": 263,
+      "key": "/library/parts/263/1793753085/file.vdr",
+      "duration": 10010,
+      "file": "/data2/videoext-movies/Videoext Probe vdr (2020)/Videoext Probe vdr (2020).vdr",
+      "size": 2863104,
+      "container": "mpeg",
+      "Stream": [
+       {
+        "id": 495,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 0,
+        "bitrate": 2096,
+        "codedHeight": 576,
+        "codedWidth": 720,
+        "frameRate": 25.0,
+        "height": 576,
+        "refFrames": 1,
+        "scanType": "progressive",
+        "streamIdentifier": "480",
+        "width": 720,
+        "displayTitle": "480p",
+        "extendedDisplayTitle": "480p (MPEG2VIDEO)"
+       },
+       {
+        "id": 496,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp2",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 192,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "448",
+        "displayTitle": "Unknown (MP2 Mono)",
+        "extendedDisplayTitle": "Unknown (MP2 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1125": {
+   "Media": {
+    "id": 265,
+    "duration": 35333,
+    "bitrate": 651,
+    "width": 480,
+    "height": 272,
+    "aspectRatio": 1.78,
+    "videoCodec": "vp3",
+    "videoResolution": "sd",
+    "container": "mgsts",
+    "videoFrameRate": "NTSC",
+    "Part": [
+     {
+      "id": 265,
+      "key": "/library/parts/265/1793753095/file.vp3",
+      "duration": 35333,
+      "file": "/data2/videoext-movies/Videoext Probe vp3 (2020)/Videoext Probe vp3 (2020).vp3",
+      "size": 2874656,
+      "container": "mgsts",
+      "Stream": [
+       {
+        "id": 499,
+        "streamType": 1,
+        "selected": true,
+        "codec": "vp3",
+        "index": 0,
+        "bitrate": 651,
+        "frameRate": 30.0,
+        "height": 272,
+        "refFrames": 1,
+        "width": 480,
+        "displayTitle": "SD",
+        "extendedDisplayTitle": "SD (VP3)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1126": {
+   "Media": {
+    "id": 266,
+    "duration": 10008,
+    "bitrate": 760,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "opus",
+    "videoCodec": "vp9",
+    "videoResolution": "720",
+    "container": "mkv",
+    "videoFrameRate": "24p",
+    "videoProfile": "profile 0",
+    "Part": [
+     {
+      "id": 266,
+      "key": "/library/parts/266/1793753090/file.webm",
+      "duration": 10008,
+      "file": "/data2/videoext-movies/Videoext Probe webm (2020)/Videoext Probe webm (2020).webm",
+      "size": 950791,
+      "container": "mkv",
+      "videoProfile": "profile 0",
+      "Stream": [
+       {
+        "id": 500,
+        "streamType": 1,
+        "default": true,
+        "codec": "vp9",
+        "index": 0,
+        "bitrate": 760,
+        "frameRate": 24.0,
+        "height": 720,
+        "profile": "profile 0",
+        "refFrames": 1,
+        "scanType": "progressive",
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (VP9)"
+       },
+       {
+        "id": 501,
+        "streamType": 2,
+        "selected": true,
+        "default": true,
+        "codec": "opus",
+        "index": 1,
+        "channels": 1,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "displayTitle": "Unknown (OPUS Mono)",
+        "extendedDisplayTitle": "Unknown (OPUS Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1127": {
+   "Media": {
+    "id": 267,
+    "duration": 10024,
+    "bitrate": 2344,
+    "width": 720,
+    "height": 576,
+    "aspectRatio": 1.33,
+    "audioChannels": 1,
+    "audioCodec": "mp2",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "576",
+    "container": "wtv",
+    "videoFrameRate": "PAL",
+    "Part": [
+     {
+      "id": 267,
+      "key": "/library/parts/267/1793753087/file.wtv",
+      "duration": 10024,
+      "file": "/data2/videoext-movies/Videoext Probe wtv (2020)/Videoext Probe wtv (2020).wtv",
+      "size": 2936832,
+      "container": "wtv",
+      "Stream": [
+       {
+        "id": 502,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 0,
+        "bitrate": 2152,
+        "codedHeight": 576,
+        "codedWidth": 720,
+        "frameRate": 25.0,
+        "height": 576,
+        "refFrames": 1,
+        "scanType": "progressive",
+        "streamIdentifier": "2",
+        "width": 720,
+        "displayTitle": "480p",
+        "extendedDisplayTitle": "480p (MPEG2VIDEO)"
+       },
+       {
+        "id": 503,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp2",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 192,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "3",
+        "displayTitle": "Unknown (MP2 Mono)",
+        "extendedDisplayTitle": "Unknown (MP2 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1129": {
+   "Media": {
+    "id": 269,
+    "duration": 10042,
+    "bitrate": 1381,
+    "width": 1280,
+    "height": 720,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "mp3",
+    "videoCodec": "mpeg4",
+    "videoResolution": "720",
+    "container": "avi",
+    "videoFrameRate": "24p",
+    "videoProfile": "simple",
+    "Part": [
+     {
+      "id": 269,
+      "key": "/library/parts/269/1793753088/file.xvid",
+      "duration": 10042,
+      "file": "/data2/videoext-movies/Videoext Probe xvid (2020)/Videoext Probe xvid (2020).xvid",
+      "size": 1733602,
+      "container": "avi",
+      "videoProfile": "simple",
+      "Stream": [
+       {
+        "id": 504,
+        "streamType": 1,
+        "codec": "mpeg4",
+        "index": 0,
+        "bitrate": 1238,
+        "codecID": "XVID",
+        "codedHeight": 720,
+        "codedWidth": 1280,
+        "frameRate": 24.0,
+        "height": 720,
+        "level": 1,
+        "profile": "simple",
+        "refFrames": 1,
+        "width": 1280,
+        "displayTitle": "720p",
+        "extendedDisplayTitle": "720p (MPEG4)"
+       },
+       {
+        "id": 505,
+        "streamType": 2,
+        "selected": true,
+        "codec": "mp3",
+        "index": 1,
+        "channels": 1,
+        "bitrate": 128,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "1",
+        "displayTitle": "Unknown (MP3 Mono)",
+        "extendedDisplayTitle": "Unknown (MP3 Mono)"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "s42:1140": {
+   "Media": {
+    "id": 278,
+    "duration": 10016,
+    "bitrate": 3486,
+    "width": 720,
+    "height": 576,
+    "aspectRatio": 1.78,
+    "audioChannels": 1,
+    "audioCodec": "ac3",
+    "videoCodec": "mpeg2video",
+    "videoResolution": "576",
+    "container": "mpeg",
+    "videoFrameRate": "PAL",
+    "Part": [
+     {
+      "id": 278,
+      "key": "/library/parts/278/1793754005/file.vob",
+      "duration": 10016,
+      "file": "/data2/videoext-shows/Videoext Show (2020)/Season 01/Videoext Show (2020) - s01e02.vob",
+      "size": 4470784,
+      "container": "mpeg",
+      "Stream": [
+       {
+        "id": 523,
+        "streamType": 1,
+        "codec": "mpeg2video",
+        "index": 1,
+        "bitrate": 3038,
+        "anamorphic": true,
+        "codedHeight": 576,
+        "codedWidth": 720,
+        "frameRate": 25.0,
+        "height": 576,
+        "pixelAspectRatio": "64:45",
+        "refFrames": 1,
+        "scanType": "progressive",
+        "streamIdentifier": "480",
+        "width": 720,
+        "displayTitle": "480p",
+        "extendedDisplayTitle": "480p (MPEG2VIDEO)"
+       },
+       {
+        "id": 524,
+        "streamType": 2,
+        "selected": true,
+        "codec": "ac3",
+        "index": 2,
+        "channels": 1,
+        "bitrate": 448,
+        "audioChannelLayout": "mono",
+        "samplingRate": 48000,
+        "streamIdentifier": "128",
+        "displayTitle": "Unknown (AC3 Mono)",
+        "extendedDisplayTitle": "Unknown (AC3 Mono)"
        }
       ]
      }

@@ -1228,10 +1228,12 @@ impl Runtime {
         );
         body.insert("playbackState".to_string(), json!(playback_state));
         // A track names its counts only once it has any (plexav: none on a first play, then
-        // `skipCount`, `viewCount` and `viewOffset -1`).
+        // `skipCount`, `viewCount` and `viewOffset -1`) or a play has stamped it: an audiobook's
+        // beat after one past the minute answered them at 0 (2026-11-04, `chronicle.jsonl`).
         let skips = self.view_state(&rating_key, "skipCount").and_then(|value| value.as_i64()).unwrap_or(0);
         let track = self.catalog.get(&rating_key).and_then(|row| row.get("type")).and_then(Value::as_str) == Some("track");
-        if !track || skips > 0 || view_count > 0 {
+        let stamped = self.view_state(&rating_key, "lastViewedAt").is_some_and(|value| !value.is_null());
+        if !track || skips > 0 || view_count > 0 || stamped {
             body.insert("skipCount".to_string(), json!(if track { skips } else { 0 }));
             body.insert("viewCount".to_string(), json!(view_count));
             body.insert("viewOffset".to_string(), json!(stored));

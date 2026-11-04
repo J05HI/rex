@@ -467,6 +467,16 @@ def _duration(fixture):
     return per_media(("duration",))(fixture)
 
 
+@check("duration-presence", shallow=True)
+def _duration_presence(fixture):
+    """A probe with no duration gives a Media and a Part with none: plexscratch42's raw `.avc`,
+    `.m2v`, `.fli`, `.nsv` and `.ty` (2026-11-04), where rex wrote 0."""
+    real_part = (fixture["Media"].get("Part") or [{}])[0]
+    sim_part = (fixture["sim"].get("Part") or [{}])[0]
+    return [("%s Media has duration" % fixture["name"], "duration" in fixture["Media"], "duration" in fixture["sim"]),
+            ("%s Part has duration" % fixture["name"], "duration" in real_part, "duration" in sim_part)]
+
+
 @check("aspect-ratio")
 def _aspect_ratio_value(fixture):
     return per_media(("aspectRatio",))(fixture)

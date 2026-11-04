@@ -21,10 +21,20 @@ An unpaged listing of every episode built its body in several full copies the al
 kept (the production server's library: +2.4 GB a request, 6.5 GB after three); here two of them left
 +131 MB on 363 MB before and +19 MB on 182 MB after.
 
+A claimed start is handed the owner's audio and subtitle settings by plex.tv's account refresh, on
+a thread of its own, and compares every Part's selection with them. Every row it read was kept for a
+request's trim, so it held the whole library parsed at once: the production server's start peaked at
+1.57 GB of heap, 1,199 MB of it those rows (45,328 rows, heaptrack, 2026-11-02), where an unclaimed
+one stays near its idle 95 MB. Here, with a stub plex.tv and an account wanting the rows' own Russian
+audio and no subtitles, which re-selects the one episode in fifty left on its English track (92):
+unfixed, 140 MB at peak, 3.1x the rows' JSON where the same start unclaimed peaks at 0.8x; read a
+row at a time and let go of, 42 MB, 0.9x (arm64 Docker, 2026-11-02).
+
     python3 tests/test_perf_memory.py
 """
 import copy
 import http.client
+import http.server
 import json
 import os
 import shutil
@@ -33,6 +43,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 from server_command import server_command
@@ -53,6 +64,15 @@ RESIDENT = 3.6
 # 1,870 MB for 40 s idle); filed one at a time and left in the file, 1.0x and 435 MB (2026-10-24).
 RESTART_PEAK = 2.0
 RESTART_RESIDENT = 1.2
+# The claimed start: its settings pass reads every row, and keeps only those it re-selects.
+CLAIMED_PEAK = 2.0
+RESELECTED = 50
+# The owner's /api/v2/user profile (a real account's, test_track_prefs.py), wanting Russian audio and
+# no subtitles: what the episode row already plays.
+PROFILE = ('<profile autoSelectAudio="1" defaultAudioAccessibility="0" defaultAudioLanguage="ru" '
+           'defaultAudioLanguages="" defaultSubtitleLanguage="" defaultSubtitleLanguages="" '
+           'autoSelectSubtitle="0" defaultSubtitleAccessibility="0" defaultSubtitleForced="0" '
+           'watchedIndicator="1" mediaReviewsVisibility="0" mediaReviewsLanguages="" mediaPostsVisibility="1"/>')
 results = []
 
 
@@ -120,6 +140,10 @@ def catalog(directory):
                             "_scanned": True})
                 if row["viewOffset"] is None:
                     del row["viewOffset"]
+                if key % RESELECTED == 0:
+                    streams = row["Media"][0]["Part"][0]["Stream"]
+                    del streams[1]["selected"]
+                    streams[9]["selected"] = True
                 data["items"].append(row)
     path = os.path.join(directory, "catalog.json")
     with open(path, "w") as handle:
@@ -131,12 +155,39 @@ def catalog(directory):
     return path, seed, rows_mb
 
 
-def start(path, state):
+class PlexTv(http.server.BaseHTTPRequestHandler):
+    """plex.tv for the claimed start: the owner's profile, and an empty answer to the rest."""
+
+    def log_message(self, *args):
+        pass
+
+    def answer(self):
+        # `REX_PLEXTV_URL` sends `<base>/<host><path>`.
+        if self.path.split("?")[0] == "/servers.plex.tv/api/v2/user":
+            body = '<?xml version="1.0" encoding="UTF-8"?>\n<user id="1" username="owner">%s</user>\n' % PROFILE
+        else:
+            body = '<?xml version="1.0" encoding="UTF-8"?>\n<MediaContainer size="0"/>\n'
+        raw = body.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/xml")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    do_GET = do_PUT = do_POST = answer
+
+
+def start(path, state, plextv=None, log=None):
+    """A server over `path`: suite-claimed, or claimed for real against the stub plex.tv at port
+    `plextv` (its `claim_state.json` beside the catalog), logging to `log`."""
     port = free_port()
+    claimed = ("--assert-claimed",) if plextv is None else ()
+    env = ENV if plextv is None else dict(ENV, REX_PLEXTV_URL="http://127.0.0.1:%d" % plextv)
+    output = subprocess.DEVNULL if log is None else open(log, "ab")
     process = subprocess.Popen(
-        server_command("--port", port, "--catalog", path, "--state", state, "--assert-claimed",
+        server_command("--port", port, "--catalog", path, "--state", state, *claimed,
                        "--gdm", "off", root=ROOT),
-        cwd=ROOT, env=ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cwd=ROOT, env=env, stdout=output, stderr=subprocess.STDOUT)
     for _ in range(1800):
         if process.poll() is not None:
             break
@@ -218,6 +269,35 @@ def main():
               resident < RESTART_RESIDENT * rows_mb, (resident, rows_mb))
         if request(port, "/library/sections/2/all?X-Plex-Container-Start=0&X-Plex-Container-Size=50") != 200:
             check("a page of the restored library answers", False)
+        stop(process)
+        # Claimed, the same start is handed the owner's track settings by plex.tv's account refresh.
+        machine = json.load(open(seed))["machineIdentifier"]
+        with open(os.path.join(directory, "claim_state.json"), "w") as handle:
+            json.dump({"machine": machine, "token": "perf-memory-server-token", "owner": "owner",
+                       "email": "owner@example.com", "feature_uuids": [], "account_id": 1,
+                       "view_state_cursor": None, "access_tokens": []}, handle)
+        stub = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PlexTv)
+        threading.Thread(target=stub.serve_forever, daemon=True).start()
+        log = os.path.join(directory, "claimed.log")
+        process, port = start(seed, state, plextv=stub.server_address[1], log=log)
+        tracks = None
+        for _ in range(3000):
+            with open(log, errors="replace") as handle:
+                tracks = next((line for line in handle if "TRACKS account settings" in line), None)
+            if tracks is not None:
+                break
+            time.sleep(0.1)
+        time.sleep(1)
+        resident, peak = memory(process.pid)
+        stub.shutdown()
+        expected = sum(1 for row in json.load(open(path))["items"]
+                       if row.get("type") == "episode" and int(row["ratingKey"]) % RESELECTED == 0)
+        print("claimed, the owner's track settings read: %.0f MB resident, %.0f MB peak; %s"
+              % (resident, peak, (tracks or "no TRACKS line").strip()), flush=True)
+        check("the settings re-select the %d episodes left on another track" % expected,
+              tracks is not None and (" %d item(s) re-selected" % expected) in tracks, tracks)
+        check("a claimed start peaks under %.1fx the rows' JSON (%.1fx)" % (CLAIMED_PEAK, peak / rows_mb),
+              peak < CLAIMED_PEAK * rows_mb, (peak, rows_mb))
     finally:
         if process is not None and process.poll() is None:
             process.kill()
