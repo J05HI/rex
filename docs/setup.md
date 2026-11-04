@@ -111,7 +111,10 @@ directories:
 
 In zurg, give a directory `rex_movies` when it holds films, `rex_shows` when it holds shows, and both only
 when it holds both: each makes a library, an empty one too. DMM places some of a directory's files as films
-and some as episodes, and a kind with no title of its own goes to Movies or TV Shows.
+and some as episodes, and a kind with no title of its own goes to Movies or TV Shows. Music and comic books
+reach rex only from a directory that names a library for them: `rex_music: Music` for its music and
+audiobooks, `rex_photos: Comics` for its comic books, each an album of its pages. Give such a directory a
+filter that holds only those releases (zurg's `any_file_inside_regex`), or every film reaches rex from it too.
 
 The source sends it when it registers (step 6), and rex makes the libraries then and moves what it
 already shows from that directory into them as it is: watch state, Fix Match and edits included.
@@ -222,7 +225,7 @@ dmm_api_key: <your DMM API key>         # optional sponsor key: DMM, not the nam
 
 The address a source is given is rex's plain `http://` LAN address, never an HTTPS one from step 7: the feed answers
 only rex's own networks. Running two zurgs? Give each a name of its own with `rex_source: rd` and `rex_source: ad`. A
-directory that is to be a library of its own gets `rex_shows`/`rex_movies` under it (step 3).
+directory that is to be a library of its own gets `rex_shows`/`rex_movies` under it, music `rex_music` and comic books `rex_photos` (step 3).
 
 rex's LAN IP works from the same machine, another one and a container alike. A source registers
 with rex once it has the address (zurg once you restart it and its library has loaded), pushes
@@ -491,9 +494,9 @@ NVIDIA card needs the NVIDIA container toolkit and `gpus: all` instead; untested
 |---|---|
 | A push answers 404 `no such source: PUT /rex/sources/... first` | The source has not registered: start it again, or update it (zurg: What you need) |
 | Every part read answers 502 | No source is registered (`curl -s http://<rex's LAN IP>:32400/rex/sources`), or rex cannot reach the one that is |
-| A push answers `rejected: no movie or show library holds ...` | No library of that item's kind is left (one was deleted in Plex): add one with Add Library (step 3) |
+| A push answers `rejected: no movie or show library holds ...`, or `no music library` or `no photo library` | No library of that item's kind is left (one was deleted in Plex), or, for music and pictures, none was made: add one with Add Library (step 3), or have the source declare one |
 | A source pushed but the library stays empty | Items are held until their source probes them (step 6) |
-| A directory a source declared (`directories`; zurg's `rex_shows`/`rex_movies`) has no library | The source did not send it (`curl -s http://<rex's LAN IP>:32400/rex/sources` lists each source's `directories`), the source or rex skipped a mistyped entry (its log says why), or a library there was deleted in Plex, which keeps it deleted (the log says `stays deleted`): add it again with Add Library (step 3) |
+| A directory a source declared (`directories`; zurg's `rex_shows`, `rex_movies`, `rex_music`, `rex_photos`) has no library | The source did not send it (`curl -s http://<rex's LAN IP>:32400/rex/sources` lists each source's `directories`), the source or rex skipped a mistyped entry (its log says why), or a library there was deleted in Plex, which keeps it deleted (the log says `stays deleted`): add it again with Add Library (step 3) |
 | A part read answers 502, or 401/403 | rex cannot reach the source's `url` (502), or the source refused its credential (its own status): the log line `PART ... upstream` says which |
 | The server is not in the Plex apps | Not claimed (step 5), or, outside your home, no HTTPS address reachable from the internet (step 7) |
 | A device at home cannot connect, and rex's `heartbeat ... ->` line shows no LAN address or the wrong one | rex announces the private address of the network it reaches the internet through; behind a VPN or a Tailscale exit node that is not your home network. In Docker without host networking that is the container's own network, so rex announces none and logs `no LAN address to announce` once. Add `--announce-url http://<rex's LAN IP>:32400` |
@@ -502,6 +505,9 @@ NVIDIA card needs the NVIDIA container toolkit and `gpus: all` instead; untested
 | The log says `rex-direct: registration failed: HTTP 401` or `403` | The provider could not confirm the claim with plex.tv: the server was removed from its Plex account, or claim it again (step 5) |
 | The log says `rex-direct: registration failed: HTTP 429` | That Plex account already holds ten rex-direct names: claim this rex with another account, or use your own hostname (step 7) |
 | A second rex started in the same folder exits 1 | `rex.db` is locked by the first: give each server a folder of its own, or use `rex manager` (below) |
+| Plex for Android closes its player on a `.wmv`, `.asf` or `.dvr-ms` at original quality | Its own player fails on their WMA sound, from a real Plex server too: pick a lower quality, which rex converts with an [FFmpeg](#which-ffmpeg) |
+| Plex for Android stops a raw `.avc` file as soon as it starts | Its own player ends it, from a real Plex server too |
+| Plezy offers a VobSub subtitle (`.idx` and `.sub`) only as Off | Plezy cannot show one. Plex Web burns it into the picture and Plex for Android shows it |
 
 ### Running several servers: rex manager
 
@@ -579,9 +585,9 @@ eligibility, still apply. Music, photos and Live TV come from sources that send 
 | Remote limits | Per-user stream counts and upload bandwidth limits, measured on the real connection |
 | Sharing and webhooks | Rating and label filters and Downloads permission per share, and webhooks ([Local owner controls](#local-owner-controls)) |
 | Cinema trailers and pre-rolls | Trailers your sources supply, and pre-rolls (below). No online trailer catalog |
-| Music | A source's tracks as artists and albums, named by Plex from their MusicBrainz release, played in Plexamp, Plex Web and Plex for Android with lyrics and loudness when the source sends them |
+| Music | A source's tracks as artists and albums, named by Plex from their MusicBrainz release, played in Plexamp, Plex Web and Plex for Android with lyrics and loudness when the source sends them. Audiobooks too, with their chapters: turn on **Store track progress** in the library's Advanced settings for a player to resume where it stopped |
 | Live TV | A source's live channels and guide in Plex Web's and Plex for Android's Live TV: What's On, the guide, search and watching a channel |
-| Photos | A source's pictures as albums of its folders (a comic book is one), browsed, viewed and played as a slideshow in Plex Web. Plex for Android lists no photo library, a real Plex server's either |
+| Photos | A source's pictures as albums of its folders (a comic book is one), browsed, viewed and played as a slideshow in Plex Web. Plex for Android lists no photo library, a real Plex server's either, and Plezy lists them but opens none |
 
 ### Analysis and disk use
 

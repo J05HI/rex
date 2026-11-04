@@ -91,7 +91,7 @@ nothing was:
 ### Libraries a source declares
 
 A directory named in `directories` is a library of its own, made when the source registers:
-a movie library titled as the entry's `movies` and a show library titled as its `shows`, whichever it has,
+a movie library titled as the entry's `movies`, a show library as its `shows`, a music library as its `music` and a photo library as its `photos`, whichever it has,
 on the folder `<mount>/<name>` (with no `mount`, under the parent of the first library's
 folder, `/mnt/rex` for a library rex seeded). rex logs `SECTION create Anime (show) for myapp's anime`, and
 Plex clients see it as one added in Add Library. Then:
@@ -104,7 +104,7 @@ Plex clients see it as one added in Add Library. Then:
   **an unplaced file** (no `kind`) to the first library holding the folder. rex makes the movie
   library first, so when it makes both that is the movie library, as unplaced files go to a movie
   library anywhere else; a directory with only a show library takes its unplaced files there. A type the entry does not title goes to the first library of
-  its kind, as an undeclared directory's do.
+  its kind, as an undeclared directory's do. A track goes to its music library and a picture to its photo library ([Tracks](#tracks), [Photos](#photos)).
 - **Rows already shown move** to the new library on the source's next push, as they are, on
   their keys: identification, a Fix Match, every account's watch state and a person's edits
   stay. An episode goes under its show there, else under a copy of the show and season it
