@@ -936,7 +936,8 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
             push(&mut args, &["-c:a", "copy"]);
         } else {
             push(&mut args, &[
-                // ponytail: `transcode_plan` refuses a codec with no encoder, so this fallback is never taken.
+                // ponytail: `transcode_plan` refuses converting to a codec with no encoder; only a copy
+                // `plan_now` demoted can still name its list's head (dca), and aac stands in for it.
                 "-c:a", audio_encoder(&audio.codec).unwrap_or("aac"), "-ac", &audio.channels.to_string(), "-b:a", &format!("{}k", audio.bitrate),
                 "-ar", &audio.sampling_rate.to_string(),
                 "-af", &audio_filter(plan),
@@ -3197,7 +3198,6 @@ impl Runtime {
         if audio_stream.is_some_and(|stream| stream.get("channels").and_then(Value::as_i64).is_some_and(|channels| !(1..=64).contains(&channels))) { return None; }
         if video_stream.is_some_and(|stream| ["width", "height"].iter().any(|name| number_of(stream.get(*name)).is_some_and(|size| !(2.0..=16384.0).contains(&size)))) { return None; }
         let out = if names(&audio_codecs, "aac") || audio_codecs.is_empty() { "aac".to_string() } else { audio_codecs[0].clone() };
-        if audio_stream.is_some() && audio_encoder(&out).is_none() { return None; }
         let mut audio = audio_stream.map(|stream| {
             let codec = stream.get("codec").map(string_value).unwrap_or_default().to_ascii_lowercase();
             let channels = stream.get("channels").and_then(Value::as_i64).unwrap_or(2).max(1);
@@ -3252,6 +3252,9 @@ impl Runtime {
                 }
             }
         });
+        // Refused only when converting: a list headed by a codec rex cannot encode (dca,ac3) still
+        // copies a source it names, which the gate before the copy decision refused.
+        if audio.as_ref().is_some_and(|audio| !audio.copy && audio_encoder(&audio.codec).is_none()) { return None; }
         // Reserve muxing headroom rather than raising small limits to a fixed minimum.
         let max_kbps = max_kbps.map(|max| max.saturating_mul(95) / 100);
         if let Some(max) = max_kbps {

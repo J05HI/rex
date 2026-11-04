@@ -1092,6 +1092,12 @@ def run(scratch):
         check("an unknown audio encoder is refused (2000/4005), not converted to",
               container.get("generalDecisionCode") == 2000 and container.get("transcodeDecisionCode") == 4005,
               json.dumps({k: v for k, v in container.items() if "Decision" in k}))
+        # A list headed by a codec rex cannot encode still copies a source it names: the encoder gate once
+        # ran before the copy decision, so `dca,ac3` with this AC3 source was refused (2000) where the
+        # plain list copies it. Not measured: no bundled profile lists such a head (checked 2026-11-04).
+        headed = plezy["plezy-ts"]["X-Plex-Client-Profile-Extra"].replace("audioCodec=aac%2Cac3%2Ceac3%2Cmp3", "audioCodec=dca%2Cac3")
+        walk(port, scratch, "plezy-dca-head", "3", "transcode", "copy", (1280, 720), directStream="0",
+             **{"X-Plex-Client-Profile-Name": plezy["plezy-ts"]["X-Plex-Client-Profile-Name"], "X-Plex-Client-Profile-Extra": headed})
         # A selected text subtitle was dropped from every conversion. The reference copies an
         # SRT into these apps' Matroska segments (`subtitles_s1422.json`).
         android = next(asked for asked in recorded["decisions"] if asked["label"] == "android-generic-target")
