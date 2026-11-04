@@ -30,9 +30,10 @@ From the environment only, never the command line:
   `POST /myplex/claim` succeeds rex registers in the background, then makes the claim's device
   PUT with the rex-direct URL in it. No restart either way.
 - **Every 6 hours** after an answer: the dynamic DNS, and how a renewed certificate arrives.
-- **10 minutes** after a failure, and **`retryAfter`** seconds after a 202. The first five 403s
+- **10 minutes** after a failure, and **`retryAfter`** seconds after a 202. The first ten 403s
   since rex started or was claimed are asked again after **1 minute**: plex.tv lists a
-  just-claimed server late (within 10 minutes, 2026-11-04), and DMM refuses until it does.
+  just-claimed server late (somewhere inside the 10-minute retry that found it, 2026-11-04), and
+  DMM refuses until it does, so the short tries cover those 10 minutes.
 
 Each request times out after 10 s. A redirect is not followed: it is answered as any other
 status.
@@ -143,7 +144,7 @@ A WARN with the status and the reason, `rex-direct: registration failed: HTTP 40
 does not own this server); retrying in 10 min`, and rex runs on with what it has. A 403 is
 DMM's answer when plex.tv does not list the server as the account's, which it also is for the
 first minutes after a claim (`HTTP 403 (The Plex account does not own this server); retrying in
-1 min`, five times, then every 10 min). An
+1 min`, ten times, then every 10 min). An
 unreachable provider and a 200 that is not the answer above are the same: never fatal.
 
 ## Why https

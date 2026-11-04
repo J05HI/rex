@@ -36,9 +36,10 @@ const REFRESH: Duration = Duration::from_secs(6 * 3600);
 const RETRY: Duration = Duration::from_secs(600);
 /// A 403 is DMM's "The Plex account does not own this server", which it also answers right after
 /// a claim, before plex.tv's /api/v2/resources lists the server (kids, 2026-11-04: the claim's
-/// 403, then a 202 ten minutes on). So the first few 403s since `start` ask again in a minute.
+/// 403, then a 202 ten minutes on, at the old retry). So the first 403s since `start` ask again
+/// in a minute: ten of them, covering the 10 minutes that retry found the listing inside.
 const SOON: Duration = Duration::from_secs(60);
-const SOON_REFUSALS: u32 = 5;
+const SOON_REFUSALS: u32 = 10;
 /// Short: the start waits on it before the port opens.
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -593,6 +594,26 @@ mod tests {
         assert_eq!(none, 0);
         // The second refusal comes through register too: the stub answered both.
         assert!(matches!(direct.register("SERVER-TOKEN"), Err(Later::Refused(_))));
+    }
+
+    /// plex.tv listed kids' just-claimed server somewhere inside the old 10-minute retry that found
+    /// it (2026-11-04), not at a known minute: the short tries must cover those 10 minutes, or a
+    /// listing at minute 6 to 10 waits for the first long retry, later than the old schedule.
+    #[test]
+    fn the_short_tries_cover_the_old_retry_before_falling_back() {
+        let refusal = Later::Refused("HTTP 403".to_string());
+        let mut refused = 0;
+        let mut attempts = vec![Duration::ZERO];
+        while attempts.len() < 40 {
+            let wait = refusal.after(&mut refused);
+            attempts.push(*attempts.last().unwrap() + wait);
+        }
+        // Whenever the listing lands, the next try is no later than the old schedule's, every 10 min from the claim.
+        for listed in (0..=3600).step_by(30) {
+            let next = attempts.iter().find(|at| at.as_secs() >= listed).unwrap().as_secs();
+            let old = listed.div_ceil(RETRY.as_secs()) * RETRY.as_secs();
+            assert!(next <= old, "listed at {listed} s: tried at {next} s, the old schedule at {old} s");
+        }
     }
 
     #[test]
