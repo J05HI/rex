@@ -15101,7 +15101,7 @@ section (`probes/record_music_conversion.py`, `record_music_lyrics.py`, `record_
 
 ## Music for Plezy and python-plexapi, measured on plexav (2026-11-04)
 
-Replayed on plexav (PMS 1.43.4) from the clients' own source: Plezy 38c48f14
+Replayed on plexav (PMS 1.43.4) from the clients' own source: Plezy 38c48f14 and python-plexapi
 (`probes/record_plezy_music_http.py`, `record_music_axes.py`; `tests/fixtures/music/`).
 
 - **Plezy's music quality presets.** Below original quality Plezy asks for one MP3: `directPlay=0`,
@@ -15120,6 +15120,11 @@ Replayed on plexav (PMS 1.43.4) from the clients' own source: Plezy 38c48f14
   `Mood` is the agent's merged with its tracks', so `mood?type=9` is the albums' and their tracks'
   moods (99: the union of the albums' 37 and the tracks' 86). rex answered a video library's empty cross-type axis
   (`axes.json`).
+- **`/library/sections/{id}/albums`.** python-plexapi's `MusicSection.albums()` (`?includeGuids=1`,
+  paged by `X-Plex-Container-Start`/`-Size` headers) gets every album, in title order, `size`,
+  `totalSize` and `offset` beside the container rex already answered (`mixedParents`, `By Album`,
+  `viewGroup` `album`). Each row is `/all?type=9`'s with `allowSync`, `librarySectionID`, `-Title` and
+  `-UUID` first and `leafCount` before `addedAt`. rex answered it empty (`albums.json`).
 
 ## Music: a track's Part read per audio format (2026-11-01)
 

@@ -5,8 +5,8 @@ plexav's PMS 1.43.4 answered these clients on 2026-10-31 (`fixtures/music/<clien
 `probes/record_music_fixtures.py`); `music_rig.py` pushes the same 46 files to rex placed by their
 albums' MusicBrainz ids. Each recorded request is reissued with plexav's keys swapped for rex's and
 its answer compared as `harness/scripts/replay.py` compares: element structure, attribute presence
-and values, the per-server fields left out. Plezy's filter values (`axes.json`) were recorded from
-its own requests on 2026-11-04.
+and values, the per-server fields left out. Plezy's filter values (`axes.json`) and python-plexapi's
+`albums()` (`albums.json`) were recorded from those clients' own requests on 2026-11-04.
 
 What is left out, by design and named: no `Stations` (rex runs no sonic analysis, so a library
 of music has no Stations shelf and an artist none), no `UltraBlurColors`/`thumbBlurHash` (the
@@ -24,6 +24,7 @@ import re
 import shutil
 import sys
 import urllib.parse
+import xml.etree.ElementTree as ET
 
 import music_rig as M
 from music_rig import check, results
@@ -119,6 +120,24 @@ def main():
                 check("  and its first value, %s, lists rows of type %s" % (ours[0]["title"], kind),
                       status == 200 and (listed.get("MediaContainer") or {}).get("size", 0) > 0, (status, str(listed)[:200]))
 
+        # -- python-plexapi's MusicSection.albums() (`albums.json`): rex listed no album -----------
+        recorded = json.load(open(os.path.join(M.FIXTURES, "albums.json")))
+        status, _, body = rex.request(recorded["path"] + "?" + urllib.parse.urlencode([tuple(pair) for pair in recorded["query"]]), raw=True,
+                                      headers=dict(recorded["headers"], Accept="*/*"))
+        theirs, ours = ET.fromstring(recorded["body"].encode()), ET.fromstring(body) if status == 200 else ET.Element("x")
+        held = [d.get("title") for d in ours.findall("Directory")]
+        # plexav holds eleven more test albums than the rig's four (`music_rig.ALBUMS`), and had played
+        # some (STATE); no loudness analysis here.
+        wanted = [d for d in theirs.findall("Directory") if d.get("title") in {album for _, album, *_ in M.ALBUMS}]
+        same = {"type", "title", "parentTitle", "year", "index", "leafCount"}
+        rows_alike = len(held) == len(wanted) and all(
+            set(mine.attrib) | {"loudnessAnalysisVersion", *STATE} >= set(ref.attrib) and all(mine.get(k) == ref.get(k) for k in same)
+            for mine, ref in zip(ours.findall("Directory"), wanted))
+        differences = M.compare(recorded["body"], body.decode(), ignore=("Directory", "size", "totalSize"))
+        check("plexapi's albums() is plexav's: the music library's albums in title order, paged, By Album",
+              status == 200 and held == [d.get("title") for d in wanted] and rows_alike and not differences
+              and ours.get("size") == ours.get("totalSize") == str(len(wanted)) and ours.get("offset") == "0",
+              (status, held, dict(ours.attrib), differences[:4]))
 
         # -- Plex Web plays In Rainbows -------------------------------------------------------------
         web = {r["path"] + "?" + "&".join(k for k, _ in r["query"]): r for r in M.load("web-music-play")}

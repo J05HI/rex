@@ -15695,6 +15695,48 @@ impl Runtime {
                     }
                     if leaf == "albums" {
                         fields.insert("mixedParents".to_string(), json!(true));
+                        // A music library's are its albums, paged as `/all?type=9` (plexav, for
+                        // python-plexapi's `MusicSection.albums()`, `fixtures/music/albums.json`).
+                        if self.music_section(section_key) {
+                            let (title, uuid) = (section.get("title").cloned().unwrap_or(Value::Null), section.get("uuid").cloned().unwrap_or(Value::Null));
+                            let mut typed = query.clone();
+                            typed.insert("type".to_string(), "9".to_string());
+                            let mut typed_pairs: Vec<(String, String)> = pairs.iter().filter(|(name, _)| name != "type").cloned().collect();
+                            typed_pairs.push(("type".to_string(), "9".to_string()));
+                            // In title order, where `/all?type=9` lists by artist.
+                            if !typed.contains_key("sort") {
+                                typed.insert("sort".to_string(), "titleSort".to_string());
+                                typed_pairs.push(("sort".to_string(), "titleSort".to_string()));
+                            }
+                            let mut listing = self.route_section_all(section_key, &[], &typed, &typed_pairs, request);
+                            if let Some(Value::Object(mut listed)) = listing.take_document().and_then(|mut document| document.get_mut("MediaContainer").map(Value::take)) {
+                                // Each row as a mixed-parent list names it: its library first, its
+                                // track count before `addedAt`, as plexav's rows are.
+                                for row in listed.get_mut("Metadata").and_then(Value::as_array_mut).into_iter().flatten() {
+                                    let tracks = self.children_refs(&key_of(row).unwrap_or_default()).len();
+                                    let Some(object) = row.as_object_mut() else { continue };
+                                    let mut out = Map::from_iter([
+                                        ("allowSync".to_string(), json!(true)),
+                                        ("librarySectionID".to_string(), section_key.parse::<i64>().map_or_else(|_| json!(section_key), |id| json!(id))),
+                                        ("librarySectionTitle".to_string(), title.clone()),
+                                        ("librarySectionUUID".to_string(), uuid.clone()),
+                                    ]);
+                                    for (name, value) in std::mem::take(object) {
+                                        if name == "addedAt" {
+                                            out.insert("leafCount".to_string(), json!(tracks));
+                                        }
+                                        out.entry(name).or_insert(value);
+                                    }
+                                    *object = out;
+                                }
+                                for name in ["size", "totalSize", "offset", "Metadata"] {
+                                    if let Some(value) = listed.shift_remove(name) {
+                                        fields.insert(name.to_string(), value);
+                                    }
+                                }
+                                return Response::json(200, self.container(fields, false));
+                            }
+                        }
                         fields.insert("title2".to_string(), json!("By Album"));
                         fields.insert("viewGroup".to_string(), json!("album"));
                         fields.insert("size".to_string(), json!(0));
