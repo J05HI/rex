@@ -2532,7 +2532,8 @@ impl super::Runtime {
     }
 
     /// Each guid's first live row: one pass for a page of cloud states, where a pass per state
-    /// held the runtime lock for a hundred passes over the library.
+    /// held the runtime lock for a hundred passes over the library. `update_view` writes the
+    /// row's other copies of the guid (#579).
     pub(super) fn guid_keys(&self) -> HashMap<String, String> {
         let mut keys = HashMap::new();
         for row in self.catalog.hot().lazy() {
@@ -2716,6 +2717,37 @@ mod tests {
         assert_eq!(heard(json!({"event": "library.new", "Account": {"id": 900000001}})), ["http://owner/"]);
         assert_eq!(heard(json!({"event": "media.play", "Account": {"id": 900000001}})), ["http://shared/", "http://owner/"]);
         assert_eq!(heard(json!({"event": "media.stop", "Account": {"id": 900000002}})), ["http://owner/"]);
+    }
+
+    /// #579: a cloud state reaches every row with its guid, as a real PMS keeps one
+    /// `metadata_item_settings` row per account and guid; another guid's row is left alone.
+    #[test]
+    fn a_cloud_state_reaches_every_copy_of_its_guid() {
+        let dir = std::env::temp_dir().join(format!("rex-plextv-guid-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let film = |key: &str, section: i64, guid: &str| {
+            json!({"ratingKey": key, "key": format!("/library/metadata/{key}"), "type": "movie",
+                   "title": "Sintel", "guid": guid, "librarySectionID": section})
+        };
+        let shared = "plex://movie/5d776d1796b655001fe3f5d3";
+        let catalog = json!({"format": 1, "machineIdentifier": "guid-test", "friendlyName": "t",
+            "sections": [{"key": "1", "type": 1, "title": "Movies"}, {"key": "2", "type": 1, "title": "Movies 4K"}],
+            "items": [film("1", 1, shared), film("2", 2, shared), film("4", 1, "plex://movie/5d776b04594b2b001e6cc839")]});
+        std::fs::write(dir.join("catalog.json"), serde_json::to_vec(&catalog).unwrap()).unwrap();
+        let mut runtime = super::super::Runtime::load(super::super::RuntimeOptions {
+            catalog: dir.join("catalog.json"),
+            state: Some(dir.join("no-state")),
+            assert_claimed: true,
+            ..super::super::RuntimeOptions::default()
+        })
+        .unwrap();
+        let guids = runtime.guid_keys();
+        let state = json!({"guid": shared, "viewState": "complete", "viewedAt": 1793749981000_i64});
+        assert!(runtime.import_account_state(&state, &guids));
+        let count = |key: &str| runtime.catalog.get(key).and_then(|row| row.get("viewCount")).cloned();
+        assert_eq!((count("1"), count("2"), count("4")), (Some(json!(1)), Some(json!(1)), None));
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

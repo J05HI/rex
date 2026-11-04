@@ -99,9 +99,12 @@ pub enum By {
     /// A live channel its source made a Live TV channel (`_channel`), all under `""`: the guide
     /// lists them without reading every row (`runtime/livetv.rs`).
     Channel,
+    /// `guid`: a real PMS keeps watch state per account and guid, so rows sharing one share it
+    /// (`Runtime::update_view`).
+    Guid,
 }
 
-const LOOKUPS: usize = 9;
+const LOOKUPS: usize = 10;
 
 /// The `By::Release` key of a source's item.
 pub fn release_key(source: &str, sid: &str) -> String {
@@ -147,6 +150,7 @@ impl By {
             ),
             By::Release => into.extend(releases(item).iter().map(|(source, sid, _, _)| hash(&release_key(source, sid)))),
             By::Channel => into.extend(item.get("_channel").filter(|channel| channel.is_object()).map(|_| hash(""))),
+            By::Guid => into.extend(item.get("guid").and_then(Value::as_str).filter(|guid| !guid.is_empty()).map(hash)),
             By::Upload => into.extend(
                 parts()
                     // A packed Part is decoded only when its text holds an upload.
@@ -415,7 +419,7 @@ impl RowIndex {
     }
 }
 
-const BY: [By; LOOKUPS] = [By::Parent, By::Section, By::Part, By::File, By::ClipParent, By::Directory, By::Release, By::Upload, By::Channel];
+const BY: [By; LOOKUPS] = [By::Parent, By::Section, By::Part, By::File, By::ClipParent, By::Directory, By::Release, By::Upload, By::Channel, By::Guid];
 
 /// A row as a pass over the library holds it: its hot fields, and the row read only for
 /// what they do not hold (`hotrow::Lazy`).

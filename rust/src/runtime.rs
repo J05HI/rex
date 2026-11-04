@@ -5607,23 +5607,45 @@ impl Runtime {
         );
     }
 
+    /// A view field written to `key` and to every row sharing its guid: a real PMS keeps watch
+    /// state in `metadata_item_settings` by account and guid, with no item id, and reads it
+    /// `on metadata_item_settings.guid=metadata_items.guid` (PMS 1.43.4, #579), so one film in
+    /// two libraries is watched in both. Per account, as every row write is (`rows::Overlay`).
     fn update_view(&mut self, key: &str, field: &str, value: Option<Value>) -> bool {
-        let Some(row) = self.item_mut(key) else {
-            return false;
-        };
-        let Some(object) = row.as_object_mut() else {
-            return false;
-        };
-        match value {
-            Some(value) => {
-                object.insert(field.to_string(), value);
+        let mut written = false;
+        for key in self.guid_rows(key) {
+            let Some(object) = self.item_mut(&key).and_then(Value::as_object_mut) else {
+                continue;
+            };
+            match value.clone() {
+                Some(value) => {
+                    object.insert(field.to_string(), value);
+                }
+                None => {
+                    object.shift_remove(field);
+                }
             }
-            None => {
-                object.shift_remove(field);
-            }
+            written = true;
         }
-        self.dirty = true;
-        true
+        self.dirty |= written;
+        written
+    }
+
+    /// `key` and the other rows with its guid (`catalog::By::Guid`); `key` alone without one.
+    fn guid_rows(&self, key: &str) -> Vec<String> {
+        let mut keys = vec![key.to_string()];
+        if let Some(guid) = self.catalog.get(key).and_then(|row| row.get("guid")).and_then(Value::as_str) {
+            keys.extend(
+                self.catalog
+                    .lazy_by(crate::catalog::By::Guid, guid)
+                    .iter()
+                    // The lookup files by a hash: the text decides.
+                    .filter(|row| row.get("guid").and_then(Field::as_str) == Some(guid))
+                    .filter_map(key_of)
+                    .filter(|other| other != key),
+            );
+        }
+        keys
     }
 
     /// One row of `/status/sessions/history/all` (library.record_view).
@@ -10788,7 +10810,8 @@ impl Runtime {
     /// written -- a rating, a scrobble, an unscrobble, a stored progress.
     fn stamp_view(&mut self, keys: &[String]) {
         let stamp = now();
-        for key in keys {
+        let keys: Vec<String> = keys.iter().flat_map(|key| self.guid_rows(key)).collect();
+        for key in &keys {
             if let Some(object) = self.catalog.get_mut(key).and_then(Value::as_object_mut) {
                 object.insert("_viewUpdatedAt".to_string(), json!(stamp));
             }
