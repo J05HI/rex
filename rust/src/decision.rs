@@ -645,6 +645,12 @@ pub fn conversion(profile: &Profile, protocol: &str, media: Option<&Value>) -> O
         }
         if declared.is_none() && protocol == "http" {
             if text(target.get("container")) == Some("asf") {
+                // Xbox 360's asf-only target. Its 400 is the audio's: a Media with no audio
+                // stream (a raw .avc, .m2v, .fli or .vp3 on plexscratch42, 2026-11-04) is
+                // 3000/2000/4007, "Implementation for video encoder 'wmv2' not found."
+                if media.is_some_and(|media| !streams(media).iter().any(|stream| stream_type(stream) == Some(2.0))) {
+                    return Outcome::Neither;
+                }
                 return Outcome::Refuse;
             }
             if !blocked {
@@ -871,8 +877,8 @@ mod tests {
             }
         }
         assert_eq!(profiles.len(), 78);
-        assert_eq!(row_map.len(), 31);
-        assert_eq!(measured, 2340);
+        assert_eq!(row_map.len(), 57);
+        assert_eq!(measured, 4368);
         assert_eq!(outcome_matches, measured);
         assert_eq!(exact_matches, measured);
         assert_eq!(recorded, 156);
