@@ -1644,7 +1644,7 @@ impl Runtime {
         }
         if direct_off && converting.is_none() {
             fields.insert("size".to_string(), json!(0));
-            info!("DECISION refused (music, no conversion) for path={path}");
+            info!("DECISION refused (music, no conversion) for path={path} -- App cannot direct play this item. Direct play is disabled. Cannot convert this item. No conversion profile found for protocol.");
             return Response::json(200, json!({"MediaContainer": fields}));
         }
         fields.insert("Metadata".to_string(), json!([track]));

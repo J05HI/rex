@@ -11789,23 +11789,21 @@ impl Runtime {
                 "transcodeDecisionCode".to_string(),
                 json!(if blocked { 2003 } else { 4005 }),
             );
-            fields.insert(
-                "transcodeDecisionText".to_string(),
-                json!(if blocked {
-                    "File is unplayable. DoVi (Profile 5) color space is not supported."
-                        .to_string()
-                } else if capped {
-                    // Not measured: what a real PMS answers past its transcode limit was never
-                    // recorded, so this is the encoder-less refusal's shape with rex's own text.
-                    "Cannot convert this item. The server's limit of simultaneous video conversions is reached."
-                        .to_string()
-                } else {
-                    format!("Cannot convert this item. No conversion profile found for protocol {protocol}.")
-                }),
-            );
+            let convert = if blocked {
+                "File is unplayable. DoVi (Profile 5) color space is not supported.".to_string()
+            } else if capped {
+                // Not measured: what a real PMS answers past its transcode limit was never
+                // recorded, so this is the encoder-less refusal's shape with rex's own text.
+                "Cannot convert this item. The server's limit of simultaneous video conversions is reached."
+                    .to_string()
+            } else {
+                format!("Cannot convert this item. No conversion profile found for protocol {protocol}.")
+            };
+            fields.insert("transcodeDecisionText".to_string(), json!(convert));
             fields.insert("size".to_string(), json!(0));
+            // The answer's own two texts: rex-fun's 52 refusals said nothing of why (2026-11).
             info!(
-                "DECISION refused for path={}",
+                "DECISION refused for path={} -- {refusal} {convert}",
                 query.get("path").map_or("", String::as_str)
             );
             return Response::json(200, self.container(fields, false));
@@ -15695,6 +15693,8 @@ impl Runtime {
                     }
                     if leaf == "albums" {
                         fields.insert("mixedParents".to_string(), json!(true));
+                        fields.insert("title2".to_string(), json!("By Album"));
+                        fields.insert("viewGroup".to_string(), json!("album"));
                         // A music library's are its albums, paged as `/all?type=9` (plexav, for
                         // python-plexapi's `MusicSection.albums()`, `fixtures/music/albums.json`).
                         if self.music_section(section_key) {
@@ -15737,8 +15737,6 @@ impl Runtime {
                                 return Response::json(200, self.container(fields, false));
                             }
                         }
-                        fields.insert("title2".to_string(), json!("By Album"));
-                        fields.insert("viewGroup".to_string(), json!("album"));
                         fields.insert("size".to_string(), json!(0));
                         return Response::json(200, self.container(fields, false));
                     }
@@ -24597,13 +24595,19 @@ fn handle_connection<S: Read + Write + PollRead>(
                 }
             }
         }
-        // `log_request`: under --verbose, every answered request line at DEBUG.
+        // `log_request`: under --verbose, every answered request line at DEBUG, then the app
+        // that asked, quoted as a combined log's user agent: a native app sends X-Plex-Product as
+        // a header, so its lines named no client (rex-fun, 2026-11: 275k of 341k).
+        let product = request.headers.get("x-plex-product").cloned().or_else(|| {
+            parse_query(&split_target(&request.target).1).into_iter().find(|(name, _)| name == "X-Plex-Product").map(|(_, value)| value)
+        });
         debug!(
-            "\"{} {} {}\" {} -",
+            "\"{} {} {}\" {} -{}",
             request.method,
             logging::redact_tokens(&request.target),
             request.version,
-            response.status
+            response.status,
+            product.filter(|product| !product.is_empty()).map_or(String::new(), |product| format!(" \"{}\"", product.replace('"', "'")))
         );
         // Cycle 30/49: a refusal of the request's ENVELOPE closes the socket -- the
         // malformed query pair among them -- while a refusal of its MEANING keeps it.
