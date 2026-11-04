@@ -996,7 +996,7 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
                 // A person's match keeps its row whole: no extra or version leaves it.
                 let kept = existing.as_ref().is_some_and(|(key, legacy)| {
                     !legacy && guard.catalog.get(key).is_some_and(|row| {
-                        let (same, splits) = probe_kept(row, &source.name, &item, probe);
+                        let (same, splits) = probe_kept(row, &source.name, &item, probe, &library.kind);
                         same && (!splits || guard.matched_by_hand(row))
                     })
                 });
@@ -1061,20 +1061,13 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
                 }
             }
             // A version of a row of several that its source now places on other numbers than the
-            // row's leaves the row and is placed on its own, as an extra's does above: the row was
-            // never re-identified by one of its releases, so SpongeBob's Frys S10 pack, which zurg
-            // placed S10E24 as TMDB's S9E15 (production server, 2026-10-23), sat on S10E24 beside
-            // three other releases' files for good while its own version stored the new placement.
-            if let (Some(numbers), Some((key, _)), false, true) =
-                (super::scan::placed_numbers(item.placed.as_ref()), &existing, retry, item.media_info.is_some())
-            {
-                let leaves = guard.catalog.get(key).is_some_and(|row| {
-                    let here = row.get("parentIndex").and_then(Value::as_i64).zip(row.get("index").and_then(Value::as_i64));
-                    row.get("type").and_then(Value::as_str) == Some("episode")
-                        && versions(row).len() > 1
-                        && here != Some(numbers)
-                        && !guard.matched_by_hand(row)
-                });
+            // row's, or as the other kind of title, leaves the row and is placed on its own, as an
+            // extra's does above: the row was never re-identified by one of its releases, so
+            // SpongeBob's Frys S10 pack, which zurg placed S10E24 as TMDB's S9E15 (production server,
+            // 2026-10-23), sat on S10E24 beside three other releases' files for good while its own
+            // version stored the new placement (`version_leaves`).
+            if let (Some((key, _)), false, true) = (&existing, retry, item.media_info.is_some()) {
+                let leaves = guard.catalog.get(key).is_some_and(|row| version_leaves(row, &item, &library.kind) && !guard.matched_by_hand(row));
                 if leaves && guard.drop_version(key, &source.name, &item.id) {
                     guard.dirty = true;
                     existing = None;
@@ -4602,9 +4595,9 @@ fn stream_layout(media: &Value) -> Vec<(i64, String, Option<String>)> {
 
 /// Whether `row` can take `item` without its probe: whether the version `item` names keeps the
 /// same `probe` with nothing on the row waiting for one, and whether the item would turn into a
-/// row of its own -- an extra out of a title, or a version leaving a row of several for other
-/// numbers (`upsert`), which a person's match prevents -- which needs it.
-fn probe_kept(row: &Value, source: &str, item: &Item, probe: &str) -> (bool, bool) {
+/// row of its own -- an extra out of a title, or a version leaving a row of several
+/// (`version_leaves`), which a person's match prevents -- which needs it.
+fn probe_kept(row: &Value, source: &str, item: &Item, probe: &str, library: &str) -> (bool, bool) {
     let at = item_at(row, source, &item.id);
     let same = at.is_some_and(|(index, part)| {
         let own = row.pointer(&format!("/Media/{index}/Part/{part}")).filter(|part| part.get("_sid").is_some());
@@ -4612,11 +4605,34 @@ fn probe_kept(row: &Value, source: &str, item: &Item, probe: &str) -> (bool, boo
             && own.map_or_else(|| row.pointer(&format!("/Media/{index}/_probe")), |part| part.get("_probe")).and_then(Value::as_str) == Some(probe)
     });
     let titled = matches!(row.get("type").and_then(Value::as_str), Some("episode" | "movie"));
+    (same, item.extra.is_some() && titled || version_leaves(row, item, library) || part_leaves(row, source, item))
+}
+
+/// Whether `item`, a version of `row` holding several, leaves it to be placed on its own: its
+/// source places it on other numbers than the row's, or it goes to a `library` of the other kind
+/// than the row is. Other numbers alone once did, so a film's version placed as an episode stayed:
+/// a Discord user's two releases of Primal (2019) S03, which DMM once placed as the 2019 film, were
+/// a film holding both S03E01s and eighteen films of one; placed as the show's S3E1-E10
+/// (2026-11-04), the eighteen moved to the show, and for the row of two the feed answered
+/// `updated`, moved nothing, and no snapshot asked for it again. The library, not the item's
+/// `kind`: a rex with no show library (or a `library` the source names) takes an episode as a film,
+/// and a version leaving for that split into films of one on new keys, which then answered
+/// `updated` on every push. A film's version leaves for a show only once its source numbered it: a
+/// film of one version placed as an episode with no numbers stays the film (`number_unplaced` numbers new rows only),
+/// and a film of two so placed ended on the leaving version's new key, its play count lost. Both ways
+/// it is the source's placement that moves it (numbers are an episode's): a push with no `kind`
+/// keeps what the row is, whichever library its file's folder picks. A row of one version is
+/// identified again on its key instead (`upsert`'s `reidentify`).
+fn version_leaves(row: &Value, item: &Item, library: &str) -> bool {
     let here = row.get("parentIndex").and_then(Value::as_i64).zip(row.get("index").and_then(Value::as_i64));
-    let leaves = super::scan::placed_numbers(item.placed.as_ref()).is_some_and(|numbers| {
-        row.get("type").and_then(Value::as_str) == Some("episode") && versions(row).len() > 1 && here != Some(numbers)
-    });
-    (same, item.extra.is_some() && titled || leaves || part_leaves(row, source, item))
+    let numbers = super::scan::placed_numbers(item.placed.as_ref());
+    let elsewhere = match (row.get("type").and_then(Value::as_str), library) {
+        (Some("movie"), "show") => numbers.is_some(),
+        (Some("episode"), "movie") => item.kind() == Some("movie"),
+        (Some("episode"), _) => numbers.is_some_and(|numbers| here != Some(numbers)),
+        _ => false,
+    };
+    elsewhere && versions(row).len() > 1
 }
 
 /// Whether `item`, a Part of a Media of several on `row`, leaves it to be placed on its own: its

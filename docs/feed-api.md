@@ -231,9 +231,10 @@ choosing (at most 128 characters) that changes whenever the probe does, such as 
 `media_info` it would send. Sent beside `media_info`, rex keeps it with that file version. Sent
 without `media_info`, the item is applied as it is, every other field included, when rex holds
 that version with the same `probe`. Otherwise -- a new item, a changed probe, a version kept
-from before digests, or a file that would leave its row (an extra, a version renumbered apart)
--- rex changes nothing of the item and answers its id in `wants`: push it again with its
-`media_info`. A snapshot counts a wanted item as named, so it is never removed for it.
+from before digests, or a file that would leave its row (an extra, a version renumbered apart or
+placed in a library of the other kind) -- rex changes nothing of the item and answers its id in
+`wants`: push it again with its `media_info`. A snapshot counts a wanted item as named, so it is
+never removed for it.
 
 A snapshot of a library that rarely changes then sends almost no probes, where it used to send
 every one. Only a rex whose registration answers `features: ["probe_digest"]` takes it; a
@@ -343,7 +344,10 @@ What the fields do:
 - **Placement.** An item with a `kind` and ids is placed where its source says: the movie or
   show is the one its ids name, kept even when Plex has no record of it, and an episode sits on
   its `season` and `episode`. That holds on every push and restart. A later push placing it
-  elsewhere moves it there on the same ratingKey, watch state kept; a push without a placement
+  elsewhere moves it there on the same ratingKey, watch state kept; a version of a row holding
+  several releases leaves that row and is placed on its own, whether placed on other numbers or in
+  a library of the other kind (a film's file as a numbered episode, or the reverse), on a new
+  ratingKey with no watch state unless it folds onto a row that has one. A push without a placement
   leaves it where the last one put it. A push with `kind: "unplaced"` takes the placement back:
   the file leaves the title it was placed as (its version, where the row holds several releases;
   else the row) and is shown unmatched, as a first push of it would be. zurg sends it when DMM

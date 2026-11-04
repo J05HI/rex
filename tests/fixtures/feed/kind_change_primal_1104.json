@@ -1,0 +1,729 @@
+{
+ "_about": "The two Primal (2019) S03 releases a Discord user's zurg held, ten episodes each, as zurg's own feed code (internal/rexfeed managerLibrary.Items, zurg main c024abc0) builds their items, run by a throwaway generator that was not committed. `episode` is DMM's placement of both releases on 2026-11-04 (/api/sponsor/place, asked with tt7394816 or no id): kind tv, IMDb tt10332508, TMDB 89456, each file season 3 episode n by TMDB; only S03E01's tmdbEpisodeId (6652661) was recorded, so the others go without. `film` is the same files placed as a film, which DMM once answered (the 2019 film tt7394816): Plex's agent answers for that film were not recorded, so the film is a stand-in, 127 Hours (tt1542344, TMDB 44115), whose answer duplicate_releases.json holds; a film's rows fold into versions only once Plex's agent names them. The torrents fed to the generator are the recorded file names and release names with duplicate_releases.json's two releases' hash, size and probe (the AC3 release entry 0's, the DTS-HD one entry 1's); each item's `media_info` is left out here and is that entry's, the probe `probe` digests. Those probes run 94 minutes, so today's zurg still sends the film placement as a film; with Primal's own 22-minute probes it sends it unplaced (episodeRun), as the zurg that made the user's rows did not. The user's own rex.db was not available.",
+ "film": [
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt1542344",
+    "tmdb": 44115
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "movie",
+   "subtitles": []
+  }
+ ],
+ "episode": [
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 1,
+   "tmdb_episode": 6652661,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 2,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 3,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 4,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 5,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 6,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 7,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 8,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 9,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit AC3 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit AC3 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 26307003613,
+   "hash": "eb67aeeea975544e9e1bbffd8b49173c9bae4444",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "42f3a706c816150bac5346a7be342240",
+   "kind": "episode",
+   "season": 3,
+   "episode": 10,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E01 Vengeance of Death (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 1,
+   "tmdb_episode": 6652661,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E02 Kingdom of Sorrow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 2,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E03 Feast of Flesh (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 3,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E04 Prey for the Wicked (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 4,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E05 The Dead Cast No Shadow (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 5,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E06 Cavern of Horrors (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 6,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E07 Heart of the Undead (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 7,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E08 The River of Life (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 8,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E09 The Hollow Crown (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 9,
+   "subtitles": []
+  },
+  {
+   "id": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "path": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "file": "/zurg/shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE/Primal (2019) S03E10 An Echo of Eternity (1080p BDRip x265 10bit DTS-HD MA 5.1 - Goki)[TAoE].mkv",
+   "name": "Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "release": "shows/Primal-2019-S03-1080p BDRip x265 10bit DTS-HD MA 5.1-Goki-TAoE",
+   "folder": "",
+   "size": 19920716411,
+   "hash": "08a54c097a3c9f2b80c1db47a1a3d13e409c5df9",
+   "ids": {
+    "imdb": "tt10332508",
+    "tmdb": 89456
+   },
+   "probe": "e522c214a8088c8df095656e130bf9ca",
+   "kind": "episode",
+   "season": 3,
+   "episode": 10,
+   "subtitles": []
+  }
+ ]
+}
