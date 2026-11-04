@@ -15430,3 +15430,49 @@ held one small file of each audio extension (`probes/record_audio_formats.py`,
 - **Untagged files.** PMS titles a track with no title tag after its file and files a folder of
   untagged files as `[Unknown Album]` under `Various Artists`; rex has no tags to read, so a source
   names its tracks with `display`.
+
+## A photo library, measured (2026-11-04)
+
+plexscratch (PMS 1.43.4, unclaimed, offline) was given a photo library through Plex Web 4.160.0's own
+Add Library, Photos (`POST /library/sections?name=Photos&type=photo&agent=tv.plex.agents.none&scanner=Plex%20Photo%20Scanner&language=en-US&...&metadataAgentProviderGroupId=4`),
+on a folder of Pepper&Carrot pages (David Revoy, CC BY 4.0): pictures at the top, two levels of
+folders, a PNG, and later a folder named `Witch Test v01 (2019) (Digital).cbz`. Plex Web was held
+open over CDP on a Chrome whose plex.tv resource list was rewritten to the one scratch server, and
+walked Recommended, Timeline, Library, an album, a sub-album, the viewer forward and back, the
+album's slideshow and a picture at the top (`tests/fixtures/photos/web-photos.jsonl`,
+`probes/photo_capture_fixture.py`; `tests/test_photo_library.py` replays it at rex).
+
+- **Folders are albums, named as they are.** An album is `type="photo"` with a `/children` key (a
+  `Directory`; Plex type 14), a picture `type="photo"` (a `Photo`; 13). An album is titled exactly as
+  its folder, extension and all (`Witch Test v01 (2019) (Digital).cbz`), a picture as its file name
+  without its extension. Every row's `index` is 1.
+- **A `.cbz` file is nothing to PMS.** The comic book beside the folders was left out of the library:
+  a comic is a photo album only where something shows its pages as a folder. rex takes them as its
+  source pushes them (`docs/feed-api.md` "Photos").
+- **Natural title order.** `page 1`, `page 10`, `page 2` were keyed in that (scan) order and listed
+  `page 1`, `page 2`, `page 10`; albums and pictures sort together (`E02P03` before `Sketches`).
+  Recently Added is newest first, then by key; the Timeline's listing newest first, then by title.
+- **No EXIF, the file's own time.** A picture without EXIF is dated by its file's modification time
+  (`addedAt` and `originallyAvailableAt`), `createdAtAccuracy="local"`, `createdAtTZOffset` the
+  server's offset in seconds, as text. `aspectRatio` is the video bucket nearest width over height
+  (1200x1660 is 1.33, 1200x287 2.35). `container` is `jpeg` for a `.jpg`, `png` for a `.png`.
+- **The viewer is a play queue.** `POST /playQueues?type=photo&uri=.../library/metadata/{album}/children&key=/library/metadata/{photo}`
+  from a picture, `uri=.../library/metadata/{album}` from the album's Play, and the library's listing
+  with `key` from a picture at the top, which queued all eight pictures of every album in title
+  order. Its rows carry parent and grandparent fields; `/:/timeline` for a picture answers
+  `{"size":0,"playbackState":"ignore"}` (`playing` on show, `stopped` with `continuing=1` on the
+  next), and the queue's selected item follows the viewer. The slideshow advances every 4 s.
+- **Pictures are JPEG.** Plex Web asks `/photo/:/transcode?width=..&height=..&minSize=1&upscale=1&url=/library/parts/{id}/{t}/file.jpg`
+  for the viewer (1920x1213) and the filmstrip, and `url=/library/metadata/{id}/thumb/{t}` for
+  tiles. Thumb, composite and every transcode answer `image/jpeg`, a PNG's transcode too, whose
+  bytes stay a PNG; a Part read is `image/jpeg` or `image/png` by its file. rex answers the picture
+  itself to all of them (no resizer) with those types.
+- **A picture on screen is a session.** `/status/sessions` listed the picture being viewed with its
+  Player and User. rex does not (yet).
+- **Plex for Android 2026.21.0 lists no photo library.** Pinned to plexscratch through the Android
+  harness (`harness/android`), it read `/media/providers` (which lists the photo section) and showed
+  only Movies and TV Shows, in the favourites sheet and in All Libraries, under "Looking for
+  dedicated Music and Photos apps?": Plexamp and Plex Photos. A real PMS's photo library is not
+  reachable there either; the separate Plex Photos app is the Android viewer, and is unmeasured.
+- **Plezy** (main, 2026-11-03) knows a `photo` kind for its icons and search labels and has no photo
+  viewer in its tree; unmeasured on a device.

@@ -63,7 +63,7 @@ internet, which needs a token once rex is claimed, but not the feed.
 | `user`, `password` | Basic auth for `url` (optional) |
 | `bearer` | `Authorization: Bearer` for `url` instead (optional) |
 | `mount` | Optional, a label: the folder Plex apps show its files under in Get Info (`<mount>/<path>`, default `/<path>`) and its libraries under (default rex's own, `/mnt/rex`). Playback of what a source pushes never uses it |
-| `directories` | Optional: the directories that get a library of their own ([below](#libraries-a-source-declares)). Each entry is `name`, one directory as the first segment of the source's item paths (non-empty, no `/`), and `shows`, `movies` and/or `music`, the title of its show, movie and music library (non-empty strings; at least one). Absent, `null` or `[]` declares nothing. A malformed entry is ignored, never the registration |
+| `directories` | Optional: the directories that get a library of their own ([below](#libraries-a-source-declares)). Each entry is `name`, one directory as the first segment of the source's item paths (non-empty, no `/`), and `shows`, `movies`, `music` and/or `photos`, the title of its show, movie, music and photo library (non-empty strings; at least one). Absent, `null` or `[]` declares nothing. A malformed entry is ignored, never the registration |
 | `trash` | Optional: `false` deletes what the source removes (a snapshot leaving it out, or a `DELETE`) instead of keeping it in the trash for its file to come back. For files that never come back, such as live channels that end: the production server's Live Sports library held 2,115 trashed channels beside 853 live ones (2026-11-01). Absent or `true`: the trash, as for a missing file (deleted at once only under `autoEmptyTrash`) |
 | `artwork` | Optional: `"source"` makes the artist pictures this source pushes (`display.artist.poster` and `art` on its tracks) its artists' pictures even where Plex's agent named the artist, in place of the agent's. Absent: the agent's pictures for an artist it named. Either way a person's upload or pick stays theirs. Takes effect on the next push of its tracks, changed or not |
 
@@ -303,7 +303,7 @@ The `media_info` above is cut down to show its shape. Send ffprobe's whole outpu
 | `path` | yes | Where the bytes are: `<source url>/<path>`. Its first directory also picks the library (below) |
 | `media_info` | yes, in practice | ffprobe's `-show_format -show_streams` JSON (go-ffprobe's `ProbeData` is the same shape). Absent, `null` or with no `streams`: the item is **held**, because Plex Web will not play an item without streams (findings, "An item without a probe cannot play"). A file keeps the streams of the probe it was first shown with: a later one changes only its `chapters` (an `.m3u8` is the exception, below), so a file whose bytes change is a new `id` |
 | `ids` | recommended | `imdb` (`tt…`), `tmdb`, `tvdb`; for a track, its album's `mbid` or `plex` ([Tracks](#tracks)). With `kind`, the title: `imdb` and `tmdb` are the movie's or the **show's** ids, never an episode's, and either one is enough (rex fills in the other from Plex). Without `kind`, only `tmdb` names anything (a TMDB id set by hand at the source): a title of its library's kind, when TMDB has one; `imdb` alone and `tvdb` are kept on the row and name nothing (below) |
-| `kind` | no | `movie`, `episode`, `extra`, `track` or `unplaced`: what the source knows the file is. `track` is music ([Tracks](#tracks)). `movie` or `episode` **places** the file (below): it picks the movie or show library, and its `ids` are the title. `extra` makes it a clip of its release's title (below). `unplaced`: the source looked and nothing places the file, so a placement it pushed before is taken back (below). Anything else, or absent: nothing places it, and rex does not guess from its name
+| `kind` | no | `movie`, `episode`, `extra`, `track`, `photo` or `unplaced`: what the source knows the file is. `track` is music ([Tracks](#tracks)), `photo` a picture ([Photos](#photos)). `movie` or `episode` **places** the file (below): it picks the movie or show library, and its `ids` are the title. `extra` makes it a clip of its release's title (below). `unplaced`: the source looked and nothing places the file, so a placement it pushed before is taken back (below). Anything else, or absent: nothing places it, and rex does not guess from its name
 | `extra_type` | with `kind: extra` | The clip's type: `trailer`, `deleted`, `featurette`, `behindthescenes`, `interview`, `scene`, `short`, `opening`, `ending` or `other` (Plex's local-extras types and creditless openings and endings). Anything else, or absent, is `other` |
 | `season`, `episode` | no | With `kind: episode`, the episode on **TMDB's** numbering of the show `ids.tmdb` names (`season` 0 is Specials). The row is placed exactly there. Absent: season 1, in the release's file order (below) |
 | `episode_end` | no | The last episode of a file holding several (`E01E02` -> 2). Kept on the row; the file is placed on `episode`, as rex places every multi-episode file on its first |
@@ -416,7 +416,8 @@ What the fields do:
   and is never marked watched. A later push of an `.m3u8` id whose probe has its streams at
   other indexes or of other codecs (the channel from another mirror) replaces the row's streams.
   With a [`channel`](#live-tv) it is also a channel of Live TV's guide.
-  An audio file is taken only as a `kind: "track"` ([Tracks](#tracks)), and a track must be one.
+  An audio file is taken only as a `kind: "track"` ([Tracks](#tracks)), and a track must be one; a
+  picture only as a `kind: "photo"` ([Photos](#photos)).
 - **One file, one id.** A new `id` whose `file` another id of the same source already has, in
   rex or earlier in the same push, is rejected as `<file> is already <id>'s file`. To change
   an item's id, push it with a file of its own, or remove the old id first.
@@ -501,6 +502,43 @@ with a four-album library, through Plex Web, Plex for Android and Plexamp
   marks each of its tracks played.
 - **What rex does not do.** No sonic analysis (no Stations, radio, mixes or sonically similar
   tracks), and no analysis of its own of any file: loudness and lyrics are what the source pushes.
+
+## Photos
+
+Pictures are pushed as photos: `"kind": "photo"`, an image file (`jpg`, `jpeg`, `png`, `gif`, `webp`).
+rex places it in a photo library (one of type `photo`) as a real PMS shows a folder of pictures:
+each folder an album, each picture a photo, measured on plexscratch (PMS 1.43.4) through Plex Web's
+own Add Library and its walk of the library, viewer and slideshow (`tests/fixtures/photos/`).
+
+```json
+{"id": "comics/Witch Hat Atelier (Digital)/Witch Hat Atelier v01 (2019).cbz/003.jpg",
+ "path": "comics/Witch Hat Atelier (Digital)/Witch Hat Atelier v01 (2019).cbz/003.jpg",
+ "kind": "photo", "size": 412345,
+ "media_info": {"format": {"format_name": "image2"}, "streams": [{"index": 0, "codec_type": "video", "codec_name": "mjpeg", "width": 1200, "height": 1660}]}}
+```
+
+| Field | Meaning |
+|---|---|
+| `path` | Where the bytes are, as for any item. Its folders below its first directory are its albums, outermost first, each titled exactly as the folder is named, extension and all: a real PMS shows a folder `Witch Test v01 (2019) (Digital).cbz` as an album of that title. A picture directly in the first directory is at the library's top |
+| `media_info` | Optional: ffprobe's JSON of the picture. Its stream's `width` and `height` are the photo's size (`aspectRatio` PMS's bucket of them); without it the photo has no size. A photo is never held for a probe |
+| `display` | Optional: its `title` (default the file name without its extension, as PMS titles a picture) and `date` (`YYYY-MM-DD`, the date taken; default the day it arrived) |
+| `library` | A photo library's key; default the photo library whose folder holds the file, else one whose folder ends in the item's first directory, else the first photo library |
+
+- **rex reads no picture.** No EXIF, no size of its own: titles, albums and dates are the source's,
+  as above. An album's cover, background and composite are its first picture (rex draws no mosaic).
+- **Titles are in natural order.** An album lists its albums and pictures by title, digits by their
+  value (`page 2` before `page 10`), as PMS listed `page 1`, `page 2`, `page 10`; a slideshow of an
+  album or of the library plays every picture below it in that order.
+- **Pictures are served as they are.** A client's `/photo/:/transcode` of a photo and its thumb
+  answer the picture itself, read from the source as its Part is: rex has no resizer.
+- **A photo library is needed.** rex makes none on a push: add one in Plex (Add Library, Photos) or
+  declare one (`directories: [{"name": "comics", "photos": "Comics"}]`). A picture no photo library
+  takes is rejected, `no photo library holds <file>`.
+- **Moved and removed as any item.** A push with other folders moves the picture to those albums on
+  its key; an album left with nothing goes.
+- **Which clients show it.** Plex Web browses, views and plays a slideshow. Plex for Android
+  2026.21.0 lists no photo library at all, on a real PMS either: it sends people to the separate
+  Plex Photos app (plexscratch, 2026-11-04).
 
 ## Display
 

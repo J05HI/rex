@@ -298,7 +298,9 @@ fn key_text(value: Option<&Value>) -> Option<String> {
 
 /// The section a movie or show row is listed in; other rows are listed under their parents.
 fn section_of(item: &Value) -> Option<String> {
-    matches!(item.get("type").and_then(Value::as_str), Some("movie" | "show"))
+    // A photo library's top: its albums and the pictures in no album (`photos.rs`).
+    let photo_top = item.get("type").and_then(Value::as_str) == Some("photo") && item.get("parentRatingKey").is_none();
+    (matches!(item.get("type").and_then(Value::as_str), Some("movie" | "show")) || photo_top)
         .then(|| match item.get("librarySectionID") {
             Some(Value::Bool(value)) => value.to_string(),
             other => key_text(other).unwrap_or_default(),

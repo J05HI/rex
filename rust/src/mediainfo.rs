@@ -212,9 +212,6 @@ fn aspect_ratio(stream: Option<&Row>) -> Option<f64> {
     let stream = stream?;
     let width = int_value(stream, "width")? as f64;
     let height = int_value(stream, "height")? as f64;
-    if width == 0.0 || height == 0.0 {
-        return None;
-    }
     let sar = str_value(stream, "sample_aspect_ratio")
         .and_then(|value| {
             let (n, d) = value.split_once(':')?;
@@ -224,14 +221,18 @@ fn aspect_ratio(stream: Option<&Row>) -> Option<f64> {
         })
         .filter(|value| *value > 0.0)
         .unwrap_or(1.0);
+    bucket_aspect(width * sar, height)
+}
+
+/// The nearest of PMS's aspect buckets to `width / height`: a video's, and a picture's too
+/// (plexscratch, 2026-11-04: a 1200x1660 page is 1.33, a 1200x287 banner 2.35).
+pub(crate) fn bucket_aspect(width: f64, height: f64) -> Option<f64> {
+    if width == 0.0 || height == 0.0 {
+        return None;
+    }
     [1.33, 1.66, 1.78, 1.85, 2.2, 2.35]
         .iter()
-        .min_by(|a, b| {
-            (**a - width * sar / height)
-                .abs()
-                .partial_cmp(&((**b - width * sar / height).abs()))
-                .unwrap()
-        })
+        .min_by(|a, b| (**a - width / height).abs().partial_cmp(&((**b - width / height).abs())).unwrap())
         .copied()
 }
 

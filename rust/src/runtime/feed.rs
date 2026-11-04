@@ -290,11 +290,16 @@ impl Item {
         if track && !super::music::is_audio(&file) {
             return Err(refuse("not an audio file"));
         }
-        if !track && !is_video(&file) && !playlist {
+        // A picture its source pushes as a photo (`photos.rs`), by its kind as well.
+        let photo = text("kind").as_deref() == Some("photo");
+        if photo && !super::photos::is_image(&file) {
+            return Err(refuse("not an image file"));
+        }
+        if !track && !photo && !is_video(&file) && !playlist {
             return Err(refuse("not a video file"));
         }
         // A video scanner's rule: a song may well be called "Sample".
-        if !track && is_sample(&file) {
+        if !track && !photo && is_sample(&file) {
             return Err(refuse("a sample"));
         }
         let segments: Vec<&str> = path.split('/').collect();
@@ -311,7 +316,7 @@ impl Item {
         let number = |key: &str, least: i64| {
             value.get(key).and_then(|n| n.as_i64().or_else(|| n.as_str()?.trim().parse().ok())).filter(|n| *n >= least)
         };
-        let placed = text("kind").filter(|kind| matches!(kind.as_str(), "movie" | "episode" | "track")).map(|kind| {
+        let placed = text("kind").filter(|kind| matches!(kind.as_str(), "movie" | "episode" | "track" | "photo")).map(|kind| {
             let mut placed = Map::from_iter([("kind".to_string(), json!(kind))]);
             // A track sits on its album's `disc` (1 unless said) and `track`, Plex's own numbers.
             if kind == "track" {
@@ -931,6 +936,10 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
     let (tracks, items): (Vec<Item>, Vec<Item>) = items.into_iter().partition(|item| item.kind() == Some("track"));
     if !tracks.is_empty() {
         super::music::upsert_tracks(shared, source, tracks, &mut counts, seen.as_deref_mut(), retry);
+    }
+    let (photos, items): (Vec<Item>, Vec<Item>) = items.into_iter().partition(|item| item.kind() == Some("photo"));
+    if !photos.is_empty() {
+        super::photos::upsert_photos(shared, source, photos, &mut counts, seen.as_deref_mut(), retry);
     }
 
     // -- under the lock: which library, which row, what has to be identified ---------------
@@ -2267,7 +2276,7 @@ impl Runtime {
                 let folder = folder.trim_end_matches('/');
                 folder == entry.name || folder.ends_with(&format!("/{}", entry.name))
             };
-            for (kind, title) in [("movie", &entry.movies), ("show", &entry.shows), ("artist", &entry.music)] {
+            for (kind, title) in [("movie", &entry.movies), ("show", &entry.shows), ("artist", &entry.music), ("photo", &entry.photos)] {
                 let Some(title) = title else {
                     continue;
                 };

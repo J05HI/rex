@@ -76,7 +76,7 @@ searched on disk. The gate is usually one truthiness check in minified code.
 
 Sidecar fixtures are captured from a real PMS -- the later ones read straight out of its
 image -- and live in `data/`. The descriptors (`server_prefs.json`, `regional_server_prefs.json`,
-`section_prefs.json`, `section_meta.json`, `section_meta_show.json`, `section_meta_artist.json`, `item_prefs.json`,
+`section_prefs.json`, `section_meta.json`, `section_meta_show.json`, `section_meta_artist.json`, `section_meta_photo.json`, `item_prefs.json`,
 `section_prefs_new.json`, `section_filters.json`, `section_sorts.json`, `system_agents.json`,
 `legacy_agents.json`, `agent_languages.json`, `languages.json`, `translations.json`, `refusal_strings.json`,
 `client_profiles.json`, `spellfix_static_tags.json`, `legacy_agent_config.json`); the strings a
@@ -672,6 +672,8 @@ python3 tests/test_music_library_declared.py # a source's `directories` `music` 
 python3 tests/test_music_audiobooks.py      # every audio extension plexav makes a track of, and Chronicle's sync and play of a
                                             # LibriVox book (.m4b chapters, .mp3s) replayed: its refused decision and play queue,
                                             # Store track progress, scrobbles; Android's, Plexamp's and Web's chapters
+python3 tests/test_photo_library.py         # pictures a source pushes (`kind: photo`) are plexscratch's photo library: folders as albums
+                                            # titled as named, natural order, Plex Web's walk, viewer and slideshow replayed; needs ffmpeg
 python3 tests/test_artwork_blur.py          # thumbBlurHash, artBlurHash and UltraBlurColors as plexav answers them for rex's own synthetic
                                             # covers: which rows carry which, the hash and corners within tolerance, kept by --state
 python3 tests/test_match_show_children.py  # a show Fix Matched takes the picked show's episodes by its rows' TMDB episode ids, by number only where every season's count is Plex's (a real library's Ben 10: Omniverse); one matched onto a show the library holds merges into it, its episodes kept; both listed for the source with the show's ids until Unmatch

@@ -54,6 +54,7 @@ mod livetv;
 pub(crate) mod logging;
 mod merge;
 mod music;
+mod photos;
 mod markers;
 mod notify;
 mod playlists;
@@ -3294,10 +3295,11 @@ impl Runtime {
     /// measured on plexscratch42, an empty music library's `/prefs` equals that form row
     /// for row and value for value; rex answered an empty list.
     fn section_base_settings(&self, section_key: &str, kind: &str) -> Vec<Value> {
-        if kind == "artist" {
+        // A photo library's too (plexscratch, 2026-11-04: Visibility and the preview thumbnails).
+        if kind == "artist" || kind == "photo" {
             let section = self.section(section_key).cloned().unwrap_or(Value::Null);
             let (agent, _scanner, _group) = Self::section_agent(&section);
-            return self.form_pref_rows("8", &agent, &[]);
+            return self.form_pref_rows(if kind == "photo" { "13" } else { "8" }, &agent, &[]);
         }
         load_json_sidecar(&self.catalog_path, "section_prefs.json")
             .and_then(|value| value.get(kind).cloned())
@@ -3405,6 +3407,8 @@ impl Runtime {
         let (agent, scanner, group) = match section.get("type").and_then(Value::as_str) {
             Some("show") => ("tv.plex.agents.series", "Plex TV Series", 2),
             Some("artist") => ("tv.plex.agents.music", "Plex Music", 3),
+            // Plex Web's Add Library, Photos, on plexscratch (2026-11-04).
+            Some("photo") => ("tv.plex.agents.none", "Plex Photo Scanner", 4),
             _ => ("tv.plex.agents.movie", "Plex Movie", 1),
         };
         let own = |name: &str| {
@@ -8441,6 +8445,9 @@ impl Runtime {
             query.insert("location".to_string(), if self.playback_lan(&request.headers) { "lan" } else { "wan" }.to_string());
         }
         if let Some(response) = self.route_livetv(request, &path, &mut query) {
+            return response;
+        }
+        if let Some(response) = self.route_photos(request, &path, &query) {
             return response;
         }
         // A bare `/player` falls to the plug-in dispatcher for every verb but GET and
@@ -28263,6 +28270,9 @@ fn part_content_type(part: &Value) -> String {
         "m4a" => "audio/mp4",
         "wav" => "audio/wav",
         "asf" => "video/x-ms-asf",
+        // plexscratch's part reads of its photo library's pictures (2026-11-04).
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
         _ => "application/octet-stream",
     }
     .to_string()
