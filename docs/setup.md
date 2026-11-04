@@ -313,11 +313,14 @@ Web; other Plex apps have not been playback-tested).
 Coming from another Plex server? Once the library has arrived, each account can bring
 its watch state over: what it watched, started and rated there. Plex Web's **View XML** (an
 item's **⋯**, **Get Info**) opens an address on the old server that carries the account's
-token there. POST that address to rex, with the account's token on rex (the `X-Plex-Token` at
-the end of the same View XML address on a rex item), from rex's own networks:
+token there. Plex Web shows View XML only to a server's owner, so on a server shared with the
+account (rex, for every account but the fresh one) take the address of any request Plex Web sends
+that server from the browser's developer tools (Network tab): it carries the same `X-Plex-Token`.
+POST the old server's address to rex, with the account's token on rex taken the same way, from
+rex's own networks:
 
 ```bash
-curl -d "<the old server's View XML address>" "http://<rex's LAN IP>:32400/rex/import-watched?X-Plex-Token=<the token on rex>"
+curl -d "<an address on the old server with X-Plex-Token>" "http://<rex's LAN IP>:32400/rex/import-watched?X-Plex-Token=<the token on rex>"
 ```
 
 rex reads every film and episode of the old server's libraries as that account sees them and
