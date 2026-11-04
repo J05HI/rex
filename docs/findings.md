@@ -15619,3 +15619,22 @@ and `vobsub_read`, `universal.rs` `VobSub`), except that rex lists no sidecar's 
 has for an SRT) and does not write an embedded track's `headerCompression` (mkvmerge's zlib, which
 ffprobe does not report). rex still burns embedded PGS for Matroska targets: no copy of one was
 measured. `tests/test_vobsub_sidecars.py`.
+
+## The new file types on real phone clients (2026-11-04)
+
+Ben's Pixel 6 (Android 16) with Plex for Android 2026.19.1, Plezy 2.24.0 and Chronicle 0.62.0,
+signed in to the account a zen test rex was claimed to (proxy parts, jellyfin-ffmpeg 8.1.3), fed by a
+static Range source and the feed API. Each app was driven over adb (uiautomator dumps, taps), and
+what it asked for was read off rex's own log: the decision, the Part reads and the timelines. A
+decision that looked wrong was replayed byte for byte, the app's exact query, against the 1.42.2
+reference's build on plexscratch42. What follows is what the clients do, not rex: a real PMS
+answers the same requests the same way, so none of it is a rex defect, and none was worked around.
+
+| Client | What | Measured |
+|---|---|---|
+| Plex for Android | direct play of any WMAv2 audio: `.wmv`, `.asf`, `.dvr-ms`, and an H.264 + WMAv2 `.mkv` | the app crashes in its own decoder (logcat: SIGSEGV in its bundled libavcodec, `avcodec_send_packet`). rex said direct play, and the 1.42.2 reference answers the app's exact decision request the same, `mdeDecisionCode` 1000. WMV2 video with AAC plays, and the same files play once converted |
+| Plex for Android | a raw `.avc` (H.264 elementary stream), with and without a duration in its probe | direct play starts and stops at about 0.3 s (timeline `stopped` at 274 ms); the reference's answer is the same shape. Plezy plays the same file |
+| Plezy | a VobSub sidecar (`.idx` + `.sub`) | asks `/library/streams/{id}.srt?encoding=utf-8`, gets the 404 a real PMS gives any extension but a sidecar's own (VobSub sidecars, above), and offers only Off. An SRT sidecar shows |
+| Plezy | a photo library (comics as albums of pages) | lists the library, shows each album as a TV show, and Play fails with "File information not available". Plezy has no photo viewer; Plex for Android lists no photo library at all, from a real PMS either, and points to the Plex Photos app |
+
+The phone's screenshots and logs stay with the test notes, not here: they show Plex's own UI.
