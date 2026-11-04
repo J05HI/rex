@@ -14,7 +14,8 @@ certificate for it too and announces `https://<lanHostname>:<--port>` after the 
 that is no DNS name refuses the whole answer.
 Unclaimed it registers nothing until a claim lands, then at once, without a restart; a 202
 is a provider still issuing the certificate, asked again after its `retryAfter` (15 s at
-least, so that leg takes ~15 s). Nothing here reaches DMM or plex.tv: the stub mints its own
+least, so that leg takes ~15 s), and a 403 right after a claim is asked again in a minute
+(that leg takes ~60 s). Nothing here reaches DMM or plex.tv: the stub mints its own
 throwaway certificates with `openssl` and takes plex.tv's claim exchange and device PUT
 through `REX_PLEXTV_URL`. The stub's hostname is under `rex-direct.test`, not DMM's domain:
 rex takes the wildcard from the name the provider answers, not from a domain of its own.
@@ -50,6 +51,8 @@ KEY = "PROVIDER-KEY-STUB-5f3a91"
 SERVER_TOKEN = "SERVER-TOKEN-STUB-77d1"
 CLAIM_TOKEN = "claim-STUB-0c4e"
 REFUSAL = "the token does not own this server"
+# DMM's 403 for a server plex.tv does not list as the account's (`src/utils/plexServerOwner.ts`).
+NOT_OWNED = json.dumps({"error": "The Plex account does not own this server"}).encode()
 HASH = "a1b2c3d4e5f6"
 HOSTNAME = "%s.rex-direct.test" % HASH
 IP = "203.0.113.7"
@@ -483,6 +486,29 @@ def main():
               logged(log, "INFO", re.escape("rex-direct: registers with %s once claimed (POST /myplex/claim)"
                                             % register_url)), log[-3000:])
         check("...the log carries neither the token nor the key", SERVER_TOKEN not in log and KEY not in log)
+
+        # 4b. Right after a claim plex.tv does not list the server yet, so DMM refuses the first
+        #     registration with a 403 (kids, 2026-11-04, its exact body below): rex asks again in a
+        #     minute, not the 10 minutes it waits after any other failure.
+        soon = os.path.join(work, "claimed-403")
+        setup(soon, claimed=False)
+        with stub.lock:
+            stub.records = []
+        instance = Instance(soon, free_port(), stub.server_address[1], register_url)
+        live.append(instance)
+        with stub.lock:
+            stub.queue = [(403, NOT_OWNED)]
+        check("a claim whose first registration gets a 403 is answered", instance.claim() == 200)
+        claimed = time.time()
+        posts = wait_for(lambda: len(stub.taken("/api/rex-direct/register")) >= 2 and stub.taken("/api/rex-direct/register"), 80)
+        check("...and registers again a minute on, not 10", posts and 55 <= time.time() - claimed <= 75,
+              (len(stub.taken("/api/rex-direct/register")), time.time() - claimed))
+        check("...then serves the certificate", wait_for(lambda: served(instance.port, HOSTNAME) == der(direct_crt), 5))
+        instance.stop()
+        log = instance.output()
+        check("...the 403 is a WARN saying so",
+              logged(log, "WARNING", re.escape("rex-direct: registration failed: HTTP 403 (The Plex account does "
+                                               "not own this server); retrying in 1 min")), log[-3000:])
 
         # 5. A 202 is a provider still issuing the certificate: an INFO, the port opens at
         #    once, and rex asks again after retryAfter, kept to 15 s at least.
