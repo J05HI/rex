@@ -121,6 +121,23 @@ pub(super) fn posted_artwork(request: &Request) -> Result<Vec<u8>, Response> {
     }
 }
 
+/// A clear logo's or theme's upload, a POST's body or what its `?url=` answers. A real PMS 1.43.4
+/// keeps any bytes the url answers (a page, its own `/identity`) and refuses a url it cannot fetch
+/// with a 406, where a poster's is a 502 (`tests/fixtures/collection_logos_s1434.json`). rex still
+/// fetches public addresses only.
+pub(super) fn posted_any(request: &Request) -> Result<Vec<u8>, Response> {
+    if !request.body.is_empty() {
+        return Ok(request.body.clone());
+    }
+    let (_, query) = split_target(&request.target);
+    parse_query(&query)
+        .into_iter()
+        .find(|(name, url)| name == "url" && !url.is_empty())
+        .and_then(|(_, url)| super::transcoder::fetch_remote_image(&url, None))
+        .map(|(bytes, _)| bytes)
+        .ok_or_else(|| Response::error(406, "rex: not acceptable"))
+}
+
 pub(super) fn sha1_hex(body: &[u8]) -> String {
     let mut hasher = Sha1::new();
     hasher.update(body);

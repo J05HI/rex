@@ -14409,6 +14409,40 @@ rating and genre updates, smart collections with labels, summaries and sort titl
 (poster uploads). `tests/test_tag_collections.py` replays Kometa's requests; its 200 and 406 poster checks
 fetch the recorded GitHub urls and skip offline.
 
+## A collection's clear logo, theme and custom order (2026-11-04)
+
+rex#15: Kometa's `url_logo` and `collection_order: custom` failed on a rex collection.
+python-plexapi 4.18's requests (`uploadLogo`, `logos`, `setLogo`, `uploadTheme`, `themes`,
+`sortUpdate`) were sent to two online PMS 1.43.4.10903 with the harness clips: plexlab
+(unclaimed) and a throwaway container claimed to a test account without Plex Pass, then signed
+out and its device deleted (`tests/fixtures/collection_logos_s1434.json`).
+
+- **`collectionSort` offers `2:Custom` only once the server is claimed**:
+  `0:Release date|1:Alphabetical|2:Custom` on the claimed one, `0:Release date|1:Alphabetical` on
+  plexlab (the "two" values cycle 15 recorded were an unclaimed copy's). Both store and read back
+  2. python-plexapi's `editAdvanced` refuses a value missing from the enum before sending
+  anything, so rex's two-value enum made every `sortUpdate("custom")` a client-side `NotFound: 2
+  not found in ['0', '1']`. rex now publishes the third value when claimed (`--assert-claimed` too).
+- **A collection takes `clearLogos` and `themes` uploads as an item does.** `POST
+  .../clearLogos?url=` (or a body) is an empty 200 storing `upload://clearLogos/<sha1 of the
+  bytes>`, listed newest first and selected; the row gains `Image` `clearLogo`
+  `/library/metadata/{id}/clearLogo/{v}` after any `coverPoster`, and a locked `clearLogo` Field.
+  A theme is `upload://themes/<sha1>`, a `theme` attribute after `thumb` and a locked `theme` Field.
+  rex answered both lists with GET only and a POST was a 404.
+- **A url logo or theme keeps whatever the url answers** -- a GitHub README, the server's own
+  `/identity` -- and a url it cannot fetch is a **406**, where a poster's is a 502 and a non-image
+  poster a 406. rex fetches public addresses only, as for posters (`artwork::posted_any`).
+- **`PUT .../clearLogos?url=` is a 404 on a real PMS too**, collection and film alike: the request
+  rex#15 quoted is not one python-plexapi sends. Its `setLogo` sends `PUT .../clearLogo?url=<the
+  candidate's ratingKey>`, a 200 whose body is the new path; without `url` a 400. (`PUT
+  .../theme?url=` answered a 500 there, so rex does not take it.)
+- **A film's `POST .../clearLogos?url=` is a 200.** rex's empty-body 406 ran before any url was
+  looked at, for posters and arts as well, so no item upload by url ever fetched; a request with a
+  `url` now skips it.
+
+`tests/test_collection_logos.py` replays python-plexapi's requests and compares each answer with the
+claimed server's; its `?url=` checks fetch the recorded GitHub url and skip offline.
+
 ## An announce plex.tv keeps no connection from (2026-10-24)
 
 A sponsor's rex was claimed, listed under the account's authorised devices and in no Plex app;

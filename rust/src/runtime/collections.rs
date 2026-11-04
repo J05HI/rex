@@ -322,6 +322,9 @@ impl Runtime {
                 collection.id
             ))),
         );
+        if let Some(theme) = collection.extra.get("theme").filter(|theme| !theme.is_null()) {
+            row.insert("theme".to_string(), theme.clone());
+        }
         row.insert(
             "addedAt".to_string(),
             collection
@@ -391,13 +394,18 @@ impl Runtime {
             row.insert("minYear".to_string(), json!(years[0]));
             row.insert("maxYear".to_string(), json!(years[years.len() - 1]));
         }
-        if let Some(thumb) = &own_thumb {
-            // Cycle 88 (plexscratch42): an own poster is also the row's `coverPoster`
-            // `Image`, on the detail reads and the listing alike, ahead of its tags.
-            row.insert(
-                "Image".to_string(),
-                json!([{"alt": collection.title, "type": "coverPoster", "url": thumb}]),
-            );
+        // Cycle 88 (plexscratch42): an own poster is also the row's `coverPoster`
+        // `Image`, on the detail reads and the listing alike, ahead of its tags; an
+        // uploaded logo follows it as `clearLogo` (1.43.4, collection_logos_s1434.json).
+        let images = [
+            ("coverPoster", own_thumb.as_ref().map(|thumb| json!(thumb))),
+            ("clearLogo", collection.extra.get("_clearLogo").cloned()),
+        ]
+        .into_iter()
+        .filter_map(|(kind, url)| url.map(|url| json!({"alt": collection.title, "type": kind, "url": url})))
+        .collect::<Vec<_>>();
+        if !images.is_empty() {
+            row.insert("Image".to_string(), Value::Array(images));
         }
         // Cycle 88: the detail reads carry `Label` then `Field`.
         for name in ["Label", "Field"] {
@@ -465,7 +473,13 @@ impl Runtime {
                         "summary": "The order the collection's items are listed in.",
                         "type": "text", "default": "0", "value": "0", "hidden": false,
                         "advanced": false, "group": "",
-                        "enumValues": "0:Release date|1:Alphabetical"}),
+                        // 1.43.4 offers Custom only once claimed (collection_logos_s1434.json),
+                        // and python-plexapi's sortUpdate("custom") is refused without it.
+                        "enumValues": if self.claimed() {
+                            "0:Release date|1:Alphabetical|2:Custom"
+                        } else {
+                            "0:Release date|1:Alphabetical"
+                        }}),
                     _ => json!({
                         "id": "collectionFilterBasedOnUser",
                         "label": "Collection filtering based on",
@@ -1763,7 +1777,9 @@ impl Runtime {
         let method = request.method.as_str();
         let id = collection.id.clone();
         if !matches!(method, "GET" | "HEAD" | "PUT" | "DELETE")
-            && !(method == "POST" && tail.len() == 1 && matches!(tail[0], "posters" | "arts"))
+            && !(method == "POST"
+                && tail.len() == 1
+                && matches!(tail[0], "posters" | "arts" | "clearLogos" | "themes"))
         {
             return Response::error(404, "rex: not found");
         }
@@ -1897,7 +1913,10 @@ impl Runtime {
             return Response::json(200, container);
         }
         if tail.len() == 1 && matches!(tail[0], "clearLogos" | "themes") {
-            return Response::json(200, self.tag_container(Map::new()));
+            return self.collection_logo_or_theme(&id, tail[0], request);
+        }
+        if (1..=2).contains(&tail.len()) && matches!(tail[0], "clearLogo" | "theme") {
+            return self.collection_logo_or_theme_leaf(&id, tail[0], query, method);
         }
         if tail.len() == 1 && tail[0] == "composite" || tail.first() == Some(&"composite") {
             if !matches!(method, "GET" | "HEAD") {
@@ -2118,6 +2137,126 @@ impl Runtime {
                     json!(collection.guid()),
                 );
             }
+        }
+    }
+
+    /// `/library/metadata/{collection}/{clearLogos,themes}`, measured on a real PMS 1.43.4,
+    /// claimed and not (`tests/fixtures/collection_logos_s1434.json`): a POST is an upload as
+    /// an item's is (`artwork::posted_any`), an empty 200 that lists `upload://{list}/<sha1>`
+    /// first and selected and locks the field; a GET lists the uploads; anything else is the
+    /// 404, the PUT python-plexapi's `setLogo` does not send included.
+    fn collection_logo_or_theme(&mut self, id: &str, list: &str, request: &Request) -> Response {
+        let (field, private) = if list == "clearLogos" {
+            ("clearLogo", "_clearLogo_url")
+        } else {
+            ("theme", "_theme_url")
+        };
+        let uploads = format!("_{list}");
+        match request.method.as_str() {
+            "POST" => {
+                let body = match artwork::posted_any(request) {
+                    Ok(body) => body,
+                    Err(refusal) => return refusal,
+                };
+                let upload = format!("upload://{list}/{}", artwork::sha1_hex(&body));
+                let served = if field == "theme" { "audio/mpeg3" } else { "image/jpeg" };
+                self.uploads.insert(upload.clone(), body, served.to_string());
+                let stamp = now();
+                let Some(collection) = self.collections.get_mut(id) else {
+                    return Response::error(404, "rex: not found");
+                };
+                let extra = &mut collection.extra;
+                if let Some(known) = extra.entry(uploads).or_insert_with(|| json!([])).as_array_mut() {
+                    if !known.iter().any(|value| value.as_str() == Some(upload.as_str())) {
+                        known.insert(0, json!(upload));
+                    }
+                }
+                extra.insert(private.to_string(), json!(upload));
+                // The row's `theme`; a logo is its `clearLogo` Image.
+                let shown = if field == "theme" { "theme" } else { "_clearLogo" };
+                extra.insert(shown.to_string(), json!(format!("/library/metadata/{id}/{field}/{stamp}")));
+                extra.insert("updatedAt".to_string(), json!(stamp));
+                edit::set_lock(extra, field, true);
+                if let Some(stored) = self.collections.get(id).cloned() {
+                    let row = self.dynamic_collection_row(&stored);
+                    self.push_timeline_collection(&row, 5, None);
+                }
+                self.dirty = true;
+                self.save_if_dirty();
+                Response::empty(200)
+            }
+            "GET" | "HEAD" => {
+                let columns = self.list_columns(id, true).unwrap_or_default();
+                let selected = columns.get(private).map(string_value);
+                let element = if field == "clearLogo" { "Photo" } else { "Track" };
+                let entries = columns
+                    .get(&uploads)
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .map(string_value)
+                    .map(|upload| {
+                        let path = artwork::candidate_path(id, &upload);
+                        json!({"_element": element, "key": path, "ratingKey": upload, "thumb": path,
+                               "selected": selected.as_deref() == Some(upload.as_str())})
+                    })
+                    .collect::<Vec<_>>();
+                let mut fields = Map::new();
+                if !entries.is_empty() {
+                    fields.insert("Metadata".to_string(), Value::Array(entries));
+                }
+                Response::json(200, self.tag_container(fields))
+            }
+            _ => Response::error(404, "rex: not found"),
+        }
+    }
+
+    /// `PUT /library/metadata/{collection}/clearLogo?url=` picks one of the logos (python-plexapi's
+    /// `setLogo`; no url is a 400) and answers the new path; a GET of `clearLogo` or `theme`
+    /// (versioned or not) serves the selected upload. Measured on 1.43.4, as above.
+    fn collection_logo_or_theme_leaf(
+        &mut self,
+        id: &str,
+        field: &str,
+        query: &HashMap<String, String>,
+        method: &str,
+    ) -> Response {
+        let private = format!("_{field}_url");
+        if method == "PUT" && field == "clearLogo" {
+            let Some(url) = query.get("url").map(|url| percent_decode(url)).filter(|url| !url.is_empty()) else {
+                return Response::error(400, "rex: no url");
+            };
+            let stamp = now();
+            let path = format!("/library/metadata/{id}/clearLogo/{stamp}");
+            let Some(collection) = self.collections.get_mut(id) else {
+                return Response::error(404, "rex: not found");
+            };
+            collection.extra.insert(private, json!(url));
+            collection.extra.insert("_clearLogo".to_string(), json!(path));
+            collection.extra.insert("updatedAt".to_string(), json!(stamp));
+            edit::set_lock(&mut collection.extra, field, true);
+            if let Some(stored) = self.collections.get(id).cloned() {
+                let row = self.dynamic_collection_row(&stored);
+                self.push_timeline_collection(&row, 5, None);
+            }
+            self.dirty = true;
+            self.save_if_dirty();
+            let mut response = Response::bytes(200, "text/html");
+            response.body = path.into_bytes();
+            return response;
+        }
+        if !matches!(method, "GET" | "HEAD") {
+            return Response::error(404, "rex: not found");
+        }
+        let selected = self.list_columns(id, true).and_then(|columns| columns.get(&private).map(string_value));
+        match selected.and_then(|url| self.upload(&url)) {
+            Some((body, content_type)) => {
+                let mut response = Response::bytes(200, content_type);
+                response.body = body;
+                response.headers.push(("Accept-Ranges".to_string(), "bytes".to_string()));
+                response
+            }
+            None => Response::error(404, "rex: not found"),
         }
     }
 
@@ -2473,6 +2612,48 @@ mod tests {
         shared.lock().unwrap().catalog.get_mut("100003").unwrap().as_object_mut().unwrap().shift_remove("deletedAt");
         auto_collect(&shared, false);
         assert_eq!(collections(&shared)[0].2, ["100001", "100002", "100003"]);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// rex#15, measured on a claimed and an unclaimed PMS 1.43.4 (tests/fixtures/collection_logos_s1434.json):
+    /// only a claimed server offers Custom, which python-plexapi's sortUpdate("custom") checks for; a
+    /// collection takes a clear logo upload, lists it and shows it on its row; PUT on the list is a 404.
+    #[test]
+    fn a_claimed_collection_offers_custom_order_and_takes_a_logo() {
+        let (shared, dir) = library("logos", None);
+        let mut guard = shared.lock().unwrap();
+        let query = HashMap::from([
+            ("title".to_string(), "Probe635".to_string()),
+            ("sectionId".to_string(), "1".to_string()),
+            ("type".to_string(), "1".to_string()),
+        ]);
+        assert_eq!(guard.create_collection(&query).status, 200);
+        let id = guard.collections.keys().next().unwrap().clone();
+        let send = |runtime: &mut Runtime, method: &str, target: String, body: &[u8]| {
+            runtime.route(&Request { method: method.into(), target, version: "HTTP/1.1".into(),
+                headers: HashMap::new(), body: body.to_vec(), body_complete: true })
+        };
+        let order = |runtime: &Runtime| {
+            let collection = runtime.collections.get(&id).unwrap().clone();
+            runtime.collection_preferences(&collection)[1]["enumValues"].as_str().unwrap().to_string()
+        };
+        assert_eq!(order(&guard), "0:Release date|1:Alphabetical", "unclaimed");
+        guard.assert_claimed = true;
+        assert_eq!(order(&guard), "0:Release date|1:Alphabetical|2:Custom", "claimed");
+
+        let logos = format!("/library/metadata/{id}/clearLogos");
+        assert_eq!(send(&mut guard, "POST", logos.clone(), b"").status, 406, "no body and no url");
+        assert_eq!(send(&mut guard, "POST", logos.clone(), b"logo bytes").status, 200);
+        let listed: Value = serde_json::from_slice(&send(&mut guard, "GET", logos.clone(), b"").body).unwrap();
+        let upload = format!("upload://clearLogos/{}", artwork::sha1_hex(b"logo bytes"));
+        assert_eq!(listed["MediaContainer"]["Metadata"][0]["ratingKey"], json!(upload));
+        assert_eq!(listed["MediaContainer"]["Metadata"][0]["selected"], json!(true));
+        assert_eq!(send(&mut guard, "PUT", format!("{logos}?url=x"), b"").status, 404, "PUT on the list");
+        let row = guard.dynamic_collection_row(&guard.collections.get(&id).unwrap().clone());
+        assert_eq!(row["Image"][0]["type"], "clearLogo");
+        let served = send(&mut guard, "GET", row["Image"][0]["url"].as_str().unwrap().to_string(), b"");
+        assert_eq!((served.status, served.body.as_slice()), (200, b"logo bytes".as_slice()));
+        drop(guard);
         let _ = std::fs::remove_dir_all(dir);
     }
 

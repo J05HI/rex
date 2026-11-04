@@ -698,6 +698,8 @@ python3 tests/test_tag_collections.py       # a metadata manager's requests repl
                                             # a url poster is fetched (its 200/406 need raw.githubusercontent.com, else skip)
 python3 tests/test_collection_hub_pins.py   # a collection's Visible on and Manage Recommendations replayed from Plex Web on an online
                                             # 1.43.5: the list's rows, moves, removal and reset, its shelf on Recommended and Home, kept by --state
+python3 tests/test_collection_logos.py      # python-plexapi's logo, theme and order requests replayed from a claimed 1.43.4: uploads
+                                            # listed and shown, setLogo, the refusals, collectionSort's 2:Custom (url uploads skip offline)
 python3 tests/parallel_suites.py --workers 4 test_cli test_feed ...
                                             # several suites at once, as CI runs them: each gets its own
                                             # REX_TEST_PORTS range (tests/test_ports.py), output kept per suite

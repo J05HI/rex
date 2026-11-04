@@ -7065,10 +7065,11 @@ impl Runtime {
                 return Some(Response::error(400, "rex: bad request"));
             };
             let wanted = percent_decode(&url.replace("%2E", "."));
-            let mine = columns
-                .get("_uploads")
-                .and_then(Value::as_array)
-                .is_some_and(|list| list.iter().any(|known| known.as_str() == Some(wanted.as_str())));
+            let mine = ["_uploads", "_clearLogos", "_themes"]
+                .iter()
+                .filter_map(|name| columns.get(*name).and_then(Value::as_array))
+                .flatten()
+                .any(|known| known.as_str() == Some(wanted.as_str()));
             return Some(match mine.then(|| self.upload(&wanted)).flatten() {
                 Some((body, content_type)) => serve(body, content_type, false),
                 None => Response::error(404, "rex: not found"),
@@ -18971,6 +18972,10 @@ impl Runtime {
                 // Cycle 15, measured on plexscratch: POSTing an EMPTY body to any
                 // artwork or subtitle candidate list is a 406 -- all seven alike, and
                 // for the subtitle upload the empty-body check runs before the title's.
+                // A `url` is an upload by url instead (1.43.4: an item's `clearLogos?url=` is
+                // a 200, collection_logos_s1434.json), fetched below.
+                "posters" | "arts" | "themes" | "clearLogos"
+                    if query.get("url").is_some_and(|url| !url.is_empty()) => {}
                 "posters" | "arts" | "thumbs" | "banners" | "themes" | "clearLogos"
                 | "subtitles"
                     if request.body.is_empty() =>
@@ -19646,7 +19651,14 @@ impl Runtime {
                     _ => Response::error(404, "rex: not found"),
                 }
             }
-            "thumbs" | "banners" | "themes" | "clearLogos" if request.method == "POST" => {
+            "themes" | "clearLogos" if request.method == "POST" => {
+                // A url is fetched, as on a collection (1.43.4, collection_logos_s1434.json).
+                match artwork::posted_any(request) {
+                    Ok(body) => self.upload_artwork(key, tail[0], &body),
+                    Err(refusal) => refusal,
+                }
+            }
+            "thumbs" | "banners" if request.method == "POST" => {
                 // Cycle 15: every candidate list answers a POST as an upload does.
                 if request.body.is_empty() {
                     return Response::error(406, "rex: not acceptable");
