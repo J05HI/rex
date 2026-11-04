@@ -14,7 +14,7 @@ unchanged through fun's zurg. What a real PMS answers for them is
   with every byte over 0x7f dropped, any other extension a 404; a text sidecar answers only its
   own extension (`.srt`, `.ass`; `.vtt` a 404); an embedded track any extension as itself (501);
 - a conversion for Plex Web burns it (the `.idx`'s first track), one for Plex for Android's or
-  iOS's Matroska target muxes it in as `dvd_subtitle`.
+  iOS's Matroska target muxes it in as `dvd_subtitle`, and an embedded VobSub is copied there.
 
 Needs ffmpeg (`REX_TRANSCODER`, else PATH's).
 
@@ -362,7 +362,7 @@ def main():
 
         part = server.row(embedded_key)["Media"][0]["Part"][0]["id"]
         server.request("/library/parts/%s?subtitleStreamID=%s&allParts=1" % (part, (embedded or [{}])[0].get("id")), "PUT")
-        for shape in ("web",):
+        for shape in ("web", "android"):
             entry, theirs = recorded_decision("Vobsub Embedded", shape)
             session = "embedded-%s" % shape
             status, body = server.request("/video/:/transcode/universal/decision?" + urllib.parse.urlencode(conversion(shape, embedded_key, session)))

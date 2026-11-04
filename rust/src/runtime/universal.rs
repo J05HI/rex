@@ -3196,14 +3196,15 @@ impl Runtime {
         let burn = matches!(query.get("subtitles").map(String::as_str), None | Some("burn" | "auto"));
         // A target in Matroska carries a selected embedded text subtitle it lists, as the
         // reference copies an SRT into Plex for Android's and iOS's segments; an image one is
-        // still burned. ASS is copied too: the reference burns it, which rex cannot without
+        // still burned, a VobSub aside (below). ASS is copied too: the reference burns it, which rex cannot without
         // reading the whole file first, and both apps list it.
         // Plex HTPC on a Raspberry Pi names its http target's container `matroska`.
         let matroska = wire == Protocol::Http || (wire == Protocol::Hls && target.get("container").and_then(Value::as_str) == Some("mkv"));
         let subtitle_codecs = list(target.get("subtitleCodec"));
-        // A source's VobSub pair goes into Matroska segments that list it, muxed from its `.idx`,
-        // as the reference does for Plex for Android's and iOS's Generic targets, and is burned
-        // for Plex Web (`fixtures/subtitles/vobsub_s1422.json`).
+        // A VobSub goes into Matroska segments that list it -- an embedded one copied, a source's
+        // pair muxed from its `.idx` -- as the reference does for Plex for Android's and iOS's
+        // Generic targets, and is burned for Plex Web (`fixtures/subtitles/vobsub_s1422.json`).
+        // PGS is still burned everywhere: no Matroska copy of one was measured.
         let muxes_vobsub = matroska && (names(&subtitle_codecs, "vobsub") || names(&subtitle_codecs, "dvd_subtitle"));
         let subtitle = streams
             .iter()
@@ -3211,7 +3212,7 @@ impl Runtime {
             .find(|stream| kind(stream) == Some(3) && stream.get("selected").is_some_and(truthy) && stream.get("key").is_none())
             .filter(|stream| {
                 let codec = stream.get("codec").map(string_value).unwrap_or_default().to_ascii_lowercase();
-                decision::IMAGE_SUBTITLES.contains(&codec.as_str())
+                decision::IMAGE_SUBTITLES.contains(&codec.as_str()) && !(codec == "vobsub" && muxes_vobsub)
             })
             .and_then(|stream| stream.get("index").and_then(Value::as_i64))
             .filter(|index| *index >= 0 && video_stream.is_some());
@@ -3221,8 +3222,9 @@ impl Runtime {
             .find(|stream| kind(stream) == Some(3) && stream.get("selected").is_some_and(truthy) && stream.get("key").is_none())
             .filter(|stream| {
                 let codec = stream.get("codec").map(string_value).unwrap_or_default().to_ascii_lowercase();
-                !decision::IMAGE_SUBTITLES.contains(&codec.as_str())
-                    && (names(&subtitle_codecs, &codec) || codec == "mov_text" && names(&subtitle_codecs, "srt"))
+                codec == "vobsub" && muxes_vobsub
+                    || !decision::IMAGE_SUBTITLES.contains(&codec.as_str())
+                        && (names(&subtitle_codecs, &codec) || codec == "mov_text" && names(&subtitle_codecs, "srt"))
             });
         // An MP4's timed text is converted to SRT as it is read; its packets come in the pass.
         let text_to_srt = text_subtitle.is_some_and(|stream| stream.get("codec").map(string_value).is_some_and(|codec| codec.eq_ignore_ascii_case("mov_text")));
