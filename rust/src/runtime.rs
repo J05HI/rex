@@ -23909,7 +23909,7 @@ pub fn serve(options: RuntimeOptions) -> Result<(), String> {
     let seasons = Arc::clone(&runtime);
     let _ = thread::Builder::new().name("season-repair".to_string()).spawn(move || {
         feed::repair_seasons(&seasons);
-        feed::describe_again(&seasons, 500);
+        feed::describe_again(&seasons, feed::DESCRIBE_BATCH);
         loop {
             feed::retry_blank(&seasons, 50);
             thread::sleep(std::time::Duration::from_secs(600));

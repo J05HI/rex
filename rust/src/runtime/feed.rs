@@ -1621,6 +1621,11 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
     refreshed
 }
 
+/// The rows `describe_again` takes the lock for at once at a start. On that copy, on a two-core
+/// test host under a load of 5 to 15, 50 held it 30 ms choosing and 53 ms applying at the median
+/// (65 and 150 ms at the 90th percentile), the pass as long as before (244 s against 258 s).
+pub(super) const DESCRIBE_BATCH: usize = 50;
+
 /// Rows described before rex kept all of what Plex's agent says of a title (`metadata::agent_fields`:
 /// no `_described`), given it from the answers that described them, as `plex_cache.db` keeps them
 /// (`plexmeta::Kept`, asked nothing): the production rex held 232 shows with theme music and 2,531
@@ -1628,12 +1633,18 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
 /// show by the ids its source placed it with, checked against the guid it has; an episode by its
 /// own guid among its season's episodes. What a person picked, uploaded or locked stays, and a
 /// row matched by hand is left to its match. Each row is marked once, given anything or not, in
-/// batches of `batch` with the lock let go between them. Answers how many rows were given some.
+/// batches of `batch` with the lock let go between them, each batch going on from the row the last
+/// one stopped at: on a copy of the production rex (40,019 rows to describe) batches of 500 each
+/// started again from the first row and held the lock 0.5 s choosing and 0.65 s applying at the
+/// median (0.9 s and 1.7 s at the 90th percentile), so for four minutes after a start one Plex
+/// request in ten waited half a second and some up to six (2026-11-04). Finding nothing from where it stood, it goes round once more from the first row,
+/// for rows that moved. Answers how many rows were given some.
 pub(super) fn describe_again(shared: &SharedRuntime, batch: usize) -> usize {
     let mut given = 0;
+    let (mut from, mut wrapped) = (0, false);
     loop {
         // -- under the lock: which rows, by their hot fields; what names each, off its body --
-        let (wanted, plex) = {
+        let (wanted, plex, reached) = {
             let guard = lock(shared);
             let Some(plex) = guard.plex.clone() else {
                 return given;
@@ -1646,12 +1657,15 @@ pub(super) fn describe_again(shared: &SharedRuntime, batch: usize) -> usize {
                     && row.get("_matched").is_none()
                     && row.get("guid").and_then(Field::as_str).is_some_and(|guid| guid.starts_with(&format!("plex://{kind}/")))
             };
+            let mut reached = from;
             let wanted: Vec<(String, Value, Value)> = guard
                 .catalog
                 .hot()
                 .lazy()
+                .skip(from)
                 .filter(named)
                 .take(batch)
+                .inspect(|row| reached = row.hot.position + 1)
                 .filter_map(|row| {
                     let key = key_of(&row)?;
                     let kind = row.get("type").and_then(Field::as_str)?.to_string();
@@ -1665,11 +1679,16 @@ pub(super) fn describe_again(shared: &SharedRuntime, batch: usize) -> usize {
                     Some((key, row, names.unwrap_or(Value::Null)))
                 })
                 .collect();
-            (wanted, plex)
+            (wanted, plex, reached)
         };
         if wanted.is_empty() {
-            return given;
+            if from == 0 || wrapped {
+                return given;
+            }
+            (from, wrapped) = (0, true);
+            continue;
         }
+        from = reached;
         // -- off the lock: each one's agent fields, from the kept answers alone ---------------
         let kept = super::plexmeta::Kept(&plex);
         let mut episodes: HashMap<String, HashMap<String, Value>> = HashMap::new();
@@ -1732,6 +1751,8 @@ pub(super) fn describe_again(shared: &SharedRuntime, batch: usize) -> usize {
         drop(guard);
         write_or_log(snapshot);
         info!("FEED described {given} row(s) again from Plex's kept answers");
+        // Let the requests that queued behind this batch in before the next one takes the lock.
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
 
@@ -3869,6 +3890,45 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn describing_again_at_a_start_lets_requests_in_between_short_batches() {
+        // A copy of the production rex had 40,019 rows to describe: batches of 500, each found by
+        // reading from the first row again, held the lock up to 6 s for four minutes (2026-11-04).
+        let dir = std::env::temp_dir().join(format!("rex-describe-again-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let rows = 3000;
+        let items: Vec<Value> = (0..rows)
+            .map(|n| json!({"ratingKey": (100000 + n).to_string(), "key": format!("/library/metadata/{}", 100000 + n),
+                            "type": "movie", "title": format!("M{n}"), "librarySectionID": 1, "_scanned": true,
+                            "guid": format!("plex://movie/{n:024x}"), "summary": "x".repeat(400)}))
+            .chain([json!({"ratingKey": "99", "key": "/library/metadata/99", "type": "movie", "title": "Matched", "librarySectionID": 1,
+                           "_scanned": true, "_matched": true, "guid": "plex://movie/000000000000000000000063"})])
+            .collect();
+        let catalog = dir.join("catalog.json");
+        std::fs::write(&catalog, serde_json::to_vec(&json!({"machineIdentifier": "describe-again", "friendlyName": "d",
+            "sections": [{"key": "1", "type": "movie", "title": "Movies", "uuid": "d"}], "items": items})).unwrap()).unwrap();
+        let mut runtime = Runtime::load(RuntimeOptions { catalog, state: Some(dir.join("state.disabled")), assert_claimed: true, ..RuntimeOptions::default() }).unwrap();
+        let claim = Arc::new(Mutex::new(super::super::plextv::Claim::load("describe-again", dir.join("claim_state.json"), "d", "1.43.5.11029-6bf8af3f0")));
+        runtime.plex = Some(Arc::new(super::super::plexmeta::PlexMeta::new(claim, dir.join("plex_cache.json"))));
+        let shared: SharedRuntime = Arc::new(Mutex::new(runtime));
+        let described = |shared: &SharedRuntime| lock(shared).catalog.hot().lazy().filter(|row| row.get("_described").is_some()).count();
+        let describing = { let shared = Arc::clone(&shared); std::thread::spawn(move || describe_again(&shared, DESCRIBE_BATCH)) };
+        // A request's view of it: the rows are marked a batch at a time under the lock, so each
+        // count a request can see between batches is one the pass let it in at.
+        let mut seen = std::collections::BTreeSet::new();
+        while !describing.is_finished() {
+            seen.insert(described(&shared));
+            std::thread::sleep(std::time::Duration::from_micros(200));
+        }
+        describing.join().unwrap();
+        let all = described(&shared);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(all, rows, "every row its source placed, and not the one matched by hand");
+        // Batches of 500 let a request in seven times at most; 50 let it in up to sixty.
+        assert!(seen.len() > 3 * rows / 500, "requests got in between batches {} times: {seen:?}", seen.len());
+    }
 
     #[test]
     fn a_vobsub_is_the_language_its_idx_names_last() {
