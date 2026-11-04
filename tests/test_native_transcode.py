@@ -1001,7 +1001,12 @@ def run(scratch):
     port, process, log = start_server(catalog, zurg_port, True, scratch)
     try:
         status, _, body = get(port, "/")
-        check("/ claims transcoderVideo", json.loads(body)["MediaContainer"].get("transcoderVideo") is True, "")
+        root = json.loads(body)["MediaContainer"]
+        check("/ claims transcoderVideo", root.get("transcoderVideo") is True, "")
+        # Plex Web draws Optimize... on transcoderVideo AND backgroundProcessing, and rex has no
+        # storage for an optimized version: its POST /playlists?type=42 was a 500 (rex-fun, 2026-11).
+        check("/ claims no background processing, so Optimize... is not offered",
+              root.get("backgroundProcessing") is False, str(root.get("backgroundProcessing")))
         status, container = decision(port, "1", "direct", directPlay="1")
         check("a direct-playable request is still MDE direct play",
               container.get("mdeDecisionCode") == 1000 and "generalDecisionCode" not in container, "")

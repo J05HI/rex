@@ -319,6 +319,14 @@ Consequences for rex, each one a behaviour change rather than a new field:
   rex must not claim: a transcode verdict means the item does not play at
   all. Advertising a transcoder it does not have is what produced "This server is
   not powerful enough to convert video" in the first place.
+- **With an FFmpeg, Optimize is hidden by `backgroundProcessing` (2026-11-04).** rex claims
+  `transcoderVideo` once it can convert, and the entry appeared: rex-fun's log held Plex
+  Web's `POST /playlists?type=42`, a 500, since rex keeps no optimized versions. PMS
+  1.43.4's Linux binary writes `backgroundProcessing` as a constant true (claimed or not,
+  with `OptimizerTranscodeCountLimit=0` or `TranscoderCanOnlyRemuxVideo=1` on plexscratch
+  too), so no PMS state to copy says false; rex says false, the one statement that leaves
+  the entry out. Web 4.147.1 reads it only in its two Optimize predicates; Settings ->
+  Status -> Conversions comes from `/playQueues?type=42` and `/playlists?type=42`.
 
 #### Response shapes the write half turned up
 

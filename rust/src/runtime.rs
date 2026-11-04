@@ -3925,7 +3925,10 @@ impl Runtime {
             // Measured: a PMS with a DVR answers true; rex has one once a source pushes a channel.
             ("allowTuners", json!(self.has_livetv())),
             ("apiVersion", json!("1.2.3")),
-            ("backgroundProcessing", json!(true)),
+            // PMS 1.43.4 writes a constant true here, and Plex Web's Optimize... reads nothing
+            // else beside `transcoderVideo`: rex keeps no optimized versions, so it says false.
+            // The Conversions page reads `/playQueues?type=42`, not this (main-8792, 4.147.1).
+            ("backgroundProcessing", json!(false)),
             ("certificate", json!(true)),
             ("companionProxy", json!(true)),
             ("countryCode", json!("deu")),
