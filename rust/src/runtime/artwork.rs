@@ -17,6 +17,27 @@ pub(super) fn owns_field(row: Option<&Value>, field: &str) -> bool {
         .is_some_and(|value| value.starts_with(&format!("/library/metadata/{key}/")))
 }
 
+/// The theme, clear logo and square art a row shows: where each is kept (`_theme_url`, an
+/// upload's key or the agent's url), the field holding the path it is served at, and the mark
+/// naming what that path was minted for (as `_thumbFor` does a poster's).
+pub(super) const ASSETS: [(&str, &str, &str, &str); 3] = [
+    ("_theme_url", "theme", "theme", "_themeFor"),
+    ("_clearLogo_url", "_clearLogo", "clearLogo", "_clearLogoFor"),
+    ("_squareArt_url", "_squareArt", "squareArt", "_squareArtFor"),
+];
+
+/// Whether the row serves its own `theme`, `clearLogo` or `squareArt`: a season borrowing its
+/// show's answers 404 there (plexlab, Firefly's Season 1).
+pub(super) fn owns_asset(row: &Value, leaf: &str) -> bool {
+    let Some((_, field, _, _)) = ASSETS.iter().find(|asset| asset.2 == leaf) else {
+        return false;
+    };
+    let key = row.get("ratingKey").map(string_value).unwrap_or_default();
+    row.get(*field)
+        .and_then(Value::as_str)
+        .is_some_and(|value| value.starts_with(&format!("/library/metadata/{key}/")))
+}
+
 /// Does this row OWN the image behind `/library/metadata/{id}/{leaf}`? (cycle 16)
 pub(super) fn owns_artwork(row: &Value, leaf: &str) -> bool {
     let stored = row
@@ -195,12 +216,15 @@ impl Runtime {
             let mut bumped = false;
             if let Some(object) = self.catalog.get_mut(&key).and_then(Value::as_object_mut) {
                 for (field, mark, from, bump) in writes {
-                    if bump {
+                    if from == "" && ASSETS.iter().any(|asset| asset.1 == field) {
+                        bumped |= object.shift_remove(field).is_some();
+                    } else if bump {
                         // Never the version it had: a poster found the second its row was made.
                         let old = object.get(field).and_then(Value::as_str).and_then(|path| path.rsplit('/').next())
                             .and_then(|version| version.parse::<i64>().ok()).unwrap_or(0);
                         let version = stamp.max(old + 1);
-                        object.insert(field.to_string(), json!(format!("/library/metadata/{key}/{field}/{version}")));
+                        let leaf = ASSETS.iter().find(|asset| asset.1 == field).map_or(field, |asset| asset.2);
+                        object.insert(field.to_string(), json!(format!("/library/metadata/{key}/{leaf}/{version}")));
                         bumped = true;
                     }
                     object.insert(mark.to_string(), from);
@@ -636,7 +660,8 @@ impl Runtime {
 /// one the feed made and mints the path a second time, a second past `updatedAt` and past
 /// the path the pick answered.
 fn minted_for_sources(object: &mut serde_json::Map<String, Value>) {
-    for (source, mark) in [("_poster_url", "_thumbFor"), ("_art_url", "_artFor")] {
+    let assets = ASSETS.iter().map(|(source, _, _, mark)| (*source, *mark));
+    for (source, mark) in [("_poster_url", "_thumbFor"), ("_art_url", "_artFor")].into_iter().chain(assets) {
         let from = object.get(source).filter(|value| !value.is_null()).cloned().unwrap_or(json!(""));
         object.insert(mark.to_string(), from);
     }
@@ -658,6 +683,17 @@ pub(super) fn artwork_writes(row: &Value, key: &str, kept: bool) -> Vec<(&'stati
             None if !owned || !kept => writes.push((field, mark, from, false)),
             _ if owned => writes.push((field, mark, from, true)),
             _ => writes.push((field, mark, from, false)),
+        }
+    }
+    // A theme, logo or square art gets its path when it comes and loses it when it goes, a new
+    // version when it changes; a row that never had one is left as it is, unwritten.
+    for (source, field, _, mark) in ASSETS {
+        let from = row.get(source).filter(|value| value.as_str().is_some_and(|url| !url.is_empty())).cloned().unwrap_or(json!(""));
+        let has_path = row.get(field).is_some_and(|value| !value.is_null());
+        match row.get(mark) {
+            Some(minted) if *minted == from && (has_path || from == "") => {}
+            None if from == "" && !has_path => {}
+            _ => writes.push((field, mark, from, true)),
         }
     }
     writes
@@ -754,6 +790,32 @@ pub(super) fn upload_from_file(catalog: &Catalog, key: &str) -> Option<Vec<u8>> 
     let body = catalog.state_row("state:uploads", key)?;
     let stored: Value = serde_json::from_str(&body).ok()?;
     base64_decode_bytes(stored.get(0)?.as_str()?)
+}
+
+#[cfg(test)]
+mod asset_tests {
+    use super::*;
+
+    /// A theme, logo or square art gets its path when it comes, a new one when it changes and none
+    /// when it goes; a row that never had one is not written (the production server's 45,328 rows
+    /// would all be, at the first start).
+    #[test]
+    fn an_agent_asset_gets_its_own_path_and_loses_it_with_the_asset() {
+        let mut row = json!({"ratingKey": "7", "_thumbFor": "", "_artFor": ""});
+        assert!(artwork_writes(&row, "7", true).is_empty());
+        row["_theme_url"] = json!("https://tvthemes.plexapp.com/78874.mp3");
+        assert_eq!(artwork_writes(&row, "7", true), vec![("theme", "_themeFor", row["_theme_url"].clone(), true)]);
+        row["theme"] = json!("/library/metadata/7/theme/5");
+        row["_themeFor"] = row["_theme_url"].clone();
+        assert!(artwork_writes(&row, "7", true).is_empty());
+        assert!(owns_asset(&row, "theme") && !owns_asset(&row, "clearLogo"));
+        row["_theme_url"] = json!("https://tvthemes.plexapp.com/1.mp3");
+        assert_eq!(artwork_writes(&row, "7", true).len(), 1, "a changed theme is a new version");
+        row.as_object_mut().unwrap().shift_remove("_theme_url");
+        assert_eq!(artwork_writes(&row, "7", true), vec![("theme", "_themeFor", json!(""), true)]);
+        // A season holding its show's path owns none.
+        assert!(!owns_asset(&json!({"ratingKey": "8", "theme": "/library/metadata/7/theme/5"}), "theme"));
+    }
 }
 
 #[cfg(test)]

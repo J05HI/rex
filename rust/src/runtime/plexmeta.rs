@@ -122,6 +122,22 @@ impl PlexMeta {
     }
 }
 
+/// The cache key an answer is kept under: the Python module's.
+fn cache_key(method: &str, path: &str, body: Option<&Value>) -> String {
+    format!("{method} {path} {}", body.map(python_json).unwrap_or_default())
+}
+
+/// Plex's agent as the answers kept in `plex_cache.db` alone: asked nothing, so what a row was
+/// described from is read again as it was, and a pass over the library waits on no network. Read
+/// by the key every answer was kept under before rex asked in each library's language (en-US's).
+pub(super) struct Kept<'a>(pub(super) &'a PlexMeta);
+
+impl crate::identify::PlexSource for Kept<'_> {
+    fn call(&self, method: &str, path: &str, body: Option<&Value>) -> Option<Value> {
+        self.0.cache.get(&cache_key(method, path, body))
+    }
+}
+
 /// Plex's agent asked in one library's language.
 pub(crate) struct InLanguage<'a> {
     agent: &'a PlexMeta,
@@ -136,7 +152,7 @@ impl crate::identify::PlexSource for InLanguage<'_> {
 
 impl PlexMeta {
     fn call(&self, language: &str, method: &str, path: &str, body: Option<&Value>) -> Option<Value> {
-        let key = format!("{method} {path} {}", body.map(python_json).unwrap_or_default());
+        let key = cache_key(method, path, body);
         // Each language its own answer, so a library whose language changes is asked again rather
         // than shown what another language was told. en-US keeps the key it was kept under while
         // rex sent no language, so English libraries keep what they hold.

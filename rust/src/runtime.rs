@@ -2565,6 +2565,13 @@ impl Runtime {
         if matches!(kind.as_str(), "artist" | "album") {
             self.music_play_counts(&key, object);
         }
+        // A season's and an episode's theme, clear logo and square art are their show's, read off
+        // it as it stands (plexlab: Firefly's Season 1 `parentTheme`, The Train Job
+        // `grandparentTheme`, and both rows' `clearLogo`/`backgroundSquare` Images, the show's paths).
+        let mut borrowed: Option<[Option<String>; 3]> = None;
+        // A show's networks are a filter and an axis only: plexlab lists Firefly under FOX and
+        // carries no `Network` on any of its rows.
+        object.shift_remove("Network");
         if kind == "show" {
             let seasons = self.children_refs(&key);
             let leaves = self.leaves_refs(&key);
@@ -2590,6 +2597,7 @@ impl Runtime {
             // Cycle 15: the EFFECTIVE flattenSeasons -- the item's unless it inherits.
             self.apply_flatten_projection(object);
         } else if kind == "season" {
+            borrowed = object.get("parentRatingKey").map(string_value).and_then(|show| self.show_assets(&show));
             let children = self.children_refs(&key);
             object.insert("leafCount".to_string(), json!(children.len()));
             object.insert(
@@ -2624,6 +2632,7 @@ impl Runtime {
                 }
             }
         } else if kind == "episode" {
+            borrowed = object.get("grandparentRatingKey").map(string_value).and_then(|show| self.show_assets(&show));
             if let Some(parent_key) = object.get("parentRatingKey").map(string_value) {
                 if let Some(parent) = self.catalog.lazy_get(&parent_key) {
                     if let Some(value) = parent
@@ -2758,13 +2767,40 @@ impl Runtime {
                 images.push(json!({"alt": title, "type": "background", "url": url}));
             }
         }
-        if let Some(url) = original.get("_clearLogo").and_then(Value::as_str) {
-            images.push(json!({"alt": title, "type": "clearLogo", "url": url}));
+        let [theme, logo, square] = borrowed.unwrap_or_default();
+        if matches!(kind.as_str(), "season" | "episode") {
+            let (field, after) = if kind == "season" { ("parentTheme", "parentThumb") } else { ("grandparentTheme", "grandparentArt") };
+            match theme {
+                Some(theme) => {
+                    object.shift_remove(field);
+                    let at = object.iter().position(|(key, _)| key == after).map_or(object.len(), |at| at + 1);
+                    object.shift_insert(at, field.to_string(), json!(theme));
+                }
+                None => {
+                    object.shift_remove(field);
+                }
+            }
+        }
+        let own = |field: &str| original.get(field).and_then(Value::as_str).filter(|url| !url.is_empty()).map(str::to_string);
+        if kind != "clip" {
+            for (kind, url) in [("clearLogo", own("_clearLogo").or(logo)), ("backgroundSquare", own("_squareArt").or(square))] {
+                if let Some(url) = url {
+                    images.push(json!({"alt": title, "type": kind, "url": url}));
+                }
+            }
         }
         if !images.is_empty() {
             object.insert("Image".to_string(), Value::Array(images));
         }
         row
+    }
+
+    /// A show's `theme` and the paths of its clear logo and square art, which its seasons and
+    /// episodes show as theirs.
+    fn show_assets(&self, show: &str) -> Option<[Option<String>; 3]> {
+        let row = self.catalog.lazy_get(show)?;
+        let path = |field: &str| row.get(field).and_then(|value| value.as_str().map(str::to_string)).filter(|path| !path.is_empty());
+        Some([path("theme"), path("_clearLogo"), path("_squareArt")])
     }
 
 
@@ -18983,7 +19019,7 @@ impl Runtime {
         if tail.len() > 1
             && !matches!(
                 tail[0],
-                "thumb" | "art" | "poster" | "banner" | "theme" | "clearLogo"
+                "thumb" | "art" | "poster" | "banner" | "theme" | "clearLogo" | "squareArt"
             )
             && !(tail.len() == 2
                 && matches!((tail[0], tail[1]), ("extras", "all") | ("users", "top")))
@@ -18992,7 +19028,7 @@ impl Runtime {
         }
         if matches!(
             tail[0],
-            "thumb" | "art" | "poster" | "banner" | "theme" | "clearLogo"
+            "thumb" | "art" | "poster" | "banner" | "theme" | "clearLogo" | "squareArt"
         ) && tail.len() > 2
         {
             return Response::error(404, "rex: not found");
@@ -19708,28 +19744,21 @@ impl Runtime {
                 let body = request.body.clone();
                 self.upload_artwork(key, tail[0], &body)
             }
-            "clearLogos" | "themes" => {
+            "clearLogos" | "themes" | "squareArts" => {
                 if request.method != "GET" && request.method != "HEAD" {
                     return Response::error(404, "rex: not found");
                 }
                 // Measured: both are candidate lists in the tag container, EMPTY for an
                 // item with none.  Cycle 59: an UPLOAD is a candidate here, selected
-                // while the row carries it.
-                let field = if tail[0] == "clearLogos" {
-                    "clearLogo"
-                } else {
-                    "theme"
-                };
+                // while the row carries it. `squareArts` is 1.43.4's, which plexlab answers
+                // as it answers `clearLogos` (a movie's and a show's one each, a season's none).
+                let field = tail[0].trim_end_matches('s');
                 // `Photo` rows for clear logos and `Track` rows for theme music (plexlab,
                 // 1.43.4, both lists of a show). The default element is `Video`, and
                 // python-plexapi's `logos()`/`themes()` keep only rows of their own tag,
                 // so an uploaded candidate read back as an empty list.
-                let element = if field == "clearLogo" { "Photo" } else { "Track" };
-                let owned = if field == "clearLogo" {
-                    row.get("_clearLogo").is_some_and(|value| !value.is_null())
-                } else {
-                    artwork::owns_field(Some(row), "theme")
-                };
+                let element = if field == "theme" { "Track" } else { "Photo" };
+                let owned = artwork::owns_asset(row, field);
                 let current = owned
                     .then(|| {
                         row.get(&format!("_{field}_url"))
@@ -19737,7 +19766,7 @@ impl Runtime {
                             .map(str::to_string)
                     })
                     .flatten();
-                let entries = row
+                let mut entries = row
                     .get("_uploads")
                     .and_then(|uploads| uploads.get(field))
                     .and_then(Value::as_array)
@@ -19750,6 +19779,14 @@ impl Runtime {
                                "thumb": path, "selected": current.as_deref() == Some(upload)})
                     })
                     .collect::<Vec<_>>();
+                // The agent's own, first and selected while the row shows it (plexlab: the local
+                // copy PMS keeps of it, `selected`; rex keeps the agent's url, as `/posters` lists it).
+                let agent = row.get(&format!("_{field}_url")).and_then(Value::as_str).filter(|url| url.starts_with("http"))
+                    .or_else(|| row.get(&format!("_{field}_agent")).and_then(Value::as_str));
+                if let Some(url) = agent {
+                    entries.insert(0, json!({"_element": element, "key": url, "ratingKey": url, "thumb": url,
+                                             "selected": current.as_deref() == Some(url)}));
+                }
                 let mut fields = Map::new();
                 fields.insert("size".to_string(), json!(entries.len()));
                 fields.insert(
@@ -19763,19 +19800,18 @@ impl Runtime {
                 }
                 Response::json(200, self.container(fields, false))
             }
-            "theme" | "clearLogo" => {
+            "theme" | "clearLogo" | "squareArt" => {
                 // Cycle 59: an UPLOADED theme or logo is served from the row that owns
                 // it; cycle 60: only a READ serves it, and anything else is the 404.
-                let owned = if tail[0] == "clearLogo" {
-                    row.get("_clearLogo").is_some_and(|value| !value.is_null())
-                } else {
-                    artwork::owns_field(Some(row), "theme")
-                };
+                let owned = artwork::owns_asset(row, tail[0]);
                 let stored = row
                     .get(&format!("_{}_url", tail[0]))
                     .and_then(Value::as_str);
                 let served = owned && matches!(request.method.as_str(), "GET" | "HEAD");
-                match stored.filter(|_| served).and_then(|url| self.upload(url)) {
+                let Some(stored) = stored.filter(|_| served) else {
+                    return Response::error(404, "rex: not found");
+                };
+                match self.upload(stored) {
                     Some((body, content_type)) => {
                         // The oracle's `_serve_image` over an upload: `no-cache` and a
                         // byte range unit, like every other body path.
@@ -19786,7 +19822,18 @@ impl Runtime {
                             .push(("Accept-Ranges".to_string(), "bytes".to_string()));
                         response
                     }
-                    _ => Response::error(404, "rex: not found"),
+                    // What Plex's agent names, fetched off the lock: plexlab serves Firefly's theme
+                    // as `audio/mpeg3` and its PNG logo and square art as `image/jpeg`, at any
+                    // version and bare, ranged and HEAD alike, marked a local asset.
+                    None if stored.starts_with("https://") || stored.starts_with("http://") => {
+                        self.pending_image = Some(stored.to_string());
+                        let mut response = Response::bytes(200, if tail[0] == "theme" { "audio/mpeg3" } else { "image/jpeg" });
+                        for (name, value) in [("X-Plex-Local-Asset", "1"), ("Cache-Control", "no-cache"), ("Accept-Ranges", "bytes"), (TYPED_MARK, "1")] {
+                            response.headers.push((name.to_string(), value.to_string()));
+                        }
+                        response
+                    }
+                    None => Response::error(404, "rex: not found"),
                 }
             }
             "art" | "thumb" | "poster" => self.route_art(key, row, tail, query, request),
@@ -23801,6 +23848,7 @@ pub fn serve(options: RuntimeOptions) -> Result<(), String> {
     let seasons = Arc::clone(&runtime);
     let _ = thread::Builder::new().name("season-repair".to_string()).spawn(move || {
         feed::repair_seasons(&seasons);
+        feed::describe_again(&seasons, 500);
         loop {
             feed::retry_blank(&seasons, 50);
             thread::sleep(std::time::Duration::from_secs(600));
@@ -26183,6 +26231,8 @@ fn number_catalog_tags(items: &mut [Value]) {
         ("Style", "style"),
         // An album's `Format` (`Album`, `EP`, `Single`): a tag like the others (plexav, 2026-10-31).
         ("Format", "format"),
+        // A show's networks: plexlab's FOX is `network=177`, its Firefly's `By Network` key.
+        ("Network", "network"),
     ];
     for item in items {
         for (field, filter_name) in TAG_FIELDS {
@@ -28541,15 +28591,22 @@ fn finish_file_checks(response: &mut Response, checks: Vec<FileCheck>) {
 /// `_serve_image`'s upstream half, outside the lock: the remote bytes and their type
 /// into the response the router shaped, or the 404 a failed fetch is.
 fn serve_remote_image(mut response: Response, url: &str, from_source: Option<&[(&'static str, String)]>) -> Response {
+    let typed = response.headers.iter().any(|(name, _)| name == TYPED_MARK);
+    response.headers.retain(|(name, _)| name != TYPED_MARK);
     match transcoder::fetch_remote_image(url, from_source) {
         Some((body, content_type)) => {
             response.body = body;
-            response.content_type = content_type;
+            if !typed {
+                response.content_type = content_type;
+            }
             response
         }
         None => Response::error(404, "rex: artwork unavailable"),
     }
 }
+
+/// A route's remote artwork answered as the type it names rather than the fetched one's.
+const TYPED_MARK: &str = "X-Rex-Typed";
 
 /// Content-Range sits right after Accept-Ranges, where the part read has always put it.
 fn insert_after_accept_ranges(response: &mut Response, content_range: String) {

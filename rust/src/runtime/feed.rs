@@ -1580,6 +1580,120 @@ pub(super) fn repair_seasons(shared: &SharedRuntime) -> usize {
     refreshed
 }
 
+/// Rows described before rex kept all of what Plex's agent says of a title (`metadata::agent_fields`:
+/// no `_described`), given it from the answers that described them, as `plex_cache.db` keeps them
+/// (`plexmeta::Kept`, asked nothing): the production rex held 232 shows with theme music and 2,531
+/// films with a clear logo, and served none, and six of each one's people (2026-11-04). A film or
+/// show by the ids its source placed it with, checked against the guid it has; an episode by its
+/// own guid among its season's episodes. What a person picked, uploaded or locked stays, and a
+/// row matched by hand is left to its match. Each row is marked once, given anything or not, in
+/// batches of `batch` with the lock let go between them. Answers how many rows were given some.
+pub(super) fn describe_again(shared: &SharedRuntime, batch: usize) -> usize {
+    let mut given = 0;
+    loop {
+        // -- under the lock: which rows, by their hot fields; what names each, off its body --
+        let (wanted, plex) = {
+            let guard = lock(shared);
+            let Some(plex) = guard.plex.clone() else {
+                return given;
+            };
+            let named = |row: &crate::catalog::RowRef<'_>| {
+                let kind = row.get("type").and_then(Field::as_str).unwrap_or_default();
+                matches!(kind, "movie" | "show" | "episode")
+                    && row.get("_scanned").is_some_and(truthy)
+                    && row.get("_described").is_none()
+                    && row.get("_matched").is_none()
+                    && row.get("guid").and_then(Field::as_str).is_some_and(|guid| guid.starts_with(&format!("plex://{kind}/")))
+            };
+            let wanted: Vec<(String, Value, Value)> = guard
+                .catalog
+                .hot()
+                .lazy()
+                .filter(named)
+                .take(batch)
+                .filter_map(|row| {
+                    let key = key_of(&row)?;
+                    let kind = row.get("type").and_then(Field::as_str)?.to_string();
+                    // A show is named by its episodes' ids: those of its first episode.
+                    let leaf = match kind.as_str() {
+                        "show" => guard.leaves_refs(&key).into_iter().next(),
+                        _ => guard.catalog.lazy_get(&key),
+                    };
+                    let names = leaf.map(|leaf| leaf.with_body(|body| json!({"ids": row_ids(body), "placed": version_placed(body, 0)})));
+                    let row = row.with_body(|body| json!({"kind": kind, "guid": body.get("guid"), "parentGuid": body.get("parentGuid")}));
+                    Some((key, row, names.unwrap_or(Value::Null)))
+                })
+                .collect();
+            (wanted, plex)
+        };
+        if wanted.is_empty() {
+            return given;
+        }
+        // -- off the lock: each one's agent fields, from the kept answers alone ---------------
+        let kept = super::plexmeta::Kept(&plex);
+        let mut episodes: HashMap<String, HashMap<String, Value>> = HashMap::new();
+        let found: Vec<(String, Vec<(&'static str, Option<Value>)>)> = wanted
+            .into_iter()
+            .map(|(key, row, names)| {
+                let kind = row["kind"].as_str().unwrap_or_default();
+                let guid = row["guid"].as_str().unwrap_or_default();
+                let fields = if kind == "episode" {
+                    let season = row["parentGuid"].as_str().unwrap_or_default();
+                    let rows = episodes.entry(season.to_string()).or_insert_with(|| crate::identify::plex_children_rows(&kept, season));
+                    rows.values().find(|episode| episode["guid"].as_str() == Some(guid))
+                        .map(|episode| crate::metadata::agent_fields(episode, "episode"))
+                } else {
+                    super::scan::identified_by(names["ids"].as_object(), names.get("placed").filter(|placed| !placed.is_null()), kind)
+                        .map(|(named, tmdb, imdb)| crate::identify::placed(Some(&kept), named, tmdb, imdb.as_deref()))
+                        .filter(|identity| identity.plex.as_deref() == Some(guid))
+                        .and_then(|identity| identity.row)
+                        .map(|title| crate::metadata::agent_fields(&title, kind))
+                };
+                (key, fields.unwrap_or_default())
+            })
+            .collect();
+        // -- under the lock: apply, and mark -------------------------------------------------
+        let mut guard = lock(shared);
+        for (key, fields) in found {
+            let Some(object) = guard.catalog.get_mut(&key).and_then(Value::as_object_mut) else {
+                continue;
+            };
+            let mut gave = false;
+            for (field, value) in fields {
+                let Some(value) = value else {
+                    continue;
+                };
+                // A person's upload is its own (`_theme_url` names it), and so is what they locked.
+                let lock = match field {
+                    "Role" => "actor",
+                    "originalTitle" => "originalTitle",
+                    "Network" => "network",
+                    field if field.starts_with('_') => field,
+                    field => &field.to_ascii_lowercase(),
+                };
+                let mine = field.starts_with('_') && object.get(field).is_some_and(|stored| !stored.is_null());
+                if mine || super::edit::field_locked(object, lock) || object.get(field) == Some(&value) {
+                    continue;
+                }
+                object.insert(field.to_string(), value);
+                gave = true;
+            }
+            object.insert("_described".to_string(), json!(crate::metadata::DESCRIBED));
+            if gave {
+                given += 1;
+                if let Some(row) = guard.catalog.get_mut(&key) {
+                    number_catalog_tags(std::slice::from_mut(row));
+                }
+            }
+        }
+        guard.dirty = true;
+        let snapshot = guard.flush_state();
+        drop(guard);
+        write_or_log(snapshot);
+        info!("FEED described {given} row(s) again from Plex's kept answers");
+    }
+}
+
 /// How long a row the retry left on the blank tile waits for its next try: an hour after
 /// the first, doubling to about five days.
 fn retry_after(attempts: i64) -> i64 {
@@ -2016,6 +2130,7 @@ const IDENTITY_FIELDS: &[&str] = &[
     "_identity", "_identify", "_tmdb_id", "_kind", "_season", "_episode", "_show_title",
     "_show_summary", "_show_year", "_show_guid", "_season_guid", "_generatedTitle", "_release",
     "_release_path", "_probePending", "_hash", "_placed", "_titleGuid", "_show_titleGuid",
+    "Network", "_theme_url", "_clearLogo_url", "_squareArt_url", "_described",
 ];
 
 /// Whether a library folder names a directory the item's path sits in: `/mnt/zurg/movies`
@@ -3490,6 +3605,7 @@ impl Runtime {
             for field in [
                 "title", "summary", "year", "guid", "Guid", "contentRating", "studio", "Genre", "Country",
                 "Role", "rating", "audienceRating", "tagline", "_poster_url", "_art_url", "_titleGuid",
+                "Network", "originalTitle", "_theme_url", "_clearLogo_url", "_squareArt_url", "_described",
             ] {
                 match fresh.get(field).filter(|value| field == "_titleGuid" || !value.is_null()) {
                     Some(value) => {

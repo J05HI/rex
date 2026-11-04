@@ -635,11 +635,17 @@ impl Runtime {
             return false;
         };
         let present = |value: &&Value| !value.is_null() && value.as_str() != Some("");
-        let changes: Vec<(&str, Value)> = [("_poster_url", "thumb"), ("_art_url", "art")]
-            .into_iter()
-            .filter(|(field, lock)| row.get(*field).filter(present).is_none() && !super::edit::field_locked(&row, lock))
-            .filter_map(|(field, _)| Some((field, built.get(field).filter(present)?.clone())))
-            .collect();
+        let changes: Vec<(&str, Value)> = [
+            ("_poster_url", "thumb"),
+            ("_art_url", "art"),
+            ("_theme_url", "theme"),
+            ("_clearLogo_url", "clearLogo"),
+            ("_squareArt_url", "squareArt"),
+        ]
+        .into_iter()
+        .filter(|(field, lock)| row.get(*field).filter(present).is_none() && !super::edit::field_locked(&row, lock))
+        .filter_map(|(field, _)| Some((field, built.get(field).filter(present)?.clone())))
+        .collect();
         if changes.is_empty() {
             return false;
         }

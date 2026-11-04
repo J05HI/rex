@@ -690,6 +690,9 @@ python3 tests/test_feed_parts.py            # an episode a source sends in `part
 python3 tests/test_zurg_contract.py        # zurg's own feed requests (its internal/rexfeed/testdata/rex-contract.json, from
                                             # ../zurg or $ZURG_CONTRACT) replayed in order, and the two 409s zurg tells apart
 python3 tests/test_auto_collections.py      # "Minimum automatic collection size" set later makes the agent's collections (a real library's Matrix trilogy)
+python3 tests/test_agent_description.py     # what Plex's agent says of a title, as plexlab shows it: theme music, clear logos, square art,
+                                            # every credited person, original titles, networks as an axis; rows an older rex described given
+                                            # them at a start; the bytes need Plex's hosts, else skip
 python3 tests/test_sources.py               # registering sources, and sources that are not zurg: a server ignoring Range,
                                             # a redirect to a CDN, a restart, rows before registration, the two-step delete
 python3 tests/test_server_command.py        # the launcher's default and REX_SERVER override

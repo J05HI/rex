@@ -1,0 +1,1014 @@
+{
+ "_about": "The rows rex 23b700f5 (main before its description kept the agent's theme, logos, square art, original titles and every person) made of tests/test_agent_description.py's push (Big Buck Bunny, A Serbian Film, Firefly S1E1 The Train Job) with the same agent answers, read from its state file's state:items rows after a stop.",
+ "rows": [
+  {
+   "ratingKey": "100000",
+   "key": "/library/metadata/100000",
+   "guid": "plex://movie/5d7768b6374a5b001fece24d",
+   "type": "movie",
+   "title": "A Serbian Film",
+   "summary": "An aging porn star agrees to participate in an \"art film\" in order to make a clean break from the business, only to discover that he has been drafted into making a pedophilia and necrophilia themed snuff film.",
+   "duration": 4707078,
+   "addedAt": 1793756754,
+   "updatedAt": 1793756754,
+   "thumb": "/library/metadata/100000/thumb/1793756755",
+   "art": "/library/metadata/100000/art/1793756755",
+   "Media": [
+    {
+     "id": 10000000,
+     "duration": 4707078,
+     "bitrate": 13279,
+     "width": 1920,
+     "height": 1080,
+     "aspectRatio": 1.78,
+     "audioChannels": 6,
+     "audioCodec": "eac3",
+     "videoCodec": "h264",
+     "videoResolution": "1080",
+     "container": "mkv",
+     "videoFrameRate": "24p",
+     "videoProfile": "high",
+     "audioProfile": null,
+     "Part": [
+      {
+       "id": 1000000,
+       "key": "/library/parts/1000000/1793756754/file.mkv",
+       "duration": 4707078,
+       "file": "/zurg/movies/A.Serbian.Film.2010.1080p.BluRay.x264/A.Serbian.Film.2010.1080p.BluRay.x264.mkv",
+       "size": 1234567,
+       "container": "mkv",
+       "videoProfile": "high",
+       "audioProfile": null,
+       "Stream": [
+        {
+         "id": 100000001,
+         "streamType": 1,
+         "codec": "h264",
+         "index": 0,
+         "streamIdentifier": null,
+         "width": 1920,
+         "height": 1080,
+         "profile": "high",
+         "level": 40,
+         "refFrames": null,
+         "bitDepth": 8,
+         "chromaSubsampling": "4:2:0",
+         "chromaLocation": null,
+         "codedHeight": null,
+         "codedWidth": null,
+         "codecID": null,
+         "colorPrimaries": null,
+         "colorTrc": null,
+         "colorSpace": "bt709",
+         "colorRange": "tv",
+         "frameRate": 23.976,
+         "scanType": "progressive",
+         "default": true,
+         "displayTitle": "1080p",
+         "extendedDisplayTitle": "1080p (H.264)"
+        },
+        {
+         "id": 100000002,
+         "streamType": 2,
+         "codec": "eac3",
+         "index": 1,
+         "streamIdentifier": null,
+         "channels": 6,
+         "audioChannelLayout": "5.1(side)",
+         "samplingRate": 48000,
+         "bitDepth": null,
+         "selected": true,
+         "default": true,
+         "language": "English",
+         "languageCode": "eng",
+         "languageTag": "en",
+         "bitrate": 640,
+         "displayTitle": "English (EAC3 5.1)",
+         "extendedDisplayTitle": "English (EAC3 5.1)"
+        },
+        {
+         "id": 100000003,
+         "streamType": 3,
+         "canAutoSync": false,
+         "codec": "srt",
+         "index": 2,
+         "streamIdentifier": null,
+         "language": "English",
+         "languageCode": "eng",
+         "languageTag": "en",
+         "displayTitle": "English",
+         "extendedDisplayTitle": "English (SRT)"
+        },
+        {
+         "id": 100000004,
+         "streamType": 3,
+         "canAutoSync": false,
+         "codec": "srt",
+         "index": 3,
+         "streamIdentifier": null,
+         "language": "English",
+         "languageCode": "eng",
+         "languageTag": "en",
+         "title": "SDH",
+         "displayTitle": "English",
+         "extendedDisplayTitle": "SDH (English SRT)"
+        }
+       ]
+      }
+     ],
+     "hasVoiceActivity": false,
+     "_chapters": [],
+     "_hash": "1aec858a3530b265475bf3bb0ce11053720e6d87"
+    }
+   ],
+   "_identity": "tmdb:73861",
+   "_release": "A.Serbian.Film.2010.1080p.BluRay.x264",
+   "_hash": "1aec858a3530b265475bf3bb0ce11053720e6d87",
+   "_source": "zurg",
+   "_sid": "movies/A.Serbian.Film.2010.1080p.BluRay.x264/A.Serbian.Film.2010.1080p.BluRay.x264.mkv",
+   "_path": "movies/A.Serbian.Film.2010.1080p.BluRay.x264/A.Serbian.Film.2010.1080p.BluRay.x264.mkv",
+   "_ids": {
+    "tmdb": "73861"
+   },
+   "_group": "movies/A.Serbian.Film.2010.1080p.BluRay.x264",
+   "_placed": {
+    "kind": "movie"
+   },
+   "titleSort": "Serbian Film",
+   "year": 2010,
+   "originallyAvailableAt": "2010-01-06",
+   "tagline": "Not all films have a happy ending.",
+   "contentRating": "NC-17",
+   "studio": "Contra Film",
+   "audienceRating": 4.9,
+   "Genre": [
+    {
+     "tag": "Horror",
+     "id": 456669,
+     "filter": "genre=456669"
+    },
+    {
+     "tag": "Mystery",
+     "id": 509431,
+     "filter": "genre=509431"
+    },
+    {
+     "tag": "Thriller",
+     "id": 187370,
+     "filter": "genre=187370"
+    },
+    {
+     "tag": "Crime",
+     "id": 670594,
+     "filter": "genre=670594"
+    }
+   ],
+   "Country": [
+    {
+     "tag": "Serbia",
+     "id": 787871,
+     "filter": "country=787871"
+    }
+   ],
+   "Role": [
+    {
+     "tag": "Srđan 'Žika' Todorović",
+     "role": "Miloš",
+     "thumb": "https://metadata-static.plex.tv/3/people/36fdc7963dcf335254cf70f245dd1960.jpg",
+     "tagKey": "84032454497de9c3920738c6",
+     "id": 883430,
+     "filter": "actor=883430"
+    },
+    {
+     "tag": "Sergej Trifunović",
+     "role": "Vukmir",
+     "thumb": "https://metadata-static.plex.tv/e/people/e91a51ef150bba8e0d51c4f881d15802.jpg",
+     "tagKey": "5c05d6ba3e6259c0eaea8d1c",
+     "id": 601058,
+     "filter": "actor=601058"
+    },
+    {
+     "tag": "Jelena Gavrilović",
+     "role": "Marija",
+     "thumb": "https://metadata-static.plex.tv/people/5d77688bd11dd30020227912.jpg",
+     "tagKey": "279a80a951563f057d3b3979",
+     "id": 212076,
+     "filter": "actor=212076"
+    },
+    {
+     "tag": "Slobodan Beštić",
+     "role": "Marko",
+     "thumb": "https://metadata-static.plex.tv/8/people/8c18bb5232e0a329b29262fa70e33e22.jpg",
+     "tagKey": "b114eb8be8f99b0236764f51",
+     "id": 429372,
+     "filter": "actor=429372"
+    },
+    {
+     "tag": "Katarina Žutić",
+     "role": "Lejla",
+     "thumb": "https://metadata-static.plex.tv/7/people/70701874dfe987eca16903ecb2d6164d.jpg",
+     "tagKey": "fb76aa044507de3e77bf273b",
+     "id": 18213,
+     "filter": "actor=18213"
+    },
+    {
+     "tag": "Anđela Nenadović",
+     "role": "Jeca",
+     "tagKey": "cb0d21a247bac54a0c581b0d",
+     "id": 715898,
+     "filter": "actor=715898"
+    }
+   ],
+   "Director": [
+    {
+     "tag": "Srđan Spasojević",
+     "role": "Director",
+     "thumb": "https://metadata-static.plex.tv/f/people/fd6d2c9cec4ec95e84edf8fed3895e88.jpg",
+     "tagKey": "80a2443f38422e7de17fe0f5",
+     "id": 473226,
+     "filter": "director=473226"
+    }
+   ],
+   "Writer": [
+    {
+     "tag": "Srđan Spasojević",
+     "role": "Writer",
+     "thumb": "https://metadata-static.plex.tv/f/people/fd6d2c9cec4ec95e84edf8fed3895e88.jpg",
+     "tagKey": "80a2443f38422e7de17fe0f5",
+     "id": 753432,
+     "filter": "writer=753432"
+    },
+    {
+     "tag": "Aleksandar Radivojević",
+     "role": "Writer",
+     "tagKey": "b8b26a06dee0bf72f5c0eefe",
+     "id": 242277,
+     "filter": "writer=242277"
+    }
+   ],
+   "_poster_url": "https://metadata-static.plex.tv/5/gracenote/5886495bab68df6620bc3ea1c924d4b0.jpg",
+   "_art_url": "https://metadata-static.plex.tv/0/gracenote/0e9906e874f1d0727b503a45c3501364.jpg",
+   "_collections": [],
+   "Guid": [
+    {
+     "id": "imdb://tt1273235"
+    },
+    {
+     "id": "tmdb://73861"
+    },
+    {
+     "id": "tvdb://2042"
+    }
+   ],
+   "_titleGuid": "plex://movie/5d7768b6374a5b001fece24d",
+   "_identify": {
+    "source": "placed",
+    "imdb": "tt1273235",
+    "tmdb": 73861,
+    "plex": "plex://movie/5d7768b6374a5b001fece24d"
+   },
+   "librarySectionID": 1,
+   "librarySectionTitle": "Movies",
+   "librarySectionKey": "/library/sections/1",
+   "slug": "a-serbian-film",
+   "UltraBlurColors": {
+    "topLeft": "1a1a1e",
+    "topRight": "24242a",
+    "bottomRight": "15151a",
+    "bottomLeft": "1f1f26"
+   },
+   "_scanned": true,
+   "_thumbFor": "https://metadata-static.plex.tv/5/gracenote/5886495bab68df6620bc3ea1c924d4b0.jpg",
+   "_artFor": "https://metadata-static.plex.tv/0/gracenote/0e9906e874f1d0727b503a45c3501364.jpg"
+  },
+  {
+   "ratingKey": "100001",
+   "key": "/library/metadata/100001",
+   "guid": "plex://movie/5d7768352e80df001ebde4c9",
+   "type": "movie",
+   "title": "Big Buck Bunny",
+   "summary": "In the thick and undisturbed forest, sparkling spring has finally arrived, and all creatures, big or small, enjoy life. However, Big Buck Bunny--an enormous, fluffy, and utterly adorable rabbit--is facing a crisis: the ruthless, loud, bullying gang of a flying squirrel is heartlessly harassing him, determined to squash his happiness. Now, this means war. But who will win?",
+   "duration": 4707078,
+   "addedAt": 1793756754,
+   "updatedAt": 1793756754,
+   "thumb": "/library/metadata/100001/thumb/1793756755",
+   "art": "/library/metadata/100001/art/1793756755",
+   "Media": [
+    {
+     "id": 10000100,
+     "duration": 4707078,
+     "bitrate": 13279,
+     "width": 1920,
+     "height": 1080,
+     "aspectRatio": 1.78,
+     "audioChannels": 6,
+     "audioCodec": "eac3",
+     "videoCodec": "h264",
+     "videoResolution": "1080",
+     "container": "mkv",
+     "videoFrameRate": "24p",
+     "videoProfile": "high",
+     "audioProfile": null,
+     "Part": [
+      {
+       "id": 1000010,
+       "key": "/library/parts/1000010/1793756754/file.mkv",
+       "duration": 4707078,
+       "file": "/zurg/movies/Big.Buck.Bunny.2008.1080p.BluRay.x264/Big.Buck.Bunny.2008.1080p.BluRay.x264.mkv",
+       "size": 1234567,
+       "container": "mkv",
+       "videoProfile": "high",
+       "audioProfile": null,
+       "Stream": [
+        {
+         "id": 100001001,
+         "streamType": 1,
+         "codec": "h264",
+         "index": 0,
+         "streamIdentifier": null,
+         "width": 1920,
+         "height": 1080,
+         "profile": "high",
+         "level": 40,
+         "refFrames": null,
+         "bitDepth": 8,
+         "chromaSubsampling": "4:2:0",
+         "chromaLocation": null,
+         "codedHeight": null,
+         "codedWidth": null,
+         "codecID": null,
+         "colorPrimaries": null,
+         "colorTrc": null,
+         "colorSpace": "bt709",
+         "colorRange": "tv",
+         "frameRate": 23.976,
+         "scanType": "progressive",
+         "default": true,
+         "displayTitle": "1080p",
+         "extendedDisplayTitle": "1080p (H.264)"
+        },
+        {
+         "id": 100001002,
+         "streamType": 2,
+         "codec": "eac3",
+         "index": 1,
+         "streamIdentifier": null,
+         "channels": 6,
+         "audioChannelLayout": "5.1(side)",
+         "samplingRate": 48000,
+         "bitDepth": null,
+         "selected": true,
+         "default": true,
+         "language": "English",
+         "languageCode": "eng",
+         "languageTag": "en",
+         "bitrate": 640,
+         "displayTitle": "English (EAC3 5.1)",
+         "extendedDisplayTitle": "English (EAC3 5.1)"
+        },
+        {
+         "id": 100001003,
+         "streamType": 3,
+         "canAutoSync": false,
+         "codec": "srt",
+         "index": 2,
+         "streamIdentifier": null,
+         "language": "English",
+         "languageCode": "eng",
+         "languageTag": "en",
+         "displayTitle": "English",
+         "extendedDisplayTitle": "English (SRT)"
+        },
+        {
+         "id": 100001004,
+         "streamType": 3,
+         "canAutoSync": false,
+         "codec": "srt",
+         "index": 3,
+         "streamIdentifier": null,
+         "language": "English",
+         "languageCode": "eng",
+         "languageTag": "en",
+         "title": "SDH",
+         "displayTitle": "English",
+         "extendedDisplayTitle": "SDH (English SRT)"
+        }
+       ]
+      }
+     ],
+     "hasVoiceActivity": false,
+     "_chapters": [],
+     "_hash": "51249e9289a250b6b25bf825935345ec39c4f04f"
+    }
+   ],
+   "_identity": "tmdb:10378",
+   "_release": "Big.Buck.Bunny.2008.1080p.BluRay.x264",
+   "_hash": "51249e9289a250b6b25bf825935345ec39c4f04f",
+   "_source": "zurg",
+   "_sid": "movies/Big.Buck.Bunny.2008.1080p.BluRay.x264/Big.Buck.Bunny.2008.1080p.BluRay.x264.mkv",
+   "_path": "movies/Big.Buck.Bunny.2008.1080p.BluRay.x264/Big.Buck.Bunny.2008.1080p.BluRay.x264.mkv",
+   "_ids": {
+    "tmdb": "10378"
+   },
+   "_group": "movies/Big.Buck.Bunny.2008.1080p.BluRay.x264",
+   "_placed": {
+    "kind": "movie"
+   },
+   "year": 2008,
+   "originallyAvailableAt": "2008-04-10",
+   "tagline": "Don't Mess with the Bunny.",
+   "contentRating": "G",
+   "studio": "Blender Foundation",
+   "audienceRating": 5.4,
+   "Genre": [
+    {
+     "tag": "Animation",
+     "id": 16771,
+     "filter": "genre=16771"
+    },
+    {
+     "tag": "Comedy",
+     "id": 244689,
+     "filter": "genre=244689"
+    },
+    {
+     "tag": "Family",
+     "id": 334175,
+     "filter": "genre=334175"
+    },
+    {
+     "tag": "Short",
+     "id": 270789,
+     "filter": "genre=270789"
+    }
+   ],
+   "Country": [
+    {
+     "tag": "Netherlands",
+     "id": 734516,
+     "filter": "country=734516"
+    }
+   ],
+   "Director": [
+    {
+     "tag": "Sacha Goedegebure",
+     "role": "Director",
+     "tagKey": "471a011d4dc890c1fd4e9517",
+     "id": 490964,
+     "filter": "director=490964"
+    }
+   ],
+   "Writer": [
+    {
+     "tag": "Sacha Goedegebure",
+     "role": "Screenplay",
+     "tagKey": "471a011d4dc890c1fd4e9517",
+     "id": 684617,
+     "filter": "writer=684617"
+    }
+   ],
+   "_poster_url": "https://metadata-static.plex.tv/3/gracenote/3f1f3a8c58ed0cf61c948afb94bdf3b2.jpg",
+   "_art_url": "https://metadata-static.plex.tv/0/gracenote/0aa5937b9097dc192a63be5e85387082.jpg",
+   "_collections": [],
+   "Guid": [
+    {
+     "id": "imdb://tt1254207"
+    },
+    {
+     "id": "tmdb://10378"
+    },
+    {
+     "id": "tvdb://12352"
+    }
+   ],
+   "_titleGuid": "plex://movie/5d7768352e80df001ebde4c9",
+   "_identify": {
+    "source": "placed",
+    "imdb": "tt1254207",
+    "tmdb": 10378,
+    "plex": "plex://movie/5d7768352e80df001ebde4c9"
+   },
+   "librarySectionID": 1,
+   "librarySectionTitle": "Movies",
+   "librarySectionKey": "/library/sections/1",
+   "slug": "big-buck-bunny",
+   "UltraBlurColors": {
+    "topLeft": "1a1a1e",
+    "topRight": "24242a",
+    "bottomRight": "15151a",
+    "bottomLeft": "1f1f26"
+   },
+   "_scanned": true,
+   "_thumbFor": "https://metadata-static.plex.tv/3/gracenote/3f1f3a8c58ed0cf61c948afb94bdf3b2.jpg",
+   "_artFor": "https://metadata-static.plex.tv/0/gracenote/0aa5937b9097dc192a63be5e85387082.jpg"
+  },
+  {
+   "ratingKey": "100003",
+   "key": "/library/metadata/100003/children",
+   "guid": "plex://show/5d9c086c7d06d9001ffd27aa",
+   "_titleGuid": "plex://show/5d9c086c7d06d9001ffd27aa",
+   "type": "show",
+   "title": "Firefly",
+   "summary": "In the year 2517, the universe is a vast frontier where lawlessness reigns and adventure awaits! Join Captain Malcolm Reynolds and his ragtag crew aboard the spaceship Serenity as they navigate the fringes of society, battling the oppressive Alliance and facing off against ruthless bounty hunters.",
+   "year": 2002,
+   "thumb": "/library/metadata/100003/thumb/1793756755",
+   "art": "/library/metadata/100003/art/1793756755",
+   "librarySectionID": 2,
+   "librarySectionTitle": "TV Shows",
+   "librarySectionKey": "/library/sections/2",
+   "addedAt": 1793756754,
+   "updatedAt": 1793756754,
+   "childCount": 1,
+   "leafCount": 1,
+   "viewedLeafCount": 0,
+   "contentRating": "TV-14",
+   "studio": "Mutant Enemy Productions",
+   "Genre": [
+    {
+     "tag": "Drama",
+     "id": 25779,
+     "filter": "genre=25779"
+    },
+    {
+     "tag": "Science Fiction",
+     "id": 658108,
+     "filter": "genre=658108"
+    },
+    {
+     "tag": "Adventure",
+     "id": 163376,
+     "filter": "genre=163376"
+    },
+    {
+     "tag": "Sci-Fi & Fantasy",
+     "id": 553114,
+     "filter": "genre=553114"
+    }
+   ],
+   "Country": [
+    {
+     "tag": "United States of America",
+     "id": 387550,
+     "filter": "country=387550"
+    }
+   ],
+   "Role": [
+    {
+     "tag": "Nathan Fillion",
+     "role": "Mal Reynolds",
+     "thumb": "https://metadata-static.plex.tv/8/people/8e60c5a6412557c52b32ab5e85a2ce34.jpg",
+     "tagKey": "81c86be30e6b8e063494dbde",
+     "id": 512297,
+     "filter": "actor=512297"
+    },
+    {
+     "tag": "Gina Torres",
+     "role": "Zoë Washburne",
+     "thumb": "https://metadata-static.plex.tv/2/people/26bf93701cab6ff4d2f41c1827f5b927.jpg",
+     "tagKey": "9ae2e2e032b13ee32f34ae51",
+     "id": 494065,
+     "filter": "actor=494065"
+    },
+    {
+     "tag": "Alan Tudyk",
+     "role": "Hoban Washburne",
+     "thumb": "https://metadata-static.plex.tv/0/people/0f92021d49ee0e6cae1e939480e88e6e.jpg",
+     "tagKey": "dd45d932f3c39d9d01b86845",
+     "id": 779445,
+     "filter": "actor=779445"
+    },
+    {
+     "tag": "Morena Baccarin",
+     "role": "Inara Serra",
+     "thumb": "https://metadata-static.plex.tv/e/people/edf22c1f1824209f6a6bf9f84041fc00.jpg",
+     "tagKey": "e8af3ed060612b75f8eb3c7d",
+     "id": 592740,
+     "filter": "actor=592740"
+    },
+    {
+     "tag": "Adam Baldwin",
+     "role": "Jayne Cobb",
+     "thumb": "https://metadata-static.plex.tv/6/people/6f9025460345b381f41a38d6c771bf2d.jpg",
+     "tagKey": "1841e44cf5ddf881a4481ff5",
+     "id": 390785,
+     "filter": "actor=390785"
+    },
+    {
+     "tag": "Jewel Staite",
+     "role": "Kaylee Frye",
+     "thumb": "https://metadata-static.plex.tv/f/people/fee66163823b52bcf3bcef31097d4e0c.jpg",
+     "tagKey": "65b011858ff2e395e952d654",
+     "id": 899423,
+     "filter": "actor=899423"
+    }
+   ],
+   "audienceRating": 9.6,
+   "tagline": "Meet the most spaced-out crew in the galaxy.",
+   "Guid": [
+    {
+     "id": "imdb://tt0303461"
+    },
+    {
+     "id": "tmdb://1437"
+    },
+    {
+     "id": "tvdb://78874"
+    }
+   ],
+   "_poster_url": "https://image.tmdb.org/t/p/original/vZcKsy4sGAvWMVqLluwYuoi11Kj.jpg",
+   "_art_url": "https://image.tmdb.org/t/p/original/te4VJNMipsFQofCkiytuyswGDlV.jpg",
+   "Location": [
+    {
+     "path": "/zurg/shows/Firefly.S01.COMPLETE.REPACK.1080p.BRRip.AC3.x264-LESS"
+    }
+   ],
+   "slug": "firefly",
+   "UltraBlurColors": {
+    "topLeft": "1a1a1e",
+    "topRight": "24242a",
+    "bottomRight": "15151a",
+    "bottomLeft": "1f1f26"
+   },
+   "index": 1,
+   "_identity": "tmdb:1437",
+   "_scanned": true,
+   "_thumbFor": "https://image.tmdb.org/t/p/original/vZcKsy4sGAvWMVqLluwYuoi11Kj.jpg",
+   "_artFor": "https://image.tmdb.org/t/p/original/te4VJNMipsFQofCkiytuyswGDlV.jpg"
+  },
+  {
+   "ratingKey": "100004",
+   "key": "/library/metadata/100004/children",
+   "type": "season",
+   "guid": "plex://season/5d9c09de08fddd001f2afb4c",
+   "title": "Season 1",
+   "index": 1,
+   "parentIndex": 1,
+   "Guid": [
+    {
+     "id": "tmdb://3846"
+    },
+    {
+     "id": "tvdb://15791"
+    }
+   ],
+   "summary": "",
+   "parentRatingKey": "100003",
+   "parentKey": "/library/metadata/100003",
+   "parentTitle": "Firefly",
+   "parentGuid": "plex://show/5d9c086c7d06d9001ffd27aa",
+   "thumb": "/library/metadata/100004/thumb/1793756755",
+   "art": "/library/metadata/100003/art/1793756755",
+   "librarySectionID": 2,
+   "librarySectionTitle": "TV Shows",
+   "librarySectionKey": "/library/sections/2",
+   "addedAt": 1793756754,
+   "updatedAt": 1793756754,
+   "leafCount": 1,
+   "viewedLeafCount": 0,
+   "parentStudio": "Mutant Enemy Productions",
+   "parentYear": 2002,
+   "_poster_url": "https://image.tmdb.org/t/p/original/qpjgUjjj3gQTzkQgcHXVBaP51Qf.jpg",
+   "_art_url": "https://image.tmdb.org/t/p/original/te4VJNMipsFQofCkiytuyswGDlV.jpg",
+   "UltraBlurColors": {
+    "topLeft": "1a1a1e",
+    "topRight": "24242a",
+    "bottomRight": "15151a",
+    "bottomLeft": "1f1f26"
+   },
+   "parentSlug": "firefly",
+   "_scanned": true,
+   "_thumbFor": "https://image.tmdb.org/t/p/original/qpjgUjjj3gQTzkQgcHXVBaP51Qf.jpg",
+   "_artFor": "https://image.tmdb.org/t/p/original/te4VJNMipsFQofCkiytuyswGDlV.jpg",
+   "parentThumb": "/library/metadata/100003/thumb/1793756755"
+  },
+  {
+   "ratingKey": "100002",
+   "key": "/library/metadata/100002",
+   "guid": "plex://episode/5d9c127e4eefaa001f6449c2",
+   "type": "episode",
+   "title": "The Train Job",
+   "summary": "The crew of Serenity take on a train heist commissioned by a crime lord. They steal the goods, only to find it is medicine that's desperately needed by the town.",
+   "duration": 1312256,
+   "addedAt": 1793756754,
+   "updatedAt": 1793756754,
+   "thumb": "/library/metadata/100002/thumb/1793756755",
+   "art": "/library/metadata/100003/art/1793756755",
+   "Media": [
+    {
+     "id": 10000200,
+     "duration": 1312256,
+     "bitrate": 1261,
+     "width": 1440,
+     "height": 1080,
+     "aspectRatio": 1.33,
+     "audioChannels": 6,
+     "audioCodec": "eac3",
+     "videoCodec": "h264",
+     "videoResolution": "1080",
+     "container": "mkv",
+     "videoFrameRate": "24p",
+     "videoProfile": "high",
+     "audioProfile": null,
+     "Part": [
+      {
+       "id": 1000020,
+       "key": "/library/parts/1000020/1793756754/file.mkv",
+       "duration": 1312256,
+       "file": "/zurg/shows/Firefly.S01.COMPLETE.REPACK.1080p.BRRip.AC3.x264-LESS/Firefly.S01E02.The.Train.Job.1080p.BRRip.AC3.x264-LESS.mkv",
+       "size": 1028804302,
+       "container": "mkv",
+       "videoProfile": "high",
+       "audioProfile": null,
+       "Stream": [
+        {
+         "id": 100002001,
+         "streamType": 1,
+         "codec": "h264",
+         "index": 0,
+         "streamIdentifier": null,
+         "width": 1440,
+         "height": 1080,
+         "profile": "high",
+         "level": 40,
+         "refFrames": null,
+         "bitDepth": 8,
+         "chromaSubsampling": "4:2:0",
+         "chromaLocation": null,
+         "codedHeight": null,
+         "codedWidth": null,
+         "codecID": null,
+         "colorPrimaries": null,
+         "colorTrc": null,
+         "colorSpace": null,
+         "colorRange": null,
+         "frameRate": 23.976,
+         "scanType": "progressive",
+         "default": true,
+         "displayTitle": "1080p",
+         "extendedDisplayTitle": "1080p (H.264)"
+        },
+        {
+         "id": 100002002,
+         "streamType": 2,
+         "codec": "eac3",
+         "index": 1,
+         "streamIdentifier": null,
+         "channels": 6,
+         "audioChannelLayout": "5.1(side)",
+         "samplingRate": 48000,
+         "bitDepth": null,
+         "selected": true,
+         "default": true,
+         "language": "English",
+         "languageCode": "eng",
+         "languageTag": "en",
+         "bitrate": 256,
+         "displayTitle": "English (EAC3 5.1)",
+         "extendedDisplayTitle": "English (EAC3 5.1)"
+        },
+        {
+         "id": 100002003,
+         "streamType": 3,
+         "canAutoSync": false,
+         "codec": "srt",
+         "index": 2,
+         "streamIdentifier": null,
+         "language": "English",
+         "languageCode": "eng",
+         "languageTag": "en",
+         "displayTitle": "English",
+         "extendedDisplayTitle": "English (SRT)"
+        }
+       ]
+      }
+     ],
+     "hasVoiceActivity": false,
+     "_chapters": [],
+     "_hash": "935a77d282bce621fe0514668225abf597f5756a"
+    }
+   ],
+   "_identity": "tmdb:1437",
+   "_release": "Firefly.S01.COMPLETE.REPACK.1080p.BRRip.AC3.x264-LESS",
+   "_hash": "935a77d282bce621fe0514668225abf597f5756a",
+   "_source": "zurg",
+   "_sid": "shows/Firefly.S01.COMPLETE.REPACK.1080p.BRRip.AC3.x264-LESS/Firefly.S01E02.The.Train.Job.1080p.BRRip.AC3.x264-LESS.mkv",
+   "_path": "shows/Firefly.S01.COMPLETE.REPACK.1080p.BRRip.AC3.x264-LESS/Firefly.S01E02.The.Train.Job.1080p.BRRip.AC3.x264-LESS.mkv",
+   "_ids": {
+    "imdb": "tt0303461",
+    "tmdb": "1437"
+   },
+   "_group": "shows/Firefly.S01.COMPLETE.REPACK.1080p.BRRip.AC3.x264-LESS",
+   "_folder": "",
+   "_placed": {
+    "kind": "episode",
+    "season": 1,
+    "episode": 1
+   },
+   "year": 2002,
+   "originallyAvailableAt": "2002-09-20",
+   "contentRating": "TV-14",
+   "audienceRating": 9.6,
+   "Role": [
+    {
+     "tag": "Nathan Fillion",
+     "role": "Mal Reynolds",
+     "thumb": "https://metadata-static.plex.tv/8/people/8e60c5a6412557c52b32ab5e85a2ce34.jpg",
+     "tagKey": "81c86be30e6b8e063494dbde",
+     "id": 512297,
+     "filter": "actor=512297"
+    },
+    {
+     "tag": "Gina Torres",
+     "role": "Zoë Washburne",
+     "thumb": "https://metadata-static.plex.tv/2/people/26bf93701cab6ff4d2f41c1827f5b927.jpg",
+     "tagKey": "9ae2e2e032b13ee32f34ae51",
+     "id": 494065,
+     "filter": "actor=494065"
+    },
+    {
+     "tag": "Alan Tudyk",
+     "role": "Hoban Washburne",
+     "thumb": "https://metadata-static.plex.tv/0/people/0f92021d49ee0e6cae1e939480e88e6e.jpg",
+     "tagKey": "dd45d932f3c39d9d01b86845",
+     "id": 779445,
+     "filter": "actor=779445"
+    },
+    {
+     "tag": "Morena Baccarin",
+     "role": "Inara Serra",
+     "thumb": "https://metadata-static.plex.tv/e/people/edf22c1f1824209f6a6bf9f84041fc00.jpg",
+     "tagKey": "e8af3ed060612b75f8eb3c7d",
+     "id": 592740,
+     "filter": "actor=592740"
+    },
+    {
+     "tag": "Adam Baldwin",
+     "role": "Jayne Cobb",
+     "thumb": "https://metadata-static.plex.tv/6/people/6f9025460345b381f41a38d6c771bf2d.jpg",
+     "tagKey": "1841e44cf5ddf881a4481ff5",
+     "id": 390785,
+     "filter": "actor=390785"
+    },
+    {
+     "tag": "Jewel Staite",
+     "role": "Kaylee Frye",
+     "thumb": "https://metadata-static.plex.tv/f/people/fee66163823b52bcf3bcef31097d4e0c.jpg",
+     "tagKey": "65b011858ff2e395e952d654",
+     "id": 899423,
+     "filter": "actor=899423"
+    }
+   ],
+   "Director": [
+    {
+     "tag": "Joss Whedon",
+     "role": "Director",
+     "thumb": "https://metadata-static.plex.tv/3/people/35ab0f8e713edf5306373298f75629c0.jpg",
+     "tagKey": "363d4592a6fe2b274880613d",
+     "id": 255901,
+     "filter": "director=255901"
+    },
+    {
+     "tag": "Vondie Curtis-Hall",
+     "role": "Director",
+     "thumb": "https://metadata-static.plex.tv/4/people/4cb55801c7a1c9d55b4d00f51b9e4cae.jpg",
+     "tagKey": "3f038317aeb1dbb27d617bcf",
+     "id": 134150,
+     "filter": "director=134150"
+    },
+    {
+     "tag": "James A. Contner",
+     "role": "Director",
+     "tagKey": "5c9aef31f8414b20c57b9f8a",
+     "id": 899882,
+     "filter": "director=899882"
+    },
+    {
+     "tag": "Allan Kroeker",
+     "role": "Director",
+     "tagKey": "59979fde471171007052a2dd",
+     "id": 97468,
+     "filter": "director=97468"
+    },
+    {
+     "tag": "David Solomon",
+     "role": "Director",
+     "thumb": "https://metadata-static.plex.tv/5/people/5945eaf9d13397420e7015b7103e6d97.jpg",
+     "tagKey": "967651026711589557d2ccdb",
+     "id": 118795,
+     "filter": "director=118795"
+    },
+    {
+     "tag": "Tim Minear",
+     "role": "Director",
+     "thumb": "https://metadata-static.plex.tv/3/people/3f8e6f9871b1f895e2c2d8de196bfdae.jpg",
+     "tagKey": "234d1db31618a3c01e009dd9",
+     "id": 464417,
+     "filter": "director=464417"
+    }
+   ],
+   "Writer": [
+    {
+     "tag": "Joss Whedon",
+     "role": "Writer",
+     "thumb": "https://metadata-static.plex.tv/3/people/35ab0f8e713edf5306373298f75629c0.jpg",
+     "tagKey": "363d4592a6fe2b274880613d",
+     "id": 508469,
+     "filter": "writer=508469"
+    },
+    {
+     "tag": "Tim Minear",
+     "role": "Writer",
+     "thumb": "https://metadata-static.plex.tv/3/people/3f8e6f9871b1f895e2c2d8de196bfdae.jpg",
+     "tagKey": "234d1db31618a3c01e009dd9",
+     "id": 867705,
+     "filter": "writer=867705"
+    },
+    {
+     "tag": "Drew Greenberg",
+     "role": "Writer",
+     "tagKey": "553a835cbec93e21e386db4d",
+     "id": 796743,
+     "filter": "writer=796743"
+    },
+    {
+     "tag": "Ben Edlund",
+     "role": "Writer",
+     "thumb": "https://metadata-static.plex.tv/c/people/c9498f9430dd6a652d0a38f7b9f20ba8.jpg",
+     "tagKey": "46d46fb0ce89df7cb4b4fba2",
+     "id": 380792,
+     "filter": "writer=380792"
+    },
+    {
+     "tag": "Cheryl Cain",
+     "role": "Writer",
+     "tagKey": "43af00da0cb794abc2fd1667",
+     "id": 518593,
+     "filter": "writer=518593"
+    },
+    {
+     "tag": "Jane Espenson",
+     "role": "Writer",
+     "thumb": "https://metadata-static.plex.tv/e/people/ebd911e548f2e7a1d271c61303d4ad88.jpg",
+     "tagKey": "39f04b5fd47fc4aa1fd963f7",
+     "id": 638478,
+     "filter": "writer=638478"
+    }
+   ],
+   "_poster_url": "https://image.tmdb.org/t/p/original/w4yFzJkAiGjuDQuFKLOocjrH1eH.jpg",
+   "index": 1,
+   "parentIndex": 1,
+   "grandparentTitle": "Firefly",
+   "Guid": [
+    {
+     "id": "imdb://tt0579539"
+    },
+    {
+     "id": "tmdb://1048594"
+    },
+    {
+     "id": "tvdb://297989"
+    }
+   ],
+   "_identify": {
+    "source": "placed",
+    "imdb": "tt0303461",
+    "tmdb": 1437,
+    "plex": "plex://show/5d9c086c7d06d9001ffd27aa"
+   },
+   "librarySectionID": 2,
+   "librarySectionTitle": "TV Shows",
+   "librarySectionKey": "/library/sections/2",
+   "parentRatingKey": "100004",
+   "parentKey": "/library/metadata/100004",
+   "parentTitle": "Season 1",
+   "parentThumb": "/library/metadata/100004/thumb/1793756755",
+   "grandparentRatingKey": "100003",
+   "grandparentKey": "/library/metadata/100003",
+   "grandparentThumb": "/library/metadata/100003/thumb/1793756755",
+   "grandparentArt": "/library/metadata/100003/art/1793756755",
+   "grandparentGuid": "plex://show/5d9c086c7d06d9001ffd27aa",
+   "parentGuid": "plex://season/5d9c09de08fddd001f2afb4c",
+   "_own_content_rating": true,
+   "_art_url": "https://image.tmdb.org/t/p/original/te4VJNMipsFQofCkiytuyswGDlV.jpg",
+   "UltraBlurColors": {
+    "topLeft": "1a1a1e",
+    "topRight": "24242a",
+    "bottomRight": "15151a",
+    "bottomLeft": "1f1f26"
+   },
+   "grandparentSlug": "firefly",
+   "titleSort": "Train Job",
+   "Rating": [
+    {
+     "image": "themoviedb://image.rating",
+     "value": 9.6,
+     "type": "audience"
+    }
+   ],
+   "audienceRatingImage": "themoviedb://image.rating",
+   "_scanned": true,
+   "_thumbFor": "https://image.tmdb.org/t/p/original/w4yFzJkAiGjuDQuFKLOocjrH1eH.jpg",
+   "_artFor": "https://image.tmdb.org/t/p/original/te4VJNMipsFQofCkiytuyswGDlV.jpg"
+  }
+ ]
+}
