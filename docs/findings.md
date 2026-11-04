@@ -15099,6 +15099,21 @@ section (`probes/record_music_conversion.py`, `record_music_lyrics.py`, `record_
   decode no JPEG or PNG; an FFmpeg could, which was not built. A music library a source declares
   (`directories` `music`) lists as plexav's Add Library one does (agent, scanner, language, group).
 
+## Music for Plezy and python-plexapi, measured on plexav (2026-11-04)
+
+Replayed on plexav (PMS 1.43.4) from the clients' own source: Plezy 38c48f14
+(`probes/record_plezy_music_http.py`; `tests/fixtures/music/`).
+
+- **Plezy's music quality presets.** Below original quality Plezy asks for one MP3: `directPlay=0`,
+  `directStream=0`, `protocol=http`, `musicBitrate` 320/192/128 and the target
+  `add-transcode-target(type=musicProfile&context=streaming&protocol=http&container=mp3&audioCodec=mp3)`
+  on the `Generic` platform, then `start.mp3` with the same query. plexav converts every codec it holds
+  (FLAC, Opus, Vorbis, ALAC, PCM, MP3): 3000/1001/1001, the Media `mp3`/`mp3` at 95% of
+  `musicBitrate` (304, 182, 121) with **no `protocol`**, the Stream `vbr` and `location="direct"`.
+  `start.mp3` is `audio/mpeg`, `Accept-Ranges: none`, `Connection: close`, chunked, an ID3v2.4 tag
+  first, and its session row `protocol` `http`, `container` `mp3`. rex answered 4005 and a 400, so
+  Plezy played the original FLAC at every preset (`plezy_http_mp3.json`).
+
 ## Music: a track's Part read per audio format (2026-11-01)
 
 Plexamp played an AAC `.m4a` from rex as `application/octet-stream`. Measured read-only on plexav (PMS

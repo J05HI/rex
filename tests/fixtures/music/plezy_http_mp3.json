@@ -1,0 +1,339 @@
+{
+ "recorded": "plexav PMS 1.43.4, 2026-11-04",
+ "client": "Plezy 38c48f14 _buildMusicTranscodeParams",
+ "exchanges": [
+  {
+   "path": "/music/:/transcode/universal/decision",
+   "query": [
+    [
+     "hasMDE",
+     "1"
+    ],
+    [
+     "path",
+     "/library/metadata/32"
+    ],
+    [
+     "mediaIndex",
+     "0"
+    ],
+    [
+     "partIndex",
+     "0"
+    ],
+    [
+     "protocol",
+     "http"
+    ],
+    [
+     "directPlay",
+     "0"
+    ],
+    [
+     "directStream",
+     "0"
+    ],
+    [
+     "musicBitrate",
+     "192"
+    ],
+    [
+     "session",
+     "rexprobe-plezy"
+    ],
+    [
+     "X-Plex-Session-Identifier",
+     "rexprobe-plezy-id"
+    ],
+    [
+     "X-Plex-Client-Profile-Extra",
+     "add-transcode-target(type=musicProfile&context=streaming&protocol=http&container=mp3&audioCodec=mp3)"
+    ],
+    [
+     "X-Plex-Product",
+     "Plezy"
+    ],
+    [
+     "X-Plex-Version",
+     "1.20.0"
+    ],
+    [
+     "X-Plex-Client-Identifier",
+     "rexprobe-plezy"
+    ],
+    [
+     "X-Plex-Platform",
+     "Generic"
+    ],
+    [
+     "X-Plex-Device",
+     "Linux"
+    ],
+    [
+     "X-Plex-Device-Name",
+     "rexprobe"
+    ]
+   ],
+   "status": 200,
+   "headers": {
+    "Content-Type": "application/json"
+   },
+   "body": "{\"MediaContainer\":{\"size\":1,\"allowSync\":\"1\",\"directPlayDecisionCode\":3000,\"directPlayDecisionText\":\"App cannot direct play this item. Direct play is disabled.\",\"generalDecisionCode\":1001,\"generalDecisionText\":\"Direct play not available; Conversion OK.\",\"identifier\":\"com.plexapp.plugins.library\",\"librarySectionID\":\"1\",\"librarySectionTitle\":\"Music\",\"librarySectionUUID\":\"44a5b57b-41c7-491a-8a3b-0a53e4c9edad\",\"mediaTagPrefix\":\"/system/bundle/media/flags/\",\"mediaTagVersion\":\"1786914632\",\"resourceSession\":\"rexprobe-plezy-id\",\"transcodeDecisionCode\":1001,\"transcodeDecisionText\":\"Direct play not available; Conversion OK.\",\"Metadata\":[{\"addedAt\":1793451813,\"art\":\"/library/metadata/17/art/1793452370\",\"duration\":45000,\"grandparentArt\":\"/library/metadata/17/art/1793452370\",\"grandparentGuid\":\"plex://artist/5d07bbfc403c6402904a5ecc\",\"grandparentKey\":\"/library/metadata/17\",\"grandparentRatingKey\":\"17\",\"grandparentThumb\":\"/library/metadata/17/thumb/1793452370\",\"grandparentTitle\":\"Radiohead\",\"guid\":\"plex://track/5d07d499403c64029080d0b7\",\"index\":1,\"key\":\"/library/metadata/32\",\"lastViewedAt\":1793457050,\"librarySectionID\":\"1\",\"librarySectionKey\":\"/library/sections/1\",\"librarySectionTitle\":\"Music\",\"parentGuid\":\"plex://album/5d07c2b1403c6402908fddb6\",\"parentIndex\":1,\"parentKey\":\"/library/metadata/31\",\"parentRatingKey\":\"31\",\"parentStudio\":\"Hostess Entertainment Unlimited\",\"parentThumb\":\"/library/metadata/31/thumb/1793452371\",\"parentTitle\":\"In Rainbows\",\"parentYear\":2007,\"ratingCount\":1795575,\"ratingKey\":\"32\",\"skipCount\":\"2\",\"thumb\":\"/library/metadata/31/thumb/1793452371\",\"title\":\"15 Step\",\"type\":\"track\",\"updatedAt\":1793452371,\"viewCount\":3,\"Media\":[{\"id\":\"27\",\"audioChannels\":2,\"audioCodec\":\"mp3\",\"bitrate\":182,\"container\":\"mp3\",\"duration\":45000,\"selected\":true,\"Part\":[{\"deepAnalysisVersion\":\"6\",\"id\":\"27\",\"requiredBandwidths\":\"90,90,90,90,90,90,90,90\",\"bitrate\":182,\"container\":\"mp3\",\"duration\":45000,\"decision\":\"transcode\",\"selected\":true,\"Stream\":[{\"albumGain\":\"3.64\",\"albumPeak\":\"0.088379\",\"albumRange\":\"0.215094\",\"bitrate\":182,\"bitrateMode\":\"vbr\",\"channels\":2,\"codec\":\"mp3\",\"displayTitle\":\"FLAC (Stereo)\",\"extendedDisplayTitle\":\"FLAC (Stereo)\",\"gain\":\"3.64\",\"id\":\"27\",\"loudness\":\"-21.90\",\"lra\":\"0.00\",\"peak\":\"0.088379\",\"requiredBandwidths\":\"90,90,90,90,90,90,90,90\",\"selected\":true,\"streamType\":2,\"decision\":\"transcode\",\"location\":\"direct\"}]}]}],\"Genre\":[{\"filter\":\"genre=54\",\"id\":\"54\",\"tag\":\"Pop/Rock\"}],\"Mood\":[{\"filter\":\"mood=171\",\"id\":\"171\",\"tag\":\"Tense/Anxious\"},{\"filter\":\"mood=144\",\"id\":\"144\",\"tag\":\"Knotty\"},{\"filter\":\"mood=123\",\"id\":\"123\",\"tag\":\"Urgent\"},{\"filter\":\"mood=115\",\"id\":\"115\",\"tag\":\"Exuberant\"},{\"filter\":\"mood=168\",\"id\":\"168\",\"tag\":\"Cerebral\"},{\"filter\":\"mood=122\",\"id\":\"122\",\"tag\":\"Dramatic\"},{\"filter\":\"mood=110\",\"id\":\"110\",\"tag\":\"Intense\"},{\"filter\":\"mood=152\",\"id\":\"152\",\"tag\":\"Gloomy\"},{\"filter\":\"mood=118\",\"id\":\"118\",\"tag\":\"Confrontational\"},{\"filter\":\"mood=145\",\"id\":\"145\",\"tag\":\"Fiery\"}]}]}}"
+  },
+  {
+   "path": "/music/:/transcode/universal/start.mp3",
+   "query": [
+    [
+     "hasMDE",
+     "1"
+    ],
+    [
+     "path",
+     "/library/metadata/32"
+    ],
+    [
+     "mediaIndex",
+     "0"
+    ],
+    [
+     "partIndex",
+     "0"
+    ],
+    [
+     "protocol",
+     "http"
+    ],
+    [
+     "directPlay",
+     "0"
+    ],
+    [
+     "directStream",
+     "0"
+    ],
+    [
+     "musicBitrate",
+     "192"
+    ],
+    [
+     "session",
+     "rexprobe-plezy"
+    ],
+    [
+     "X-Plex-Session-Identifier",
+     "rexprobe-plezy-id"
+    ],
+    [
+     "X-Plex-Client-Profile-Extra",
+     "add-transcode-target(type=musicProfile&context=streaming&protocol=http&container=mp3&audioCodec=mp3)"
+    ],
+    [
+     "X-Plex-Product",
+     "Plezy"
+    ],
+    [
+     "X-Plex-Version",
+     "1.20.0"
+    ],
+    [
+     "X-Plex-Client-Identifier",
+     "rexprobe-plezy"
+    ],
+    [
+     "X-Plex-Platform",
+     "Generic"
+    ],
+    [
+     "X-Plex-Device",
+     "Linux"
+    ],
+    [
+     "X-Plex-Device-Name",
+     "rexprobe"
+    ]
+   ],
+   "status": 200,
+   "headers": [
+    [
+     "Content-Type",
+     "audio/mpeg"
+    ],
+    [
+     "Accept-Ranges",
+     "none"
+    ],
+    [
+     "Connection",
+     "close"
+    ],
+    [
+     "Transfer-Encoding",
+     "chunked"
+    ],
+    [
+     "Cache-Control",
+     "no-cache"
+    ]
+   ],
+   "length_read": 65536,
+   "head": "49443304000000000023"
+  },
+  {
+   "path": "/transcode/sessions",
+   "status": 200,
+   "body": "{\"MediaContainer\":{\"size\":1,\"TranscodeSession\":[{\"key\":\"rexprobe-plezy\",\"throttled\":false,\"complete\":false,\"progress\":0.0,\"size\":-1,\"speed\":0.5,\"error\":false,\"duration\":45000,\"remaining\":94,\"context\":\"streaming\",\"sourceAudioCodec\":\"flac\",\"audioDecision\":\"transcode\",\"protocol\":\"http\",\"container\":\"mp3\",\"audioCodec\":\"mp3\",\"audioChannels\":2,\"transcodeHwRequested\":false,\"transcodeHwFullPipeline\":false,\"timeStamp\":1793755217.7704895,\"maxOffsetAvailable\":22.021224,\"minOffsetAvailable\":0.0}]}}"
+  }
+ ],
+ "rules": [
+  {
+   "title": "15 Step",
+   "musicBitrate": "320",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 304,
+   "protocol": null
+  },
+  {
+   "title": "15 Step",
+   "musicBitrate": "192",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 182,
+   "protocol": null
+  },
+  {
+   "title": "15 Step",
+   "musicBitrate": "128",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 121,
+   "protocol": null
+  },
+  {
+   "title": "Opus Tone",
+   "musicBitrate": "320",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 304,
+   "protocol": null
+  },
+  {
+   "title": "Opus Tone",
+   "musicBitrate": "192",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 182,
+   "protocol": null
+  },
+  {
+   "title": "Opus Tone",
+   "musicBitrate": "128",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 121,
+   "protocol": null
+  },
+  {
+   "title": "Vorbis Tone",
+   "musicBitrate": "320",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 304,
+   "protocol": null
+  },
+  {
+   "title": "Vorbis Tone",
+   "musicBitrate": "192",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 182,
+   "protocol": null
+  },
+  {
+   "title": "Vorbis Tone",
+   "musicBitrate": "128",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 121,
+   "protocol": null
+  },
+  {
+   "title": "ALAC Tone",
+   "musicBitrate": "320",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 304,
+   "protocol": null
+  },
+  {
+   "title": "ALAC Tone",
+   "musicBitrate": "192",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 182,
+   "protocol": null
+  },
+  {
+   "title": "ALAC Tone",
+   "musicBitrate": "128",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 121,
+   "protocol": null
+  },
+  {
+   "title": "WAV Tone",
+   "musicBitrate": "320",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 304,
+   "protocol": null
+  },
+  {
+   "title": "WAV Tone",
+   "musicBitrate": "192",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 182,
+   "protocol": null
+  },
+  {
+   "title": "WAV Tone",
+   "musicBitrate": "128",
+   "status": 200,
+   "general": 1001,
+   "codec": "mp3",
+   "container": "mp3",
+   "bitrate": 121,
+   "protocol": null
+  }
+ ]
+}

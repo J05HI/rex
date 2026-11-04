@@ -8,7 +8,9 @@ names: Web's DASH (`mp4`/AAC, `segments-audio`), Android's HLS in Matroska (MP3,
 Its `rules` are the same decision for five codecs and four `musicBitrate`s: every codec direct
 plays with direct play on (FLAC, MP3, Opus, Vorbis, ALAC, PCM), and a conversion is 95% of the
 asked bitrate, an AAC at most six bits a sample. `music_rig.py` pushes plexav's own 46 files; rex
-converts with its FFmpeg (`test_ffmpeg()`), and the segments must decode.
+converts with its FFmpeg (`test_ffmpeg()`), and the segments must decode. `fixtures/music/plezy_http_mp3.json`
+(`probes/record_plezy_music_http.py`) is plexav's answer to Plezy's music quality presets: one MP3
+over `protocol=http` from `start.mp3`.
 
     python3 tests/test_music_conversion.py
 """
@@ -118,6 +120,48 @@ def main():
               == (exchange("droid-music-play", "base/header")["headers"]["Content-Type"], exchange("droid-music-play", "00000.ts")["headers"]["Content-Type"]),
               (status, status0, head_headers.get("Content-Type"), seg_headers.get("Content-Type")))
         check("and they decode: MP3, two channels", [s[0::2] for s in decode(ffprobe, header + segment)] == [("mp3", 2)], decode(ffprobe, header + segment))
+        rex.request("/music/:/transcode/universal/stop?session=%s" % session)
+
+        # -- Plezy: one MP3 over http ------------------------------------------------------------
+        # Its music quality presets (`plezy_http_mp3.json`): rex refused the decision with 4005 and
+        # answered start.mp3 400, so Plezy played the original file at every quality.
+        plezy = json.load(open(os.path.join(M.FIXTURES, "plezy_http_mp3.json")))
+        recorded = plezy["exchanges"][0]
+        keys = {"15 Step": "32", "Opus Tone": "68", "Vorbis Tone": "69", "ALAC Tone": "70", "WAV Tone": "71"}
+
+        def plezy_query(key, bitrate):
+            return [(k, "/library/metadata/%s" % mapping[key] if k == "path" else bitrate if k == "musicBitrate" else v)
+                    for k, v in recorded["query"]]
+        # The rig holds plexav's four albums; its codec tones came later and are not pushed.
+        for rule in (r for r in plezy["rules"] if keys[r["title"]] in mapping):
+            status, _, answer = rex.request(recorded["path"] + "?" + urllib.parse.urlencode(plezy_query(keys[rule["title"]], rule["musicBitrate"])), raw=True)
+            container = json.loads(answer).get("MediaContainer", {}) if status == 200 else {}
+            media = (container.get("Metadata") or [{}])[0].get("Media", [{}])[0]
+            got = (container.get("generalDecisionCode"), media.get("audioCodec"), media.get("container"), media.get("bitrate"), media.get("protocol"))
+            check("Plezy at %s kbit/s, %s: MP3 in mp3 at %s kbit/s, no protocol on the Media, as plexav" % (
+                  rule["musicBitrate"], rule["title"], rule["bitrate"]),
+                  got == (rule["general"], rule["codec"], rule["container"], rule["bitrate"], rule["protocol"]), got)
+        query = plezy_query("32", "192")
+        status, _, body = rex.request(recorded["path"] + "?" + urllib.parse.urlencode(query), raw=True)
+        # plexav had analysed In Rainbows' loudness by then; the rig pushes none (test_music_loudness.py).
+        loudness = ("albumGain", "albumPeak", "albumRange", "gain", "loudness", "lra", "peak")
+        differences = M.compare(recorded["body"], body, ignore=NOT_ANALYSED + loudness + ("viewCount", "skipCount", "lastViewedAt"))
+        check("Plezy's decision is plexav's conversion: 3000/1001/1001, the Stream's location direct",
+              status == 200 and not differences, (status, differences[:8]))
+        recorded = plezy["exchanges"][1]
+        status, headers, stream = rex.request(recorded["path"] + "?" + urllib.parse.urlencode(query), raw=True)
+        check("its start.mp3 has plexav's head: audio/mpeg, chunked, no ranges, closed after",
+              status == 200 and all(headers.get(k) == v for k, v in recorded["headers"]), (status, headers))
+        check("and is one MP3 as plexav's, ID3 first: MP3 at 44.1 kHz, two channels",
+              stream[:3] == bytes.fromhex(recorded["head"])[:3] and decode(ffprobe, stream) == [("mp3", "44100", 2)],
+              (stream[:10].hex(), decode(ffprobe, stream)))
+        session = dict(query)["session"]
+        theirs = json.loads(plezy["exchanges"][2]["body"])["MediaContainer"]["TranscodeSession"][0]
+        status, sessions = rex.request("/transcode/sessions")
+        ours = next((row for row in (sessions.get("MediaContainer", {}).get("TranscodeSession") or []) if row.get("key") == session), {})
+        fields = ("context", "audioDecision", "protocol", "container", "audioCodec", "audioChannels")
+        check("its session row is plexav's: streaming, http, mp3", {k: ours.get(k) for k in fields} == {k: theirs[k] for k in fields},
+              {k: ours.get(k) for k in fields})
         rex.request("/music/:/transcode/universal/stop?session=%s" % session)
     finally:
         rex.stop()

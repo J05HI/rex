@@ -1394,7 +1394,7 @@ impl Runtime {
     pub(super) fn music_plan(&self, query: &HashMap<String, String>, headers: &HashMap<String, String>, key: &str, media: &Value, protocol: &str) -> Option<super::universal::Plan> {
         use super::universal::{AudioPlan, Plan, Protocol};
         self.transcoder.as_ref()?;
-        let wire = Protocol::parse(protocol).filter(|wire| matches!(wire, Protocol::Hls | Protocol::Dash))?;
+        let wire = Protocol::parse(protocol).filter(|wire| matches!(wire, Protocol::Hls | Protocol::Dash | Protocol::Http))?;
         let extra = query.get("X-Plex-Client-Profile-Extra").or_else(|| headers.get("x-plex-client-profile-extra")).cloned().unwrap_or_default();
         let target: HashMap<String, String> = extra
             .split('+')
@@ -1404,6 +1404,11 @@ impl Runtime {
         let codecs: Vec<String> = target.get("audioCodec").map(|list| list.split(',').map(|codec| codec.trim().to_ascii_lowercase()).filter(|codec| !codec.is_empty()).collect()).unwrap_or_default();
         let codec = if codecs.iter().any(|codec| codec == "mp3") { "mp3".to_string() } else { codecs.first()?.clone() };
         if !matches!(codec.as_str(), "mp3" | "aac") {
+            return None;
+        }
+        // Over http plexav streams one MP3 file (Plezy's `container=mp3` target); any other http
+        // container was not measured and stays refused.
+        if wire == Protocol::Http && (codec != "mp3" || target.get("container").map(String::as_str) != Some("mp3")) {
             return None;
         }
         let media = crate::catalog::unpacked(media);
@@ -1650,8 +1655,8 @@ impl Runtime {
 
 /// A track's Media as plexav's conversion decision names it: the target's codec, container,
 /// bitrate and protocol on the Media, `decision="transcode"` on the Part and its one Stream
-/// (`bitrateMode` `cbr` for AAC and `vbr` for MP3, `location` `segments-audio` for DASH and
-/// `segments-av` for HLS), the source's titles kept on the Stream.
+/// (`bitrateMode` `cbr` for AAC and `vbr` for MP3, `location` `segments-audio` for DASH,
+/// `segments-av` for HLS and `direct` for http's one MP3), the source's titles kept on the Stream.
 fn converted_track_media(direct: &Map<String, Value>, plan: &super::universal::Plan) -> Map<String, Value> {
     let Some(audio) = plan.audio.as_ref() else {
         return direct.clone();
@@ -1667,7 +1672,7 @@ fn converted_track_media(direct: &Map<String, Value>, plan: &super::universal::P
         "channels": audio.channels, "codec": audio.codec,
         "displayTitle": text(&stream, "displayTitle"), "extendedDisplayTitle": text(&stream, "extendedDisplayTitle"),
         "id": text(&stream, "id"), "selected": true, "streamType": 2, "decision": "transcode",
-        "location": if protocol == "dash" { "segments-audio" } else { "segments-av" },
+        "location": match protocol { "dash" => "segments-audio", "http" => "direct", _ => "segments-av" },
     });
     let converted_part = json!({
         "id": text(&part, "id"), "bitrate": audio.bitrate, "container": plan.container(), "duration": duration,
@@ -1685,6 +1690,10 @@ fn converted_track_media(direct: &Map<String, Value>, plan: &super::universal::P
         ("selected", json!(true)),
         ("Part", json!([converted_part])),
     ] {
+        // plexav's http MP3 names no protocol on the Media (`plezy_http_mp3.json`).
+        if field == "protocol" && protocol == "http" {
+            continue;
+        }
         out.insert(field.to_string(), value);
     }
     out

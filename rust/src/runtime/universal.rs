@@ -426,6 +426,9 @@ impl Plan {
     pub fn container(&self) -> &'static str {
         if self.matroska {
             "mkv"
+        } else if self.protocol == Protocol::Http {
+            // Only a track's `container=mp3` target streams over http outside Matroska (Plezy's).
+            "mp3"
         } else {
             self.protocol.container()
         }
@@ -1034,7 +1037,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         if plan.copyts && offset > 0 {
             push(&mut args, &["-output_ts_offset", &offset.to_string()]);
         }
-        push(&mut args, &["-f", "matroska", "pipe:1"]);
+        push(&mut args, &["-f", if plan.matroska { "matroska" } else { "mp3" }, "pipe:1"]);
         return args;
     }
     if plan.protocol == Protocol::File {
@@ -3698,10 +3701,11 @@ impl Runtime {
         match leaf {
             // Plex Desktop names no extension for `http` (its web client's `{dash: ".mpd",
             // hls: ".m3u8", http: ""}`); a bare `start` for any other protocol stays refused.
-            "start.m3u8" | "start.mpd" | "start" if leaf != "start" || query.get("protocol").map(String::as_str) == Some("http") => {
+            // Plezy's music quality presets ask for one MP3 at `start.mp3` (plexav, `plezy_http_mp3.json`).
+            "start.m3u8" | "start.mpd" | "start" | "start.mp3" if leaf != "start" || query.get("protocol").map(String::as_str) == Some("http") => {
                 let protocol = match leaf {
                     "start.mpd" => "dash",
-                    "start" => "http",
+                    "start" | "start.mp3" => "http",
                     _ => "hls",
                 };
                 let key = match self.decision_target(query, request) {
@@ -3741,7 +3745,7 @@ impl Runtime {
                 let (manifest, content_type) = match plan.protocol {
                     Protocol::Hls => (plan.master_playlist(&id), "application/vnd.apple.mpegurl"),
                     Protocol::Dash => (plan.mpd(&id), "application/dash+xml"),
-                    Protocol::Http => (String::new(), "video/x-matroska"),
+                    Protocol::Http => (String::new(), if plan.matroska { "video/x-matroska" } else { "audio/mpeg" }),
                     Protocol::File => return Some(Response::error(400, "rex: bad request")),
                 };
                 info!(
