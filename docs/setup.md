@@ -563,8 +563,8 @@ WantedBy=multi-user.target
 ## Movie and TV capabilities
 
 These work even when the claiming account is free. An app's own checks, such as its Downloads
-eligibility, still apply. Music and Live TV come from sources that send them ([feed API](feed-api.md),
-"Tracks" and "Live TV"); there is no DVR, so nothing records, and Plexamp's radio, mixes and stations are missing.
+eligibility, still apply. Music, photos and Live TV come from sources that send them ([feed API](feed-api.md),
+"Tracks", "Photos" and "Live TV"); there is no DVR, so nothing records, and Plexamp's radio, mixes and stations are missing.
 
 | Capability | What you get |
 |---|---|
@@ -581,6 +581,7 @@ eligibility, still apply. Music and Live TV come from sources that send them ([f
 | Cinema trailers and pre-rolls | Trailers your sources supply, and pre-rolls (below). No online trailer catalog |
 | Music | A source's tracks as artists and albums, named by Plex from their MusicBrainz release, played in Plexamp, Plex Web and Plex for Android with lyrics and loudness when the source sends them |
 | Live TV | A source's live channels and guide in Plex Web's and Plex for Android's Live TV: What's On, the guide, search and watching a channel |
+| Photos | A source's pictures as albums of its folders (a comic book is one), browsed, viewed and played as a slideshow in Plex Web. Plex for Android lists no photo library, a real Plex server's either |
 
 ### Analysis and disk use
 

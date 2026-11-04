@@ -79,7 +79,7 @@ rex reads no media from disk. A source (an addon, your own app or zurg) tells re
 
 - Music needs a source that sends tracks ([feed API](docs/feed-api.md#tracks)). Plexamp, Plex Web and Plex for Android play it, but Plexamp's radio, mixes and stations are missing.
 - Live TV shows the channels a source brings, such as [rex-live-sports](https://github.com/debridmediamanager/rex-live-sports), with their guide, in Plex Web's and Plex for Android's Live TV. Nothing records: there is no DVR.
-- Photo libraries stay empty.
+- Photos come from a source that sends pictures ([feed API](docs/feed-api.md#photos)), such as comic books from zurg, each one an album. Plex Web browses them and plays slideshows; Plex for Android shows no photo library (on a real Plex server either: it points to the Plex Photos app). Pictures are shown at full size.
 - A title shows up only once its source has probed it. A source's first pass over a big library can take a few hours.
 - Away from home rex needs an address of its own: rex-direct, or a certificate for a hostname you own. rex has no relay, so behind CGNAT use Tailscale or a small VPS ([how](https://notes.debridmediamanager.com/rex/any-source/#use-it-outside-your-home-optional)).
 - Downloads for offline viewing leave text subtitles out.
