@@ -52,8 +52,11 @@ def make_pictures(root):
                         "color=c=0x%02x6040:s=%dx%d" % (index * 20, width, height), "-frames:v", "1", file], check=True)
         probe = json.loads(subprocess.check_output([M.tool("ffprobe"), "-v", "error", "-print_format", "json",
                                                     "-show_format", "-show_streams", file]))
+        # plexscratch dated these EXIF-less pictures by their files, the day it was recorded; rex
+        # dates one by the day it arrives, so a run on any later day differs unless the source
+        # dates it (`display.date`), as the recording's day.
         items.append({"id": "photos/" + path, "path": "photos/" + path, "kind": "photo",
-                      "size": os.path.getsize(file), "media_info": probe})
+                      "size": os.path.getsize(file), "media_info": probe, "display": {"date": "2026-11-04"}})
     return items
 
 
