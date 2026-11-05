@@ -205,7 +205,10 @@ the account rex is claimed with: rex refuses it (403) to the accounts it is shar
 real Plex Media Server does.
 
 A claimed rex refuses another claim (409). To move it to another account (the fresh one was
-lost or banned), stop it, remove `claim_state.json`, start it, claim again and share again. The
+lost or banned), stop it, remove `claim_state.json`, start it, claim again and share again. If
+the old account can still sign in, also remove the server there (app.plex.tv, Settings,
+Authorized Devices, Servers). Those two are the whole unclaim: rex has no sign-out, and
+`DELETE /myplex/account` answers 200 but leaves it claimed. The
 library, Fix Match, edits and the rex-direct name stay; each shared account's watch state comes
 back once rex is shared with it again, and the old owner's passes to the new one.
 
@@ -403,7 +406,8 @@ single-use claim token); the log still names your titles and addresses, so keep 
   current Plex Media Server's, which rex reports on purpose so the apps treat it as up to date.
 - **Start over:** `DELETE /rex/sources/<name>` (step 2) and a restart of the source refills its
   items, dropping their watch state. From nothing: stop rex, delete `rex.db*`,
-  `claim_state.json` and `rex-direct.json`, start it, claim it again (step 5).
+  `claim_state.json` and `rex-direct.json`, remove the old server from the fresh account in
+  app.plex.tv (Settings, Authorized Devices, Servers), start rex, claim it again (step 5).
 - **Remove rex:** stop and remove its service (on Windows also `Unregister-ScheduledTask rex` and
   `Remove-NetFirewallRule -DisplayName rex, "rex discovery"`), take rex's address out of each
   source (zurg: `rex_url`), remove the server from the fresh account in app.plex.tv (Settings, Authorized Devices,
