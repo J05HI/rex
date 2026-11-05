@@ -12817,17 +12817,40 @@ then the long-GOP check above switched it to video encoding. An audio-only FFmpe
 policy rejected that fallback. The video codec was compatible; five-second DASH
 slots were too short for its keyframes.
 
-For recorded Matroska files with video cues, rex now reads the SeekHead, Info,
-Tracks and Cues using bounded Range reads before starting DASH. The largest gap
-between video cues (including the beginning and tail) sets a minimum slot length,
-rounded up to seconds. Sparse cues conservatively lengthen slots. Gaps above 20 s
-are refused before FFmpeg starts, limiting the two-chunk copy validation to a
-nominal 40 s against the 45 s segment wait. This limit applies to every
-server, so a sparse index never silently forces video conversion or a title-sized
-chunk. The same length
-drives the manifest, FFmpeg, segment lookup and seeks. Index reads occur outside
-the runtime lock. Other containers, missing indexes and live streams retain the
-existing behavior; this is not a universal prohibition on video conversion.
+For recorded Matroska files with video cues, rex reads the SeekHead, Info,
+Tracks and Cues using bounded Range reads before starting DASH. Ordinary gaps
+set the fixed slot length, rounded up to seconds. Initially gaps above 20 s were
+refused to bound the nominal duration of two-chunk validation. That rejected
+Agent Ranjid rettet die Welt before playback even though its 60.703 s indexed
+gap is near the end: video packets jump from about 4905.042 s to 4965.578 s, and
+the film plays to the end in Plex Desktop.
+
+As of 2026-11-05, an indexed gap above 20 s selects a static `SegmentTimeline`
+instead. rex chooses cue boundaries at least five seconds apart, keeping the
+opening slots short; only a slot crossing sparse cues grows. FFmpeg's tee and
+segment muxers cut separate fragmented MP4 representations at those explicit
+source timestamps. Video is copied and audio follows the requested conversion.
+The nested MP4 muxers preserve absolute fragment timestamps, including on a
+seek. MP4 edit lists are disabled so a B-frame's large composition offset at a
+timestamp jump is not added twice. A seek warms up the preceding slot and reads
+the first copied/encoded packet timestamps with a short, cancellable framecrc
+probe: segment's explicit cuts are relative to those packet origins. This probe
+runs only on seeks; opening playback does not need it. Both representations use
+the planned boundaries; the minimum buffer is
+at most five seconds. The first closed segment is available as soon as the next
+opens, without waiting for the remote tail. A genuinely long opening GOP still
+needs to be read before it can be copied. A file with only one indexed slot can
+therefore still produce a title-sized segment.
+
+The timeline drives the manifest, segment lookup, seeks, pruning and production
+progress. The existing wall-clock request timeout still handles actual stalls.
+Index reads occur outside the runtime lock. Other containers, missing indexes
+and live streams retain their existing behavior. `tests/test_dash_audio_copy.py`
+covers a sparse index and a timestamp jump, packet and decoded-frame equality,
+AAC conversion, first-segment delivery while the source tail is blocked, and
+seeking after the gap. It also reads the public MPD through an FFmpeg DASH
+client when that demuxer is available (`REX_DASH_CLIENT` can select another
+FFmpeg). These are generated-media checks, not a Samsung TV timing measurement.
 
 A DASH start registers a preparing session before releasing the runtime lock for
 those reads. Stop and newer starts invalidate that exact session. After reading,

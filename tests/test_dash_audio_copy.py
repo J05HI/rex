@@ -19,6 +19,8 @@ import subprocess
 import tempfile
 import threading
 import urllib.parse
+import time
+import xml.etree.ElementTree as ET
 
 import test_native_transcode as nt
 from test_http_mkv import file_row
@@ -38,7 +40,42 @@ class Source(nt.Zurg):
             else:
                 entered.set()
                 assert resume.wait(15), "index read was not released"
-        super().do_GET()
+        gate = getattr(self.server, "tail_gate", None)
+        name = urllib.parse.unquote(self.path).rsplit("/", 1)[-1]
+        bounds = re.fullmatch(r"bytes=(\d+)-(\d*)", self.headers.get("Range", ""))
+        first = int(bounds[1]) if bounds else 0
+        last = int(bounds[2]) if bounds and bounds[2] else os.path.getsize(nt.MEDIA[name]) - 1
+        writer = self.wfile
+        if gate and name == "timestamp-gap.mkv" and first < gate[0] < last:
+            cutoff, entered, resume = gate
+
+            class GatedWriter:
+                header = True
+                position = first
+
+                def write(self, data):
+                    if self.header:
+                        self.header = False
+                        return writer.write(data)
+                    if self.position < cutoff <= self.position + len(data):
+                        split = cutoff - self.position
+                        writer.write(data[:split])
+                        entered.set()
+                        assert resume.wait(15), "playback waited for the blocked tail"
+                        writer.write(data[split:])
+                    else:
+                        writer.write(data)
+                    self.position += len(data)
+                    return len(data)
+
+                def __getattr__(self, name):
+                    return getattr(writer, name)
+
+            self.wfile = GatedWriter()
+        try:
+            super().do_GET()
+        finally:
+            self.wfile = writer
 
 
 @contextmanager
@@ -101,6 +138,19 @@ def run(scratch):
     sparse = file_row("3", "sparse.mkv", nt.probe(path)["streams"])
     sparse["duration"] = sparse["Media"][0]["duration"] = sparse["Media"][0]["Part"][0]["duration"] = 36000
     items.append(sparse)
+    # A real timestamp discontinuity, like Agent Ranjid's tail: the video
+    # resumes a minute later while audio continues on the original clock.
+    path = os.path.join(scratch, "timestamp-gap.mkv")
+    nt.MEDIA["timestamp-gap.mkv"] = path
+    subprocess.run([
+        nt.FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=160x90:r=24:d=30",
+        "-f", "lavfi", "-i", "sine=d=91", "-vf", "setpts=PTS+60.703/TB*gte(T\\,20)",
+        "-fps_mode", "passthrough", "-c:v", "libx264", "-preset", "medium",
+        "-g", "24", "-bf", "2", "-sc_threshold", "0", "-c:a", "dca", "-strict", "-2", path,
+    ], check=True, stderr=subprocess.PIPE)
+    gap = file_row("4", "timestamp-gap.mkv", nt.probe(path)["streams"])
+    gap["duration"] = gap["Media"][0]["duration"] = gap["Media"][0]["Part"][0]["duration"] = 91000
+    items.append(gap)
     catalog = os.path.join(scratch, "catalog.json")
     with open(catalog, "w") as f:
         json.dump({"machineIdentifier": "0000000000000000000000000000000000000009",
@@ -274,22 +324,86 @@ def run(scratch):
             assert nt.get(port, START, lookup)[0] == 400
             assert nt.get(port, START, lookup, method="HEAD")[0] == 400
             print(codec + ": copied packets, converted audio, full playback and seek passed")
-        # A sparse index must fail before launch rather than creating one title-sized
-        # chunk or falling back to video conversion on an audio-only setup.
-        query = nt.dash_query("3", "sparse-index", directStream="1", directStreamAudio="0",
-                              **{"X-Plex-Client-Profile-Extra": extra, "X-Plex-Token": token})
-        assert nt.get(port, "/video/:/transcode/universal/decision", query)[0] == 200
-        status, _, body = nt.get(port, START, query)
-        assert status == 400, (status, body)
-        assert "indexed video gap exceeds the 20 s DASH copy limit" in open(log).read()
-        assert nt.get(port, START, [("session", "sparse-index")])[0] == 400
-        assert "TRANSCODE sparse-index run" not in open(log).read(), "oversized gap launched FFmpeg"
-        # The refusal releases the session id for a normal file.
-        query = [(k, "/library/metadata/1" if k == "path" else v) for k, v in query]
-        assert nt.get(port, "/video/:/transcode/universal/decision", query)[0] == 200
-        assert nt.get(port, START, query)[0] == 200
-        assert nt.get(port, STOP, [("session", "sparse-index"), ("X-Plex-Token", token)])[0] == 200
-        print("sparse index: refused before launch; session id remains reusable")
+        for key, name in (("3", "sparse"), ("4", "timestamp-gap")):
+            tail_entered, tail_resume = threading.Event(), threading.Event()
+            if name == "timestamp-gap":
+                packets = json.loads(subprocess.check_output([
+                    nt.FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_packets",
+                    "-show_entries", "packet=pts_time,pos", "-of", "json", nt.MEDIA[name + ".mkv"],
+                ]))["packets"]
+                cutoff = next(int(packet["pos"]) for packet in packets if float(packet["pts_time"]) >= 80)
+                source.tail_gate = (cutoff, tail_entered, tail_resume)
+            session = "long-gap-" + name
+            query = nt.dash_query(key, session, directStream="1", directStreamAudio="0",
+                                  **{"X-Plex-Client-Profile-Extra": extra, "X-Plex-Token": token})
+            assert nt.get(port, "/video/:/transcode/universal/decision", query)[0] == 200
+            status, _, manifest = nt.get(port, START, query)
+            assert status == 200, (status, manifest)
+            timeline = ET.fromstring(manifest).findall(".//{urn:mpeg:dash:schema:mpd:2011}SegmentTimeline")[0]
+            slots = [(int(entry.attrib["t"]), int(entry.attrib["d"])) for entry in timeline]
+            assert max(length for _, length in slots) > 20_000 and b'minBufferTime="PT5S"' in manifest, manifest
+            if name == "timestamp-gap":
+                assert slots[0][0] == 0 and 5000 <= slots[0][1] <= 5100, slots
+                assert len(slots) > 2 and slots[-2][0] >= 80_000, slots
+            first_started = time.monotonic()
+            paths = []
+            for rep in (0, 1):
+                path = os.path.join(scratch, "%s-%d.mp4" % (name, rep))
+                paths.append(path)
+                with open(path, "wb") as f:
+                    for index in range(len(slots)):
+                        status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/%d/%d.m4s" % (session, rep, index), timeout=45)
+                        assert status == 200, (name, status, rep, index)
+                        f.write(data)
+                        if rep == 0 and index == 0:
+                            print("%s: first segment in %.3fs, media span %.3fs" % (name, time.monotonic() - first_started, slots[0][1] / 1000))
+                            if name == "timestamp-gap":
+                                assert tail_entered.wait(5), "tail gate was not exercised"
+                                assert not tail_resume.is_set(), "tail was released before the opening segment"
+                                tail_resume.set()
+                                source.tail_gate = None
+            assert packet_hashes(paths[0]) == packet_hashes(nt.MEDIA[name + ".mkv"]), "long gap changed video packets"
+            assert decoded_hash(paths[0]) == decoded_hash(nt.MEDIA[name + ".mkv"]), "long gap changed video frames"
+            assert nt.probe(paths[1])["streams"][0]["codec_name"] == "aac"
+            decoded_hash(paths[1], "a")
+            # A fresh run seeks directly to the video after the discontinuity.
+            if name == "timestamp-gap":
+                # Read Rex's public MPD with a DASH client, not only joined files.
+                url = "http://127.0.0.1:%d%s?session=%s" % (port, START, session)
+                dash_client = os.environ.get("REX_DASH_CLIENT", nt.FFMPEG)
+                demuxers = subprocess.check_output([dash_client, "-hide_banner", "-demuxers"], stderr=subprocess.DEVNULL)
+                if re.search(rb"\bD\s+dash\s", demuxers):
+                    played = subprocess.run([
+                        dash_client, "-v", "error", "-xerror", "-i", url,
+                        "-map", "0:v:0", "-map", "0:a:0", "-fps_mode", "passthrough", "-f", "null", "-",
+                    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45)
+                    assert played.returncode == 0, played.stderr.decode(errors="replace")
+                    print("timestamp-gap: public DASH manifest decoded by FFmpeg")
+                else:
+                    print("SKIP public MPD reader: FFmpeg has no DASH demuxer (set REX_DASH_CLIENT)")
+                assert nt.get(port, START, query)[0] == 200
+                index = next(index for index, (begin, _) in enumerate(slots) if begin >= 80_000)
+                for rep in (0, 1):
+                    status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/%d/%d.m4s" % (session, rep, index), timeout=45)
+                    assert status == 200, (status, data[:100])
+                    seek = os.path.join(scratch, "timestamp-gap-seek-%d.mp4" % rep)
+                    with open(seek, "wb") as f:
+                        f.write(data)
+                    decoded_hash(seek, "v" if rep == 0 else "a")
+                    packets = json.loads(subprocess.check_output([
+                        nt.FFPROBE, "-v", "error", "-show_packets", "-show_entries", "packet=pts_time", "-of", "json", seek,
+                    ]))["packets"]
+                    first = min(float(packet["pts_time"]) for packet in packets if "pts_time" in packet)
+                    assert abs(first - slots[index][0] / 1000) < 0.2, (rep, first, slots[index])
+                if re.search(rb"\bD\s+dash\s", demuxers):
+                    sought = subprocess.run([
+                        dash_client, "-v", "error", "-xerror", "-ss", "85", "-i", url, "-t", "2",
+                        "-map", "0:v:0", "-map", "0:a:0", "-fps_mode", "passthrough", "-f", "null", "-",
+                    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45)
+                    assert sought.returncode == 0, sought.stderr.decode(errors="replace")
+                    print("timestamp-gap: public DASH manifest seek decoded by FFmpeg")
+            assert nt.get(port, STOP, [("session", session), ("X-Plex-Token", token)])[0] == 200
+            print(name + ": starts, copies video and converts audio across a gap over 20 s")
         # PMS returns an HLS session's master playlist even through start.mpd.
         session = "hls-reopen"
         query = nt.plex_web_query("1", session, **{"X-Plex-Token": token, "X-Plex-Incomplete-Segments": "1"})

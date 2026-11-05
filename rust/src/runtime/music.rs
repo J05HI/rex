@@ -1454,6 +1454,7 @@ impl Runtime {
             incomplete_segments: false,
             copyts: false,
             segment_length: Some(1),
+            dash_timeline: Vec::new(),
             silent_audio: false,
             account: self.viewer.id,
             playback: self.playback_session(query, headers),

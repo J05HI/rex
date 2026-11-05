@@ -182,7 +182,14 @@ fn matroska_tables(read: Read, head: &[u8]) -> Result<(usize, Vec<u8>, Vec<u8>, 
 
 /// A conservative upper bound on the spacing of indexed video keyframes, in ms.
 /// Sparse cues make segments longer, rather than claiming a cut the video cannot make.
+#[cfg(test)]
 pub(crate) fn video_gap(read: Read, stream: i64, duration_ms: i64) -> Result<i64, String> {
+    let times = video_cues(read, stream, duration_ms)?;
+    Ok(times.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0))
+}
+
+/// Video cue timestamps with title boundaries, used to plan variable DASH slots.
+pub(crate) fn video_cues(read: Read, stream: i64, duration_ms: i64) -> Result<Vec<i64>, String> {
     let head = read(0, 64 * 1024)?;
     if !head.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
         return Err("not Matroska".to_string());
@@ -210,7 +217,8 @@ pub(crate) fn video_gap(read: Read, stream: i64, duration_ms: i64) -> Result<i64
     if times.is_empty() { return Err("no video cues".to_string()); }
     times.extend([0, duration_ms]);
     times.sort_unstable();
-    Ok(times.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0))
+    times.dedup();
+    Ok(times)
 }
 
 fn subtitle_index(stream: i64, segment: usize, scale: u64, tracks: &[u8], cues_bytes: &[u8]) -> Result<Index, String> {
