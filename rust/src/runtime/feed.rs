@@ -3926,9 +3926,10 @@ mod tests {
     #[test]
     fn a_vobsub_is_the_language_its_idx_names_last() {
         // Real ones (`fixtures/subtitles/vobsub/`): Samurai Champloo E20's forced track and McBain's four.
-        let read = |name: &str| String::from_utf8_lossy(&std::fs::read(format!("{}/../tests/fixtures/subtitles/vobsub/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()).into_owned();
-        assert_eq!(idx_language(&read("stars-samurai.champloo.e20.1080p-forced.idx")).as_deref(), Some("de"));
-        assert_eq!(idx_language(&read("mcbain.1080p-hd4u.idx")).as_deref(), Some("sv"));
+        // Compiled in: the Windows tests run a binary built on dmm, where this path is not.
+        let read = |bytes: &[u8]| String::from_utf8_lossy(bytes).into_owned();
+        assert_eq!(idx_language(&read(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/subtitles/vobsub/stars-samurai.champloo.e20.1080p-forced.idx")))).as_deref(), Some("de"));
+        assert_eq!(idx_language(&read(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/subtitles/vobsub/mcbain.1080p-hd4u.idx")))).as_deref(), Some("sv"));
         assert_eq!(idx_language("# VobSub index file, v7\r\nid: --, index: 0\r\n"), None);
         assert_eq!(idx_language(""), None);
     }
