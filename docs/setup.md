@@ -610,6 +610,14 @@ poster and background the first time a listing shows it, and kept in `rex.db`.
 
 ### Apps downloading straight from the source
 
+**Keep the default proxy mode for shared debrid playback.** Real-Debrid tracks each downloader's
+public IP; multi-IP use of one account earns a sharing warning even when downloads succeed.
+Keep all use of an RD account on one public IP: redirecting remote apps while rex or its source
+also probes or converts from the server's IP is not safe. TorBox download URLs contain the full
+API key in `?token=`, so redirecting gives every client and shared user account access, including
+deletion, and can leak the key into player logs or browser history. Do not hand TorBox links to
+untrusted clients. Only use the optional modes below when these risks are acceptable.
+
 By default every byte an app plays passes through rex. Start rex with `--part-mode redirect` and,
 when an app plays a file as it is (direct play) and the source answers with a link elsewhere (rex-stremio answers with its stream addon's link,
 zurg, given `disable_stream_proxy: true`, with its debrid provider's download link), rex hands the

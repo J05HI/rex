@@ -60,7 +60,7 @@ You need rex nightly 2026.10.25 or newer and, for zurg, zurg nightly 2026.10.27 
 
 Two things to know first. Deleting a title in a Plex app as the claiming account deletes it at its source too, from your debrid account for zurg; untick **Allow media deletion** (Settings, Library, Show Advanced) to stop that. And a reverse proxy or tunnel on the rex machine must block `/rex/`, or it opens rex's feed to the internet.
 
-Once it runs: [share it with family and friends](https://notes.debridmediamanager.com/rex/sharing/), [bring your watch history](https://notes.debridmediamanager.com/rex/import-watched/) from your old Plex server, [add Kometa collections](https://notes.debridmediamanager.com/rex/kometa/), or [let the apps download from your provider](https://notes.debridmediamanager.com/rex/direct-download/).
+Once it runs: [share it with family and friends](https://notes.debridmediamanager.com/rex/sharing/), [bring your watch history](https://notes.debridmediamanager.com/rex/import-watched/) from your old Plex server, [add Kometa collections](https://notes.debridmediamanager.com/rex/kometa/), or [let the apps download from your provider](https://notes.debridmediamanager.com/rex/direct-download/) after reading the [redirect risks](#limits).
 
 ## Sources and addons
 
@@ -83,6 +83,7 @@ rex reads no media from disk. A source (an addon, your own app or zurg) tells re
 - Plex for Android's own player fails on a few rare files, from a real Plex server too: a `.wmv`, `.asf` or `.dvr-ms` with WMA sound plays only at a lower quality, and a raw `.avc` stops at once. Plezy offers VobSub subtitles only as Off ([troubleshooting](docs/setup.md#troubleshooting)).
 - A title shows up only once its source has probed it. A source's first pass over a big library can take a few hours.
 - Away from home rex needs an address of its own: rex-direct, or a certificate for a hostname you own. rex has no relay, so behind CGNAT use Tailscale or a small VPS ([how](https://notes.debridmediamanager.com/rex/any-source/#use-it-outside-your-home-optional)).
+- Keep the default proxy mode for shared debrid playback. Redirecting apps to Real-Debrid exposes each downloader's public IP; multi-IP use of one account earns a sharing warning even when downloads succeed. TorBox download URLs contain the full API key, so redirecting gives every client and shared user account access, including deletion. [Read before enabling redirects](docs/setup.md#apps-downloading-straight-from-the-source).
 - Downloads for offline viewing leave text subtitles out.
 - Remote playback on free accounts is checked in Plex Web only; the other Plex apps have not been tested away from home on free accounts.
 - It started as an experiment and got further than expected. It is not a product and does not try to replace Plex.
