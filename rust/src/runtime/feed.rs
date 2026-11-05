@@ -997,7 +997,7 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
                 let kept = existing.as_ref().is_some_and(|(key, legacy)| {
                     !legacy && guard.catalog.get(key).is_some_and(|row| {
                         let (same, splits) = probe_kept(row, &source.name, &item, probe, &library.kind);
-                        same && (!splits || guard.matched_by_hand(row))
+                        same && (!(splits || guard.version_strays(row, &item, &library)) || guard.matched_by_hand(row))
                     })
                 });
                 if !kept && !retry {
@@ -1065,9 +1065,12 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
             // extra's does above: the row was never re-identified by one of its releases, so
             // SpongeBob's Frys S10 pack, which zurg placed S10E24 as TMDB's S9E15 (production server,
             // 2026-10-23), sat on S10E24 beside three other releases' files for good while its own
-            // version stored the new placement (`version_leaves`).
+            // version stored the new placement (`version_leaves`). So does one whose folder a
+            // library of its own now holds while the row's other releases stay (`version_strays`).
             if let (Some((key, _)), false, true) = (&existing, retry, item.media_info.is_some()) {
-                let leaves = guard.catalog.get(key).is_some_and(|row| version_leaves(row, &item, &library.kind) && !guard.matched_by_hand(row));
+                let leaves = guard.catalog.get(key).is_some_and(|row| {
+                    (version_leaves(row, &item, &library.kind) || guard.version_strays(row, &item, &library)) && !guard.matched_by_hand(row)
+                });
                 if leaves && guard.drop_version(key, &source.name, &item.id) {
                     guard.dirty = true;
                     existing = None;
@@ -3230,18 +3233,7 @@ impl Runtime {
     /// when all of them do, or it would move with whichever was pushed last. One that does not
     /// stays where it is, said once since the start.
     fn releases_agree(&self, row: &Value, item: &Item, library: &Library) -> bool {
-        let all = versions(row);
-        if all.len() < 2 {
-            return true;
-        }
-        let agree = all.iter().all(|(_, _, index)| {
-            match (row.pointer(&format!("/Media/{index}/_path")).and_then(Value::as_str), media_file(row, *index)) {
-                (Some(path), Some(file)) => self
-                    .feed_library(&Item { path: path.to_string(), file, ..item.clone() })
-                    .is_some_and(|found| found.key == library.key),
-                _ => false,
-            }
-        });
+        let agree = self.releases_in(row, item, library);
         if let Some(key) = key_of(row).filter(|key| !agree && first_time(format!("held {key}"))) {
             let here = row.get("librarySectionID").map(string_value).unwrap_or_default();
             info!(
@@ -3251,6 +3243,34 @@ impl Runtime {
             );
         }
         agree
+    }
+
+    /// Whether every release of `row` is in a folder `library` holds (`releases_agree`, unsaid).
+    fn releases_in(&self, row: &Value, item: &Item, library: &Library) -> bool {
+        let all = versions(row);
+        all.len() < 2
+            || all.iter().all(|(_, _, index)| {
+                match (row.pointer(&format!("/Media/{index}/_path")).and_then(Value::as_str), media_file(row, *index)) {
+                    (Some(path), Some(file)) => self
+                        .feed_library(&Item { path: path.to_string(), file, ..item.clone() })
+                        .is_some_and(|found| found.key == library.key),
+                    _ => false,
+                }
+            })
+    }
+
+    /// Whether `item`, a version of `row` holding several, leaves it for `library`, the one its
+    /// folder picks now: a library of the row's kind other than the row's, which the row's other
+    /// releases do not all go to (all of them do, and the row moves whole, `relocate`). A user's
+    /// rex (2026-11-05) had folded a film's 2160p and 1080p releases from zurg's `movies` and
+    /// `movies_fhd` into one Debrid Movies row before `movies_fhd` was declared REX-1080p Movies;
+    /// the row stayed whole where it was, the 1080p version listed there for good and missing
+    /// from the library declared for it.
+    fn version_strays(&self, row: &Value, item: &Item, library: &Library) -> bool {
+        let fits = matches!((row.get("type").and_then(Value::as_str), library.kind.as_str()), (Some("movie"), "movie") | (Some("episode"), "show"));
+        fits && versions(row).len() > 1
+            && row.get("librarySectionID").map(string_value).as_deref() != Some(library.key.as_str())
+            && !self.releases_in(row, item, library)
     }
 
     /// A row moved to `library` as it is, on its key: its identification, a hand match among

@@ -110,10 +110,12 @@ Plex clients see it as one added in Add Library. Then:
   stay. An episode goes under its show there, else under a copy of the show and season it
   leaves, which takes what a person did to them (titles, sort title, summary, labels,
   collections, locks, a picked or uploaded poster or background); a show already there keeps
-  each edit of its own and takes the rest. A row holding several releases moves only when every
-  release's folder belongs to the new library; otherwise it stays, logged once
-  (`FEED <key> stays in TV Shows: its releases sit in folders of different libraries`). A row
-  placed as something else in the same push is identified again instead.
+  each edit of its own and takes the rest. A row holding several releases moves whole when every
+  release's folder belongs to the new library; otherwise each release whose folder does leaves
+  the row for that library, where it joins the title's row or makes one, and the row keeps its
+  key, its watch state and the other releases where it is. A person's Fix Match keeps the row
+  whole, logged once (`FEED <key> stays in TV Shows: its releases sit in folders of different
+  libraries`). A row placed as something else in the same push is identified again instead.
 - **Deleting the library in Plex keeps it deleted.** Its folders and type are kept in the state
   file (`deletedLocations`), a later registration makes nothing there and logs once that it
   stays deleted, and the directory's files go back to the first library of their kind.
