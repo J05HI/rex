@@ -638,8 +638,9 @@ impl Plan {
 
     fn fit_copy_cues(&mut self, cues: &[i64]) {
         let gap = cues.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0);
-        // The title boundaries can shorten the opening and closing intervals.
-        let regular = cues[1..cues.len() - 1].windows(2).all(|pair| pair[1] - pair[0] == gap);
+        // A fixed template needs the opening keyframe on its grid too. A
+        // shorter lead-in shifts every later cut, even with a regular cadence.
+        let regular = cues.first() == Some(&0) && cues[..cues.len() - 1].windows(2).all(|pair| pair[1] - pair[0] == gap);
         if (1000..=20_000).contains(&gap) && regular {
             self.segment_length_ms = Some(gap as u32);
         } else {
@@ -655,7 +656,8 @@ impl Plan {
         let minimum = ((self.duration_ms - 1) / 4000 + 1).max(
             if cues.windows(2).any(|pair| pair[1] - pair[0] > 20_000) { i64::from(DASH_COPY_SEGMENT) * 1000 } else { 1000 }
         );
-        for &time in cues.iter().filter(|&&time| time > 0 && time < self.duration_ms) {
+        // The first real cue starts video; cutting there would create an empty slot.
+        for &time in cues.iter().skip(1).filter(|&&time| time > 0 && time < self.duration_ms) {
             if time - times.last().copied().unwrap_or(0) >= minimum {
                 times.push(time);
             }
@@ -2427,7 +2429,7 @@ impl Transcoder {
         self.launch_with(session, start, None, Some(path));
     }
 
-    /// Resolve input pre-roll on a seek without changing the opening playback path.
+    /// Resolve packet origins for explicit cuts, including a delayed opening track.
     /// The segment muxer measures explicit cuts relative to its first packet, which
     /// can precede the requested cue. Probe the same copy/encode pipeline until both
     /// origins are known, then cancel it; no full media scan or video decode is needed.
@@ -2492,7 +2494,7 @@ impl Transcoder {
             cover.run_limit = cover.limit(session.plan.segment_start_ms(start));
         }
         let mut args = ffmpeg_args(&plan, path, &hardware, start, &session.dir);
-        if start > 0 && !plan.dash_timeline.is_empty() {
+        if !plan.dash_timeline.is_empty() {
             for attempt in 1..=3 {
                 if session.stopped.load(Ordering::SeqCst) || session.run.load(Ordering::SeqCst) != run { return; }
                 match self.timeline_origins(session, &args) {
@@ -4374,8 +4376,11 @@ mod tests {
         }
         let mut copy = plan(true, 5500);
         copy.fit_copy_cues(&[0, 23, 1024, 2025, 3026, 4027, 5028, 5500]);
-        assert!(copy.dash_timeline.is_empty());
-        assert_eq!(copy.segment_ms(), 1001);
+        assert!(!copy.dash_timeline.is_empty());
+        assert_eq!(copy.dash_timeline[1], 1024);
+        copy.duration_ms = 20_880;
+        copy.fit_copy_cues(&[1200, 6120, 11_040, 15_960, 20_880]);
+        assert_eq!(copy.dash_timeline[1], 6120, "a delayed first frame is not a segment boundary");
     }
 
     #[test]

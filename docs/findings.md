@@ -12858,14 +12858,18 @@ when video encoding was disabled.
 
 A largest keyframe gap is not a safe fixed duration for uneven cues: rounding
 and scene cuts can place a keyframe just before the next slot boundary. Indexed
-copy now uses fixed slots only when interior cue intervals are identical, allowing
-shorter title-boundary intervals. Other indexed files use the existing explicit
+copy now uses fixed slots only when cue intervals, including the opening, lie
+on the same grid. A shorter closing interval is allowed. Other indexed files use the existing explicit
 source-cue timeline, preserving video copy. Ordinary uneven cues are grouped at
 least one second apart; sparse gaps retain the five-second grouping. Grouping
 also bounds the timeline to 4000 slots so both track cut lists fit FFmpeg's
 single output argument on Linux. Regular 1.001-second keyframes retain the fast
 fixed-slot path. The generated regression includes fractional, uneven keyframes
 with B-frames and checks every copied packet, decoded frame, AAC output and seek.
+Shifted opening keyframes use explicit cuts too. The first real cue starts video
+and is not an opening cut; timeline runs probe packet origins at startup as well
+as on seeks. Regressions cover 4.96-second opening keyframes and a 4.92-second
+cadence starting 0.48 or 1.2 seconds late.
 
 Timeline audio cuts use no keyframe tolerance. Applying video's 62.5 ms tolerance
 also to AAC cut chunks before their advertised slot boundaries. Video retains

@@ -160,6 +160,20 @@ def run(scratch):
         "-c:v", "libx264", "-preset", "ultrafast", "-g", "1000", "-sc_threshold", "0",
         "-c:a", "dca", "-strict", "-2", "-shortest",
     ]))
+    forces_496 = ",".join(f"{4.96 + 5.0 * i:.2f}" for i in range(18))
+    items.append(make_media("7", "shift-496.mkv", 90000, [
+        "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=90", "-f", "lavfi", "-i", "sine=d=90",
+        "-c:v", "libx264", "-preset", "ultrafast", "-g", "1000", "-force_key_frames", forces_496,
+        "-sc_threshold", "0", "-c:a", "dca", "-strict", "-2", "-shortest",
+    ]))
+    for key, name, delay in (("8", "late-video", 0.48), ("9", "late-video-long", 1.2)):
+        forces_492 = ",".join(f"{delay + 4.92 * (i + 1):.2f}" for i in range(18))
+        items.append(make_media(key, name + ".mkv", 90000, [
+            "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=90", "-f", "lavfi", "-i", "sine=d=90",
+            "-vf", "setpts=PTS+%s/TB" % delay,
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "1000", "-force_key_frames", forces_492,
+            "-sc_threshold", "0", "-c:a", "dca", "-strict", "-2", "-shortest",
+        ]))
     # A timestamp discontinuity: the video
     # resumes a minute later while audio continues on the original clock.
     items.append(make_media("4", "timestamp-gap.mkv", 91000, [
@@ -180,7 +194,8 @@ def run(scratch):
     port, process, log = nt.start_server(catalog, source.server_address[1], True, scratch, token=token)
     try:
         assert nt.get(port, "/library/sections")[0] == 401
-        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense"), ("6", "uneven")):
+        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense"), ("6", "uneven"),
+                           ("7", "shift-496"), ("8", "late-video"), ("9", "late-video-long")):
             session = "audio-copy-" + codec
             extra = "append-transcode-target-codec(type=videoProfile&context=streaming&protocol=dash&videoCodec=h264,hevc&audioCodec=aac)"
             query = nt.dash_query(key, session, directStream="1", directStreamAudio="0",
@@ -258,7 +273,7 @@ def run(scratch):
             unauthenticated = [(k, v) for k, v in query if k != "X-Plex-Token"]
             assert nt.get(port, "/video/:/transcode/universal/start.mpd", unauthenticated)[0] == 401
             template = ET.fromstring(manifest).find(".//{urn:mpeg:dash:schema:mpd:2011}SegmentTemplate")
-            if codec == "uneven":
+            if codec in ("uneven", "shift-496", "late-video", "late-video-long"):
                 timeline = template.find("{urn:mpeg:dash:schema:mpd:2011}SegmentTimeline")
                 assert timeline is not None, manifest
                 durations = [int(entry.attrib["d"]) / 1000 for entry in timeline]
@@ -277,22 +292,25 @@ def run(scratch):
                         status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/%d/%d.m4s" % (session, rep, index), timeout=45)
                         assert status == 200, (status, rep, index)
                         f.write(data)
-                        if codec == "uneven":
+                        if codec in ("uneven", "shift-496", "late-video", "late-video-long"):
                             mfhd = data.index(b"mfhd")
                             assert int.from_bytes(data[mfhd + 8:mfhd + 12], "big") == index + 1, "fragment sequence restarted"
-                        if rep == 1 and codec == "uneven":
+                        if codec in ("uneven", "shift-496", "late-video", "late-video-long"):
                             chunk_file = os.path.join(scratch, "chunk-check.m4s")
                             with open(chunk_file, "wb") as cf:
                                 cf.write(data)
-                            pkts = packet_entries(chunk_file, "pts_time,duration_time")
+                            pkts = packet_entries(chunk_file, "pts_time,duration_time,flags")
                             first = float(pkts[0]["pts_time"])
-                            last = float(pkts[-1]["pts_time"])
-                            last_dur = float(pkts[-1]["duration_time"])
                             cue = starts[index]
-                            if index > 0:
-                                assert first >= cue - last_dur, (index, first, cue, last_dur)
-                                assert abs(first - prev_end) < 0.001, (index, first, prev_end)
-                            prev_end = last + last_dur
+                            if rep == 0 and index > 0:
+                                assert abs(first - cue) < 0.125, (codec, index, first, cue)
+                            if rep == 1:
+                                last = float(pkts[-1]["pts_time"])
+                                last_dur = float(pkts[-1]["duration_time"])
+                                if index > 0:
+                                    assert first >= cue - last_dur, (index, first, cue, last_dur)
+                                    assert abs(first - prev_end) < 0.001, (index, first, prev_end)
+                                prev_end = last + last_dur
                 # Native players read each segment in small ranges. Reuse the same
                 # socket across both tracks, as measured on PMS 1.43.5.
                 connection = http.client.HTTPConnection("127.0.0.1", port, timeout=45)

@@ -185,7 +185,7 @@ fn matroska_tables(read: Read, head: &[u8]) -> Result<(usize, Vec<u8>, Vec<u8>, 
     Ok((segment, info, tracks, element(CUES)?))
 }
 
-/// Video cue timestamps with title boundaries, used to plan variable DASH slots.
+/// Actual video cue timestamps plus the title end, used to plan DASH slots.
 pub(crate) fn video_cues(read: Read, stream: i64, duration_ms: i64) -> Result<Vec<i64>, String> {
     let head = read(0, 64 * 1024)?;
     if !head.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
@@ -212,7 +212,7 @@ pub(crate) fn video_cues(read: Read, stream: i64, duration_ms: i64) -> Result<Ve
         }
     }
     if times.is_empty() { return Err("no video cues".to_string()); }
-    times.extend([0, duration_ms]);
+    times.push(duration_ms);
     times.sort_unstable();
     times.dedup();
     Ok(times)
