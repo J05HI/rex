@@ -166,13 +166,13 @@ def run(scratch):
 
     items = [
         make_media(key, codec + ".mkv", 90000, [
-            "-f", "lavfi", "-i", "testsrc2=s=320x180:r=%s:d=90" % ("30000/1001" if codec == "dense" else "24000/1001" if codec == "uneven" else "25"), "-f", "lavfi", "-i", "sine=d=90",
+            "-f", "lavfi", "-i", "testsrc2=s=320x180:r=%s:d=90" % ("30000/1001" if codec == "dense" else "24000/1001" if codec in ("uneven", "uneven-wide") else "25"), "-f", "lavfi", "-i", "sine=d=90",
             "-c:v", enc, "-preset", "ultrafast", "-g", str(gop), "-sc_threshold", "0",
-            *(["-force_key_frames", "expr:gte(t,n_forced*1.002)", "-bf", "2"] if codec == "uneven" else []),
-            "-c:a", "truehd" if codec in ("hevc", "uneven") else "dca", "-strict", "-2", "-shortest",
+            *(["-force_key_frames", "expr:gte(t,n_forced*%s)" % ("1.002" if codec == "uneven" else "5.002"), "-bf", "2"] if codec in ("uneven", "uneven-wide") else []),
+            "-c:a", "truehd" if codec in ("hevc", "uneven", "uneven-wide") else "dca", "-strict", "-2", "-shortest",
         ])
         for key, codec, enc, gop in (("1", "h264", "libx264", 300), ("2", "hevc", "libx265", 300),
-                                     ("5", "dense", "libx264", 30), ("6", "uneven", "libx264", 250))
+                                     ("5", "dense", "libx264", 30), ("6", "uneven", "libx264", 250), ("11", "uneven-wide", "libx264", 250))
     ]
     items.append(make_media("3", "sparse.mkv", 36000, [
         "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=36", "-f", "lavfi", "-i", "sine=d=36",
@@ -185,7 +185,7 @@ def run(scratch):
         "-c:v", "libx264", "-preset", "ultrafast", "-g", "1000", "-force_key_frames", forces_496,
         "-sc_threshold", "0", "-c:a", "dca", "-strict", "-2", "-shortest",
     ]))
-    for key, name, delay in (("8", "late-video", 0.48), ("9", "late-video-long", 1.2)):
+    for key, name, delay in (("8", "late-video", 0.48), ("9", "late-video-long", 1.2), ("10", "late-video-short", 0.08)):
         forces_492 = ",".join(f"{delay + 4.92 * (i + 1):.2f}" for i in range(18))
         items.append(make_media(key, name + ".mkv", 90000, [
             "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=90", "-f", "lavfi", "-i", "sine=d=90",
@@ -213,8 +213,8 @@ def run(scratch):
     port, process, log = nt.start_server(catalog, source.server_address[1], True, scratch, token=token)
     try:
         assert nt.get(port, "/library/sections")[0] == 401
-        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense"), ("6", "uneven"),
-                           ("7", "shift-496"), ("8", "late-video"), ("9", "late-video-long")):
+        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense"), ("6", "uneven"), ("11", "uneven-wide"),
+                           ("7", "shift-496"), ("8", "late-video"), ("9", "late-video-long"), ("10", "late-video-short")):
             session = "audio-copy-" + codec
             extra = "append-transcode-target-codec(type=videoProfile&context=streaming&protocol=dash&videoCodec=h264,hevc&audioCodec=aac)"
             query = nt.dash_query(key, session, directStream="1", directStreamAudio="0",
@@ -310,12 +310,12 @@ def run(scratch):
             assert nt.get(port, "/video/:/transcode/universal/start.mpd", unauthenticated)[0] == 401
             template = ET.fromstring(manifest).find(".//{urn:mpeg:dash:schema:mpd:2011}SegmentTemplate")
             timeline = template.find("{urn:mpeg:dash:schema:mpd:2011}SegmentTimeline")
-            assert (timeline is not None) == (codec in ("uneven", "shift-496", "late-video", "late-video-long")), manifest
+            assert (timeline is not None) == (codec in ("uneven-wide", "shift-496", "late-video", "late-video-long", "late-video-short")), manifest
             if timeline is not None:
                 starts = [int(entry.attrib["t"]) / int(template.attrib["timescale"]) for entry in timeline]
             else:
                 length = int(template.attrib["duration"]) / int(template.attrib["timescale"])
-                assert length == (1.001 if codec == "dense" else 12), length
+                assert length == (5 if codec in ("dense", "uneven") else 12), length
                 starts = [index * length for index in range(math.ceil(90 / length))]
             paths = []
             for rep in (0, 1):
