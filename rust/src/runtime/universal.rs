@@ -410,10 +410,14 @@ fn fragment_init(bytes: &[u8]) -> Option<&[u8]> {
 }
 
 /// First encoded/copied packet PTS for each representation in FFmpeg framecrc output.
-fn framecrc_origins(text: &str, count: usize) -> Option<Vec<f64>> {
+fn framecrc_origins(lines: impl IntoIterator<Item = impl AsRef<str>>, count: usize) -> Option<Vec<f64>> {
     let mut scales = BTreeMap::new();
     let mut origins = vec![None; count];
-    for line in text.lines() {
+    let mut bytes = 0;
+    for line in lines {
+        let line = line.as_ref();
+        bytes += line.len() + 1;
+        if bytes > 64 * 1024 { return None; }
         if let Some(header) = line.strip_prefix("#tb ") {
             let (rep, scale) = header.split_once(':')?;
             let (num, den) = scale.trim().split_once('/')?;
@@ -427,6 +431,7 @@ fn framecrc_origins(text: &str, count: usize) -> Option<Vec<f64>> {
                 let pts = fields.get(2)?.parse::<f64>().ok()? * scales.get(&rep)?;
                 if !pts.is_finite() { return None; }
                 *origin = Some(pts);
+                if origins.iter().all(Option::is_some) { return origins.into_iter().collect(); }
             }
         }
     }
@@ -2440,17 +2445,9 @@ impl Transcoder {
         let count = session.plan.representations();
         let (tx, rx) = std::sync::mpsc::channel();
         thread::spawn(move || {
-            let mut text = String::new();
-            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                if text.len() + line.len() > 64 * 1024 { break; }
-                text.push_str(&line);
-                text.push('\n');
-                if let Some(origins) = framecrc_origins(&text, count) {
-                    let _ = tx.send(Ok(origins));
-                    return;
-                }
-            }
-            let _ = tx.send(Err("FFmpeg did not report each seek origin".to_string()));
+            let origins = framecrc_origins(BufReader::new(stdout).lines().map_while(Result::ok), count)
+                .ok_or_else(|| "FFmpeg did not report each seek origin".to_string());
+            let _ = tx.send(origins);
         });
         // Stop kills the registered child, closing stdout and waking the reader.
         // Check again here in case it stopped before the child was registered.
@@ -4392,11 +4389,11 @@ mod tests {
     #[test]
     fn seek_origins_use_each_representations_timebase_and_first_packet() {
         let crc = "#tb 0: 1/1000\n#tb 1: 1/48000\n1, 670000, 670000, 1024, 200, 0xff\n0, 13917, 14000, 41, 3000, 0xff\n0, 13958, 14083, 41, 1000, 0xff\n";
-        let origins = framecrc_origins(crc, 2).unwrap();
+        let origins = framecrc_origins(crc.lines().chain(std::iter::once_with(|| panic!("read past the first packets"))), 2).unwrap();
         assert_eq!(origins[0], 14.0);
         assert!((origins[1] - 670000.0 / 48000.0).abs() < 0.000001);
-        assert!(framecrc_origins("#tb 0: 1/1000\n0, 0, 0, 41, 100, 0xff\n", 2).is_none());
-        assert!(framecrc_origins("#tb 0: 1/0\n0, 0, 0, 41, 100, 0xff\n", 1).is_none());
+        assert!(framecrc_origins("#tb 0: 1/1000\n0, 0, 0, 41, 100, 0xff\n".lines(), 2).is_none());
+        assert!(framecrc_origins("#tb 0: 1/0\n0, 0, 0, 41, 100, 0xff\n".lines(), 1).is_none());
     }
 
     #[test]
