@@ -180,14 +180,6 @@ fn matroska_tables(read: Read, head: &[u8]) -> Result<(usize, Vec<u8>, Vec<u8>, 
     Ok((segment, info, tracks, element(CUES)?))
 }
 
-/// A conservative upper bound on the spacing of indexed video keyframes, in ms.
-/// Sparse cues make segments longer, rather than claiming a cut the video cannot make.
-#[cfg(test)]
-pub(crate) fn video_gap(read: Read, stream: i64, duration_ms: i64) -> Result<i64, String> {
-    let times = video_cues(read, stream, duration_ms)?;
-    Ok(times.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0))
-}
-
 /// Video cue timestamps with title boundaries, used to plan variable DASH slots.
 pub(crate) fn video_cues(read: Read, stream: i64, duration_ms: i64) -> Result<Vec<i64>, String> {
     let head = read(0, 64 * 1024)?;
@@ -210,7 +202,6 @@ pub(crate) fn video_cues(read: Read, stream: i64, duration_ms: i64) -> Result<Ve
         if video {
             let ticks = child(&cues, start, end, CUE_TIME).map(uint).ok_or("cue without a timestamp")?;
             let ms = i64::try_from(ticks as u128 * scale as u128 / 1_000_000).map_err(|_| "cue timestamp overflow")?;
-            if ms < 0 { return Err("cue outside duration".to_string()); }
             if ms >= duration_ms { continue; }
             times.push(ms);
         }
@@ -446,11 +437,11 @@ mod tests {
     fn video_spacing_includes_the_tail_and_ignores_subtitle_cues() {
         // This one-second release has video cues at zero and 500 ms, and three
         // subtitle cues. None of those subtitle timestamps can shorten the video gap.
-        assert_eq!(video_gap(&read, 0, 1000).unwrap(), 500);
-        assert_eq!(video_gap(&read, 0, 2000).unwrap(), 1500);
-        assert!(video_gap(&read, 1, 1000).is_err());
-        assert!(video_gap(&read, -1, 1000).is_err());
-        assert!(video_gap(&read, 0, 0).is_err());
+        assert_eq!(video_cues(&read, 0, 1000).unwrap(), [0, 500, 1000]);
+        assert_eq!(video_cues(&read, 0, 2000).unwrap(), [0, 500, 2000]);
+        assert!(video_cues(&read, 1, 1000).is_err());
+        assert!(video_cues(&read, -1, 1000).is_err());
+        assert!(video_cues(&read, 0, 0).is_err());
     }
 
     #[test]

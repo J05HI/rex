@@ -92,13 +92,35 @@ def pending_start(source, port, query):
             resume.set()
 
 
+@contextmanager
+def raw_start(source, port, query, close_header=False):
+    """Connect and send a start request, pausing on index read."""
+    entered, resume = threading.Event(), threading.Event()
+    source.pauses.put((entered, resume))
+    client = socket.create_connection(("127.0.0.1", port), timeout=10)
+    try:
+        hdr = "Connection: close\r\n" if close_header else ""
+        target = START + "?" + urllib.parse.urlencode(query)
+        client.sendall(f"GET {target} HTTP/1.1\r\nHost: localhost\r\n{hdr}\r\n".encode())
+        assert entered.wait(10), "start did not read the index"
+        yield client, resume
+    finally:
+        client.close()
+        resume.set()
+
+
 def packet_hashes(path):
     """Read every video packet hash in order to detect any change to the copy."""
-    out = subprocess.check_output([
-        nt.FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_packets",
-        "-show_data_hash", "sha256", "-show_entries", "packet=data_hash", "-of", "json", path,
-    ])
-    return [p["data_hash"] for p in json.loads(out)["packets"]]
+    return [p["data_hash"] for p in packet_entries(path, "data_hash", stream="v:0", extra=("-show_data_hash", "sha256"))]
+
+
+def packet_entries(path, entries, stream=None, extra=()):
+    """Read packet metadata entries via ffprobe."""
+    cmd = [nt.FFPROBE, "-v", "error"]
+    if stream:
+        cmd += ["-select_streams", stream]
+    cmd += ["-show_packets", *extra, "-show_entries", "packet=" + entries, "-of", "json", path]
+    return json.loads(subprocess.check_output(cmd))["packets"]
 
 
 def decoded_hash(path, kind="v"):
@@ -115,42 +137,34 @@ def decoded_hash(path, kind="v"):
 
 
 def run(scratch):
-    items = []
-    for key, codec, encoder in (("1", "h264", "libx264"), ("2", "hevc", "libx265")):
-        path = os.path.join(scratch, codec + ".mkv")
-        nt.MEDIA[codec + ".mkv"] = path
-        subprocess.run([
-            nt.FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=25:d=90",
-            "-f", "lavfi", "-i", "sine=d=90", "-c:v", encoder, "-preset", "ultrafast",
-            "-g", "300", "-sc_threshold", "0", "-c:a", "dca" if codec == "h264" else "truehd",
-            "-strict", "-2", "-shortest", path,
-        ], check=True, stderr=subprocess.PIPE)
-        item = file_row(key, codec + ".mkv", nt.probe(path)["streams"])
-        item["duration"] = item["Media"][0]["duration"] = item["Media"][0]["Part"][0]["duration"] = 90000
-        items.append(item)
-    path = os.path.join(scratch, "sparse.mkv")
-    nt.MEDIA["sparse.mkv"] = path
-    subprocess.run([
-        nt.FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=36",
-        "-f", "lavfi", "-i", "sine=d=36", "-c:v", "libx264", "-preset", "ultrafast",
-        "-g", "1000", "-sc_threshold", "0", "-c:a", "dca", "-strict", "-2", "-shortest", path,
-    ], check=True, stderr=subprocess.PIPE)
-    sparse = file_row("3", "sparse.mkv", nt.probe(path)["streams"])
-    sparse["duration"] = sparse["Media"][0]["duration"] = sparse["Media"][0]["Part"][0]["duration"] = 36000
-    items.append(sparse)
+    def make_media(key, name, dur_ms, args):
+        path = os.path.join(scratch, name)
+        nt.MEDIA[name] = path
+        subprocess.run([nt.FFMPEG, "-v", "error", "-y", *args, path], check=True, stderr=subprocess.PIPE)
+        item = file_row(key, name, nt.probe(path)["streams"])
+        item["duration"] = item["Media"][0]["duration"] = item["Media"][0]["Part"][0]["duration"] = dur_ms
+        return item
+
+    items = [
+        make_media(key, codec + ".mkv", 90000, [
+            "-f", "lavfi", "-i", "testsrc2=s=320x180:r=25:d=90", "-f", "lavfi", "-i", "sine=d=90",
+            "-c:v", enc, "-preset", "ultrafast", "-g", "300", "-sc_threshold", "0",
+            "-c:a", "dca" if codec == "h264" else "truehd", "-strict", "-2", "-shortest",
+        ])
+        for key, codec, enc in (("1", "h264", "libx264"), ("2", "hevc", "libx265"))
+    ]
+    items.append(make_media("3", "sparse.mkv", 36000, [
+        "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=36", "-f", "lavfi", "-i", "sine=d=36",
+        "-c:v", "libx264", "-preset", "ultrafast", "-g", "1000", "-sc_threshold", "0",
+        "-c:a", "dca", "-strict", "-2", "-shortest",
+    ]))
     # A real timestamp discontinuity, like Agent Ranjid's tail: the video
     # resumes a minute later while audio continues on the original clock.
-    path = os.path.join(scratch, "timestamp-gap.mkv")
-    nt.MEDIA["timestamp-gap.mkv"] = path
-    subprocess.run([
-        nt.FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=160x90:r=24:d=30",
-        "-f", "lavfi", "-i", "sine=d=91", "-vf", "setpts=PTS+60.703/TB*gte(T\\,20)",
-        "-fps_mode", "passthrough", "-c:v", "libx264", "-preset", "medium",
-        "-g", "24", "-bf", "2", "-sc_threshold", "0", "-c:a", "dca", "-strict", "-2", path,
-    ], check=True, stderr=subprocess.PIPE)
-    gap = file_row("4", "timestamp-gap.mkv", nt.probe(path)["streams"])
-    gap["duration"] = gap["Media"][0]["duration"] = gap["Media"][0]["Part"][0]["duration"] = 91000
-    items.append(gap)
+    items.append(make_media("4", "timestamp-gap.mkv", 91000, [
+        "-f", "lavfi", "-i", "testsrc2=s=160x90:r=24:d=30", "-f", "lavfi", "-i", "sine=d=91",
+        "-vf", "setpts=PTS+60.703/TB*gte(T\\,20)", "-fps_mode", "passthrough", "-c:v", "libx264",
+        "-preset", "medium", "-g", "24", "-bf", "2", "-sc_threshold", "0", "-c:a", "dca", "-strict", "-2",
+    ]))
     catalog = os.path.join(scratch, "catalog.json")
     with open(catalog, "w") as f:
         json.dump({"machineIdentifier": "0000000000000000000000000000000000000009",
@@ -178,18 +192,9 @@ def run(scratch):
             lookup = [("session", session)]
             authenticated = lookup + [("X-Plex-Token", token)]
             # A reset connection cannot receive the manifest and must not launch FFmpeg.
-            entered, resume = threading.Event(), threading.Event()
-            source.pauses.put((entered, resume))
-            client = socket.create_connection(("127.0.0.1", port), timeout=10)
-            try:
-                target = START + "?" + urllib.parse.urlencode(query)
-                client.sendall(("GET %s HTTP/1.1\r\nHost: localhost\r\n\r\n" % target).encode())
-                assert entered.wait(10), "start did not read the index"
+            with raw_start(source, port, query) as (client, _):
                 client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
                                   struct.pack("hh" if os.name == "nt" else "ii", 1, 0))
-            finally:
-                client.close()
-                resume.set()
             def removed():
                 status, _, body = nt.get(port, "/transcode/sessions", authenticated)
                 assert status == 200, body
@@ -199,13 +204,7 @@ def run(scratch):
             # A write-side half-close still receives a manifest. An older request
             # replaced during index I/O receives 404 without stopping the winner.
             for replace in (False, True):
-                entered, resume = threading.Event(), threading.Event()
-                source.pauses.put((entered, resume))
-                client = socket.create_connection(("127.0.0.1", port), timeout=10)
-                try:
-                    target = START + "?" + urllib.parse.urlencode(query)
-                    client.sendall(("GET %s HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" % target).encode())
-                    assert entered.wait(10), "start did not read the index"
+                with raw_start(source, port, query, close_header=True) as (client, resume):
                     if replace:
                         status, _, winner = nt.get(port, START, query)
                         assert status == 200, winner
@@ -217,15 +216,11 @@ def run(scratch):
                     assert answer.startswith(b"HTTP/1.1 404" if replace else b"HTTP/1.1 200"), answer
                     if not replace:
                         assert b"<MPD" in answer, answer
-                finally:
-                    client.close()
-                    resume.set()
                 if replace:
                     assert nt.get(port, START, lookup)[2] == winner, "disconnect stopped the replacement"
-                    assert nt.get(port, STOP, authenticated)[0] == 200
                 else:
                     assert nt.get(port, START, lookup)[0] == 200
-                    assert nt.get(port, STOP, authenticated)[0] == 200
+                assert nt.get(port, STOP, authenticated)[0] == 200
                 assert nt.get(port, START, lookup)[0] == 400
             # A first start is stoppable while its source index is still being read.
             with pending_start(source, port, query) as cancelled:
@@ -310,10 +305,7 @@ def run(scratch):
                 seek = os.path.join(scratch, "seek-%d.mp4" % rep)
                 with open(seek, "wb") as f:
                     f.write(data)
-                packets = json.loads(subprocess.check_output([
-                    nt.FFPROBE, "-v", "error", "-show_packets", "-show_entries", "packet=pts_time",
-                    "-of", "json", seek,
-                ]))["packets"]
+                packets = packet_entries(seek, "pts_time")
                 times = [float(p["pts_time"]) for p in packets if "pts_time" in p]
                 # Input seeking starts at the preceding keyframe. Codec delay can put
                 # the last packet just before the slot boundary; the next slot follows.
@@ -327,10 +319,7 @@ def run(scratch):
         for key, name in (("3", "sparse"), ("4", "timestamp-gap")):
             tail_entered, tail_resume = threading.Event(), threading.Event()
             if name == "timestamp-gap":
-                packets = json.loads(subprocess.check_output([
-                    nt.FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_packets",
-                    "-show_entries", "packet=pts_time,pos", "-of", "json", nt.MEDIA[name + ".mkv"],
-                ]))["packets"]
+                packets = packet_entries(nt.MEDIA[name + ".mkv"], "pts_time,pos", stream="v:0")
                 cutoff = next(int(packet["pos"]) for packet in packets if float(packet["pts_time"]) >= 80)
                 source.tail_gate = (cutoff, tail_entered, tail_resume)
             session = "long-gap-" + name
@@ -390,9 +379,7 @@ def run(scratch):
                     with open(seek, "wb") as f:
                         f.write(data)
                     decoded_hash(seek, "v" if rep == 0 else "a")
-                    packets = json.loads(subprocess.check_output([
-                        nt.FFPROBE, "-v", "error", "-show_packets", "-show_entries", "packet=pts_time", "-of", "json", seek,
-                    ]))["packets"]
+                    packets = packet_entries(seek, "pts_time")
                     first = min(float(packet["pts_time"]) for packet in packets if "pts_time" in packet)
                     assert abs(first - slots[index][0] / 1000) < 0.2, (rep, first, slots[index])
                 if re.search(rb"\bD\s+dash\s", demuxers):

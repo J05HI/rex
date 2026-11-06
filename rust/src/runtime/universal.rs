@@ -670,10 +670,6 @@ impl Plan {
         if self.dash_timeline.is_empty() { index } else { (index - 1).max(0) }
     }
 
-    fn segment_end_ms(&self, index: i64) -> i64 {
-        self.segment_start_ms(index + 1).min(self.duration_ms)
-    }
-
     pub fn segment_count(&self) -> i64 {
         if !self.dash_timeline.is_empty() { return (self.dash_timeline.len() - 1) as i64; }
         if self.live() {
@@ -2456,15 +2452,13 @@ impl Transcoder {
             }
             let _ = tx.send(Err("FFmpeg did not report each seek origin".to_string()));
         });
-        let deadline = Instant::now() + Duration::from_secs(15);
-        let result = loop {
-            if session.stopped.load(Ordering::SeqCst) { break Err("cancelled".to_string()); }
-            if Instant::now() >= deadline { break Err("seek timing deadline exceeded".to_string()); }
-            match rx.recv_timeout(Duration::from_millis(20)) {
-                Ok(result) => break result,
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break Err("seek timing reader ended".to_string()),
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-            }
+        // Stop kills the registered child, closing stdout and waking the reader.
+        // Check again here in case it stopped before the child was registered.
+        let result = if session.stopped.load(Ordering::SeqCst) {
+            Err("cancelled".to_string())
+        } else {
+            rx.recv_timeout(Duration::from_secs(15))
+                .unwrap_or_else(|error| Err(format!("seek timing reader: {error}")))
         };
         session.kill_child();
         result
@@ -2650,9 +2644,10 @@ impl Transcoder {
         let duration = session.plan.duration_ms as f64 / 1000.0;
         let end = if session.plan.live() { f64::INFINITY } else { duration.max(length) };
         let timeline = !session.plan.dash_timeline.is_empty();
-        let span = |index: i64| if timeline {
-            (session.plan.segment_start_ms(index) as f64 / 1000.0, session.plan.segment_end_ms(index) as f64 / 1000.0, start)
-        } else { (index as f64 * length, ((index + 1) as f64 * length).min(end), start) };
+        let span = |index: i64| (
+            session.plan.segment_start_ms(index) as f64 / 1000.0,
+            (session.plan.segment_start_ms(index + 1) as f64 / 1000.0).min(end), start,
+        );
         // The segment FFmpeg is writing: finished once the one after it opens. FFmpeg's DASH muxer
         // writes each into `.tmp` and renames it when it is done, so there a segment's own file
         // says so: waiting on the next one's held every live DASH segment one segment's length
@@ -2681,10 +2676,10 @@ impl Transcoder {
             // after its copied segment 0 had gone to FFmpeg's DASH reader, which kept the copy's
             // header and read 24 s of 30 (2026-10-27). A live chunk is served at once.
             let ahead = i64::from(copied_dash && !session.plan.live() && exited.is_none());
-            while session.opened(done_at(next) + ahead, start) {
+            while session.opened(done_at(next) + ahead, start)
+                || (timeline && exited == Some(0) && session.opened(next, start)) {
                 if timeline && next == start {
-                    // Segment's opening of the next file proves this one is closed.
-                    // Save the initialization before old media can be pruned.
+                    // The next file or successful EOF proves the opening slot is closed.
                     if let Err(error) = session.save_timeline_init(next, start) {
                         error!("TRANSCODE {} initialization: {error}", session.id);
                         if let Ok(mut state) = session.state.lock() { state.error = true; }
@@ -2783,14 +2778,6 @@ impl Transcoder {
             }
             if let Some(code) = exited {
                 if code == 0 {
-                    if timeline && next == start {
-                        // A title with only one indexed slot never opens a second file.
-                        if let Err(error) = session.save_timeline_init(next, start) {
-                            error!("TRANSCODE {} initialization: {error}", session.id);
-                            if let Ok(mut state) = session.state.lock() { state.error = true; }
-                            return;
-                        }
-                    }
                     if let Ok(mut state) = session.state.lock() {
                         if session.opened(next, start) {
                             state.done.insert(next, span(next));
@@ -4392,7 +4379,6 @@ mod tests {
         assert_eq!(copy.segment_seconds(), 5);
         assert_eq!(copy.segment_count(), 6);
         assert_eq!(copy.segment_start_ms(4), 80_000);
-        assert_eq!(copy.segment_end_ms(3), 80_000);
         assert!(copy.video.as_ref().unwrap().copy);
         let manifest = copy.mpd("timeline", 0.0);
         assert!(manifest.contains("<SegmentTimeline>"));
