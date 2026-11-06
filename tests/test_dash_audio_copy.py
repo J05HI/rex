@@ -111,6 +111,8 @@ def recorded(method, running):
             if running == (query["session"] == "manifest-reopen-witness" and exchange["status"] == 200):
                 return exchange["status"], exchange["headers"]["content-type"]
     raise AssertionError((method, running))
+
+
 @contextmanager
 def raw_start(source, port, query, close_header=False):
     """Connect and send a start request, pausing on index read."""
@@ -278,17 +280,18 @@ def run(scratch):
             assert nt.get(port, "/video/:/transcode/universal/decision", other_query)[0] == 200
             if codec == "h264":
                 # A fitted chunk is served as it closes, not once the next one has closed too: hold
-                # the source at 30 s, between the first cut (24 s, the keyframe after the 13 s slot)
-                # and the second (36 s), and ask for segment 0 meanwhile.
+                # the source at 18 s, between the fitted 12 s and 24 s cuts,
+                # and ask for segment 0 meanwhile.
                 packets = json.loads(subprocess.check_output([nt.FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_packets",
                                                               "-show_entries", "packet=pts_time,pos", "-of", "json", nt.MEDIA["h264.mkv"]]))["packets"]
                 gate_entered, gate_resume = threading.Event(), threading.Event()
-                source.tail_gate = ("h264.mkv", next(int(p["pos"]) for p in packets if float(p["pts_time"]) >= 30), gate_entered, gate_resume)
+                source.tail_gate = ("h264.mkv", next(int(p["pos"]) for p in packets if float(p["pts_time"]) >= 18), gate_entered, gate_resume)
             with pending_start(source, port, other_query) as older:
                 status, _, manifest = nt.get(port, START, query)
                 assert status == 200, (status, manifest)
             assert older.result()[0] == 404, "older start replaced the newer session"
             if codec == "h264":
+                assert gate_entered.wait(10), "source never reached the held tail"
                 asked = time.monotonic()
                 status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/0/0.m4s" % session, timeout=45)
                 waited = time.monotonic() - asked
@@ -443,7 +446,7 @@ def run(scratch):
             assert status == 200, (status, manifest)
             timeline = ET.fromstring(manifest).findall(".//{urn:mpeg:dash:schema:mpd:2011}SegmentTimeline")[0]
             slots = [(int(entry.attrib["t"]), int(entry.attrib["d"])) for entry in timeline]
-            assert max(length for _, length in slots) > 20_000 and b'minBufferTime="PT2S"' in manifest, manifest
+            assert max(length for _, length in slots) > 20_000 and b'minBufferTime="PT5S"' in manifest, manifest
             if name == "timestamp-gap":
                 assert slots[0][0] == 0 and 5000 <= slots[0][1] <= 5100, slots
                 assert len(slots) > 2 and slots[-2][0] >= 80_000, slots
