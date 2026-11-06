@@ -629,26 +629,18 @@ impl Plan {
 
     /// Fixed DASH slots must be at least as long as the source's largest keyframe gap.
     /// Otherwise two slots can collapse into one video chunk while audio keeps counting.
-    fn fit_copy_segments(&mut self) -> Result<(), String> {
-        if self.protocol != Protocol::Dash || self.live() { return Ok(()); }
-        let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return Ok(()) };
+    fn fit_copy_segments(&mut self) {
+        if self.protocol != Protocol::Dash || self.live() { return; }
+        let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return };
         let read = |offset, length| read_range(&self.url, self.auth.as_deref(), offset, length);
         if let Ok(cues) = super::mkvsubs::video_cues(&read, video.index, self.duration_ms) {
             let gap = cues.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0);
             if gap > 20_000 {
                 self.fit_copy_timeline(&cues);
             } else {
-                self.fit_copy_gap(gap)?;
+                self.segment_length = Some(((gap + 999) / 1000).max(i64::from(DASH_COPY_SEGMENT)) as u32);
             }
         }
-        Ok(())
-    }
-
-    fn fit_copy_gap(&mut self, gap_ms: i64) -> Result<(), String> {
-        let seconds = gap_ms.max(0) / 1000 + i64::from(gap_ms.max(0) % 1000 != 0);
-        self.segment_length = Some(u32::try_from(seconds.max(i64::from(DASH_COPY_SEGMENT)))
-            .map_err(|_| "rex: indexed video gap cannot be represented as DASH seconds".to_string())?);
-        Ok(())
     }
 
     /// Only the slot spanning a sparse cue interval grows; opening slots stay short.
@@ -671,6 +663,11 @@ impl Plan {
         } else {
             usize::try_from(index).ok().and_then(|index| self.dash_timeline.get(index)).copied().unwrap_or(self.duration_ms)
         }
+    }
+
+    /// Warm up the preceding timeline slot so a seek cuts at its cue, after input pre-roll.
+    fn seek_start(&self, index: i64) -> i64 {
+        if self.dash_timeline.is_empty() { index } else { (index - 1).max(0) }
     }
 
     fn segment_end_ms(&self, index: i64) -> i64 {
@@ -1355,6 +1352,18 @@ impl Session {
         })
     }
 
+    fn manifest(&self, plan: &Plan) -> Response {
+        let (body, content_type) = match plan.protocol {
+            Protocol::Dash => (plan.mpd(&self.id, self.started), "application/dash+xml"),
+            Protocol::Hls => (plan.master_playlist(&self.id), "application/vnd.apple.mpegurl"),
+            _ => return Response::error(400, "rex: no manifest"),
+        };
+        let mut response = Response::bytes(200, content_type);
+        response.body = body.into_bytes();
+        response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
+        response
+    }
+
     /// The plan a run goes by: the session's, with each copied stream a failed copy has turned
     /// into a conversion, on the segment length the player already has.
     pub fn plan_now(&self) -> Plan {
@@ -1802,7 +1811,6 @@ pub(crate) struct SegmentPlan {
 /// Registered before index I/O so a stop or newer start invalidates this request.
 pub(crate) struct DashStart {
     pub session: Arc<Session>,
-    pub plan: Plan,
     pub transcoder: Arc<Transcoder>,
 }
 
@@ -1810,34 +1818,32 @@ impl DashStart {
     /// Release only this request's session; a newer start may already own its id.
     pub fn cancel(&self, runtime: &mut Runtime) {
         if self.transcoder.stop_session(&self.session) {
-            runtime.release_stream_admission(self.plan.account, &self.plan.playback);
+            runtime.release_stream_admission(self.session.plan.account, &self.session.plan.playback);
         }
     }
 
     /// Read the source index outside the runtime lock before publishing its timing.
-    pub fn fit(&mut self) -> Result<(), String> {
-        self.plan.fit_copy_segments()
+    pub fn fit(&self) -> Plan {
+        let mut plan = self.session.plan.clone();
+        plan.fit_copy_segments();
+        plan
     }
 
     /// Called with the runtime lock held again, before another route can stop the launch.
-    pub fn start(&mut self) -> Response {
+    pub fn start(&mut self, plan: Plan) -> Response {
         let pending = &self.session;
-        let session = Session::new(&pending.id, self.plan.clone(), pending.dir.clone(), false);
         let mut sessions = self.transcoder.sessions.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if !sessions.get(&pending.id).is_some_and(|held| Arc::ptr_eq(held, pending)) {
             return Response::error(404, "rex: session stopped or replaced");
         }
+        let session = Session::new(&pending.id, plan, pending.dir.clone(), false);
         // No child or segments exist yet; transfer the directory without deleting it.
         pending.stopped.store(true, Ordering::SeqCst);
         sessions.insert(session.id.clone(), Arc::clone(&session));
         drop(sessions);
         self.session = Arc::clone(&session);
-        let manifest = session.plan.mpd(&session.id, session.started);
         self.transcoder.start_registered(&session);
-        let mut response = Response::bytes(200, "application/dash+xml");
-        response.body = manifest.into_bytes();
-        response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
-        response
+        session.manifest(&session.plan)
     }
 }
 
@@ -2965,11 +2971,7 @@ impl Transcoder {
                                 info!("TRANSCODE {} seek to segment {index} (run from {}, produced to {highest})", session.id, state.run_start);
                                 // Claimed under the lock, so the other representation's request
                                 // for the same segment waits for this restart.
-                                // Matroska input seeking may back up before a
-                                // cue for B-frame decoding. Warm up one slot so
-                                // the requested slot is cut at its explicit cue,
-                                // rather than exposing that input pre-roll.
-                                state.run_start = if session.plan.dash_timeline.is_empty() { index } else { (index - 1).max(0) };
+                                state.run_start = session.plan.seek_start(index);
                                 state.seek = ticket;
                                 state.finished = false;
                                 state.input_retries = 0;
@@ -3005,8 +3007,7 @@ impl Transcoder {
                 // time, and one a newer seek has overtaken is dropped.
                 let _launching = session.launching.lock();
                 if session.state.lock().is_ok_and(|state| state.seek == ticket) {
-                    let from = if session.plan.dash_timeline.is_empty() { index } else { (index - 1).max(0) };
-                    self.launch(session, from, None);
+                    self.launch(session, session.plan.seek_start(index), None);
                 }
             } else if session.throttled() {
                 if let Ok(mut state) = session.state.lock() {
@@ -4011,20 +4012,13 @@ impl Runtime {
             let Some(session) = session else {
                 return Some(Response::error(400, "rex: no session"));
             };
-            let (manifest, content_type) = match session.plan.protocol {
-                Protocol::Dash => (session.plan.mpd(&session.id, session.started), "application/dash+xml"),
-                Protocol::Hls => {
-                    let mut plan = session.plan.clone();
-                    plan.incomplete_segments = query.get("X-Plex-Incomplete-Segments").is_some_and(|value| value == "1");
-                    (plan.master_playlist(&session.id), "application/vnd.apple.mpegurl")
-                }
-                _ => return Some(Response::error(400, "rex: no manifest")),
-            };
             session.touch();
-            let mut response = Response::bytes(200, content_type);
-            response.body = manifest.into_bytes();
-            response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
-            return Some(response);
+            if session.plan.protocol == Protocol::Hls {
+                let mut plan = session.plan.clone();
+                plan.incomplete_segments = query.get("X-Plex-Incomplete-Segments").is_some_and(|value| value == "1");
+                return Some(session.manifest(&plan));
+            }
+            return Some(session.manifest(&session.plan));
         }
         match leaf {
             // Plex Desktop names no extension for `http` (its web client's `{dash: ".mpd",
@@ -4101,8 +4095,8 @@ impl Runtime {
                     return Some(response);
                 }
                 if plan.protocol == Protocol::Dash && !plan.live() && plan.video.as_ref().is_some_and(|video| video.copy) {
-                    match transcoder.register(&id, plan.clone(), true) {
-                        Ok(session) => self.pending_dash_start = Some(DashStart { session, plan, transcoder }),
+                    match transcoder.register(&id, plan, true) {
+                        Ok(session) => self.pending_dash_start = Some(DashStart { session, transcoder }),
                         Err(error) => {
                             self.release_stream_admission(self.viewer.id, &playback);
                             error!("TRANSCODE {id}: {error}");
@@ -4119,14 +4113,7 @@ impl Runtime {
                         return Some(Response::error(500, "rex: transcode failed"));
                     }
                 };
-                let manifest = match session.plan.protocol {
-                    Protocol::Dash => session.plan.mpd(&session.id, session.started),
-                    _ => session.plan.master_playlist(&session.id),
-                };
-                let mut response = Response::bytes(200, content_type);
-                response.body = manifest.into_bytes();
-                response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
-                Some(response)
+                Some(session.manifest(&session.plan))
             }
             "session" => {
                 let id = segments.get(5).copied().unwrap_or_default();
@@ -4397,14 +4384,9 @@ mod tests {
     }
 
     #[test]
-    fn fitted_copy_gaps_keep_normal_slots_and_use_a_timeline_for_sparse_cues() {
+    fn sparse_copy_cues_use_a_timeline_and_keep_opening_slots_short() {
         let mut copy = plan(true, 90_000);
         copy.protocol = Protocol::Dash;
-        for (gap, seconds) in [(0, 5), (12_001, 13), (20_000, 20)] {
-            copy.fit_copy_gap(gap).unwrap();
-            assert_eq!(copy.segment_seconds(), seconds);
-        }
-        assert!(copy.fit_copy_gap(i64::MAX).is_err());
         copy.fit_copy_timeline(&[0, 1000, 5000, 10_000, 15_000, 80_000, 85_000, 90_000]);
         assert_eq!(copy.dash_timeline, [0, 5000, 10_000, 15_000, 80_000, 85_000, 90_000]);
         assert_eq!(copy.segment_seconds(), 5);
