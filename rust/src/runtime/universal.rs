@@ -24,7 +24,7 @@
 
 use super::*;
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Seek};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
@@ -2905,7 +2905,7 @@ impl Transcoder {
     /// The bytes of segment `index` (of DASH representation `rep`), waiting for ffmpeg to
     /// finish it; a request far from what is being produced restarts ffmpeg there. A DASH
     /// segment is served as the reference serves it: its run's init, then the fragment.
-    pub fn segment(self: &Arc<Self>, session: &Arc<Session>, index: i64, rep: usize) -> Result<Vec<u8>, u16> {
+    pub fn segment(self: &Arc<Self>, session: &Arc<Session>, index: i64, rep: usize) -> Result<(Vec<u8>, std::fs::File), u16> {
         if index < 0 || index >= session.plan.segment_count() || rep >= session.plan.representations().max(1) {
             return Err(404);
         }
@@ -2978,13 +2978,12 @@ impl Transcoder {
                 Err(_) => return Err(500),
             };
             if let Some(run) = ready {
-                let fragment = std::fs::read(session.segment_file(index, rep, run)).map_err(|_| 500u16)?;
-                if session.plan.protocol == Protocol::Dash {
-                    let mut bytes = std::fs::read(session.init_file(rep, run)).map_err(|_| 500u16)?;
-                    bytes.extend(fragment);
-                    return Ok(bytes);
-                }
-                return Ok(fragment);
+                // Open before cleanup can unlink the run, without loading its media.
+                let fragment = std::fs::File::open(session.segment_file(index, rep, run)).map_err(|_| 500u16)?;
+                let init = if session.plan.protocol == Protocol::Dash {
+                    std::fs::read(session.init_file(rep, run)).map_err(|_| 500u16)?
+                } else { Vec::new() };
+                return Ok((init, fragment));
             }
             if session.stopped.load(Ordering::SeqCst) {
                 return Err(404);
@@ -3282,23 +3281,54 @@ pub(crate) fn transcode_session_row(session: &Session, hardware: &Hardware, nest
     Value::Object(row)
 }
 
-/// Serve a segment plan: wait outside the runtime lock, then answer with the measured
-/// head (`video/MP2T`, `Accept-Ranges: bytes`, `Connection: close`).
-pub(crate) fn finish_segment(plan: SegmentPlan, response: &mut Response) {
-    let bytes = if plan.header {
-        plan.transcoder.header(&plan.session, plan.rep)
+/// A completed segment, opened before its run can be pruned. Only the small
+/// initialization header is held in memory; Range reads seek straight into the file.
+pub(crate) struct SegmentRead {
+    init: Vec<u8>,
+    file: std::fs::File,
+    first: u64,
+    length: u64,
+}
+
+pub(crate) fn finish_segment(plan: SegmentPlan, response: &mut Response, request: &Request) -> Option<SegmentRead> {
+    let result = if plan.header {
+        plan.transcoder.header(&plan.session, plan.rep).map(|bytes| { response.body = bytes; None })
     } else {
-        plan.transcoder.segment(&plan.session, plan.index, plan.rep)
+        plan.transcoder.segment(&plan.session, plan.index, plan.rep).and_then(|(init, file)| {
+            let total = file.metadata().map_err(|_| 500u16)?.len() + init.len() as u64;
+            let (status, range, first, last) = super::wire::range_window(total as usize, request.headers.get("range").map(String::as_str))
+                .unwrap_or((200, None, 0, total.saturating_sub(1) as usize));
+            if status == 416 {
+                *response = Response::error(416, "rex: range not satisfiable");
+            } else {
+                response.status = status;
+            }
+            if let Some(range) = range { response.headers.push(("Content-Range".into(), range)); }
+            Ok((status != 416).then_some(SegmentRead { init, file, first: first as u64, length: last.saturating_sub(first) as u64 + u64::from(total > 0) }))
+        })
     };
-    match bytes {
-        Ok(bytes) => {
-            response.status = 200;
-            response.body = bytes;
-        }
+    match result {
+        Ok(read) => read,
         Err(status) => {
             *response = Response::error(status, if status == 404 { "rex: not found" } else { "rex: transcode failed" });
+            None
         }
     }
+}
+
+pub(crate) fn serve_segment<S: Write>(stream: &mut S, response: &Response, mut read: SegmentRead, envelope: &super::wire::Wire, keep: bool) -> Result<bool, String> {
+    let init_len = read.init.len() as u64;
+    read.file.seek(std::io::SeekFrom::Start(read.first.saturating_sub(init_len))).map_err(|error| error.to_string())?;
+    let mut init = std::io::Cursor::new(read.init);
+    init.set_position(read.first.min(init_len));
+    let open = super::wire::write_enveloped_head(stream, response, envelope, keep, Some(read.length))?;
+    super::wire::LAST_PAYLOAD.with(|cell| cell.set(read.length));
+    if envelope.method == "HEAD" { return Ok(open); }
+    let mut body = init.chain(read.file).take(read.length);
+    let written = std::io::copy(&mut body, stream).map_err(|error| error.to_string())?;
+    if written != read.length { return Err("transcode segment ended early".into()); }
+    stream.flush().map_err(|error| error.to_string())?;
+    Ok(open)
 }
 
 /// `videoResolution` as PMS labels a converted Media: by width, `SD` below 720p.

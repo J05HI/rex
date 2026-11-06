@@ -24426,6 +24426,7 @@ fn handle_connection<S: Read + Write + PollRead>(
         let mut stream_plan: Option<universal::StreamPlan> = None;
         let mut dash_start: Option<universal::DashStart> = None;
         let mut download = None;
+        let mut segment_read = None;
         let mut response_account = accounts::OWNER;
         let mut response_lan = true;
         let mut response = if invalid_absolute_target || invalid_dot_path || malformed_query {
@@ -24603,7 +24604,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             }
             // A transcoded segment waits for ffmpeg here, with the lock released.
             if let Some(plan) = segment {
-                universal::finish_segment(plan, &mut response);
+                segment_read = universal::finish_segment(plan, &mut response, &request);
             }
             response
         };
@@ -24784,7 +24785,11 @@ fn handle_connection<S: Read + Write + PollRead>(
                 false
             }
             _ => {
-                let open = match wire::write_enveloped(&mut stream, &response, &envelope, keep) {
+                let written = match segment_read.take() {
+                    Some(read) if matches!(response.status, 200 | 206) => universal::serve_segment(&mut stream, &response, read, &envelope, keep),
+                    _ => wire::write_enveloped(&mut stream, &response, &envelope, keep),
+                };
+                let open = match written {
                     Ok(open) => open,
                     Err(error) => {
                         if let Some(start) = &dash_start {

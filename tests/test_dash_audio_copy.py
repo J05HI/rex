@@ -287,10 +287,13 @@ def run(scratch):
                 path = os.path.join(scratch, "%s-%d.mp4" % (codec, rep))
                 paths.append(path)
                 prev_end = None
+                chunk0_bytes = None
                 with open(path, "wb") as f:
                     for index in range(len(starts)):
                         status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/%d/%d.m4s" % (session, rep, index), timeout=45)
                         assert status == 200, (status, rep, index)
+                        if index == 0:
+                            chunk0_bytes = data
                         f.write(data)
                         if codec in ("uneven", "shift-496", "late-video", "late-video-long"):
                             mfhd = data.index(b"mfhd")
@@ -327,6 +330,34 @@ def run(scratch):
                 second = response.read()
                 assert connection.sock is transport, "segment ranges reconnected"
                 assert first + second == open(path, "rb").read(1000)
+                total_chunk = len(chunk0_bytes)
+                # HEAD on segment: 200, Content-Length, empty body
+                connection.request("HEAD", segment)
+                resp_head = connection.getresponse()
+                assert resp_head.status == 200
+                assert int(resp_head.getheader("Content-Length")) == total_chunk
+                assert resp_head.read() == b""
+                assert connection.sock is transport, "HEAD broke transport"
+                # Boundary range: single first byte
+                connection.request("GET", segment, headers={"Range": "bytes=0-0"})
+                resp_single = connection.getresponse()
+                assert resp_single.status == 206
+                assert resp_single.getheader("Content-Range") == f"bytes 0-0/{total_chunk}"
+                assert resp_single.read() == chunk0_bytes[:1]
+                assert connection.sock is transport
+                # Boundary range: suffix range (last 500 bytes)
+                connection.request("GET", segment, headers={"Range": "bytes=-500"})
+                resp_suffix = connection.getresponse()
+                assert resp_suffix.status == 206
+                assert resp_suffix.getheader("Content-Range") == f"bytes {total_chunk - 500}-{total_chunk - 1}/{total_chunk}"
+                assert resp_suffix.read() == chunk0_bytes[-500:]
+                assert connection.sock is transport
+                # Out-of-bounds range returns 416
+                connection.request("GET", segment, headers={"Range": f"bytes={total_chunk}-{total_chunk + 100}"})
+                resp_416 = connection.getresponse()
+                assert resp_416.status == 416
+                assert resp_416.read()
+                assert connection.sock is transport, "416 broke transport"
                 connection.request("GET", segment, headers={"Range": "bytes=0-499", "Connection": "close"})
                 response = connection.getresponse()
                 assert response.getheader("Connection") == "close" and response.read() == first

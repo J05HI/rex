@@ -12907,6 +12907,15 @@ A request naming a media path still needs normal authentication and a decision;
 a lookup cannot start a conversion. `test_dash_audio_copy.py` checks these gates,
 DASH/HLS reloads and subsequent playback.
 
+### Completed segments stream from disk (2026-11-06)
+
+Serving a completed segment opens its media file and keeps only the small DASH
+initialization header in memory. Range requests seek into this combined view;
+HEAD sends no media body. Full and ranged responses use bounded buffers and
+preserve persistent connections. A sparse cue interval can still produce a
+large file and delay its completion, but each client request no longer reads
+and allocates that whole file.
+
 ### DASH segments permit persistent connections (2026-10-30)
 
 Five-second video segments took roughly ten seconds to download through many
