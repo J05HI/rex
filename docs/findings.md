@@ -12815,11 +12815,10 @@ rex keeps `-use_timeline 0` and reads each chunk's `sidx`.
 H.264 copy with DTS-to-AAC hit the long-GOP fallback above and started encoding
 compatible video, which an audio-only FFmpeg policy rejected. rex now reads the
 Matroska SeekHead, Info, Tracks and Cues with bounded Range requests before DASH
-starts. Gaps up to 20 s set the fixed slot length, rounded up to seconds.
+starts. Regular cue spacing sets the fixed slot length in milliseconds.
 
-Initially larger gaps were refused to bound two-chunk validation. That rejected
-Agent Ranjid rettet die Welt: its video jumps from about 4905.042 s to 4965.578 s
-(an indexed gap of 60.703 s), yet Plex Desktop plays the film to the end.
+Initially larger gaps were refused to bound two-chunk validation, rejecting a
+playable file with an indexed gap of 60.703 s.
 Since 2026-11-05, larger gaps use a static `SegmentTimeline`, choosing cues at
 least five seconds apart so only the slot crossing sparse cues grows. FFmpeg's
 tee/segment muxers cut separate fragmented MP4 tracks at those source times,
@@ -12831,7 +12830,7 @@ because segment's cuts are relative to those origins. Opening playback needs
 no probe. Initialization is kept from the first closed segment.
 
 The same timeline drives manifests, lookup, seeks, pruning and progress.
-Minimum buffering stays at most five seconds, and the first closed segment is
+Minimum buffering stays at most two seconds, and the first closed segment is
 served without reading the remote tail. A genuinely long opening GOP must still
 be read; a single-slot title can still produce a title-sized segment. Missing
 indexes, other containers and live streams retain their existing behavior;
@@ -12847,8 +12846,24 @@ its replacement. Read-side EOF alone can be a half-close and does not cancel.
 a timestamp jump. It checks copied packets and decoded frames, AAC output,
 seeks, opening delivery with the tail blocked, cancellation and replacement.
 It also decodes and seeks the public MPD when a DASH reader is available
-(`REX_DASH_CLIENT` selects one). These are generated-media checks, not Samsung
-TV timing measurements. The suite runs in Linux and Windows CI.
+(`REX_DASH_CLIENT` selects one). The suite runs in Linux and Windows CI.
+
+### Uneven fractional keyframes must keep their cue times (2026-11-06)
+
+Fixed DASH slots of 1.002, 10.428 or 1.001 seconds merged video chunks for
+files with uneven cues, triggering video conversion and interrupting playback
+when video encoding was disabled.
+
+A largest keyframe gap is not a safe fixed duration for uneven cues: rounding
+and scene cuts can place a keyframe just before the next slot boundary. Indexed
+copy now uses fixed slots only when interior cue intervals are identical, allowing
+shorter title-boundary intervals. Other indexed files use the existing explicit
+source-cue timeline, preserving video copy. Ordinary uneven cues are grouped at
+least one second apart; sparse gaps retain the five-second grouping. Grouping
+also bounds the timeline to 4000 slots so both track cut lists fit FFmpeg's
+single output argument on Linux. Regular 1.001-second keyframes retain the fast
+fixed-slot path. The generated regression includes fractional, uneven keyframes
+with B-frames and checks every copied packet, decoded frame, AAC output and seek.
 
 ### Reopening an existing DASH manifest by session (2026-10-30)
 
@@ -12889,9 +12904,7 @@ Content-Range matched each requested slice, with totals 829 and 1316142 bytes.
 These are curl observations, not real-player Range/Connection headers; the older
 whole-GET fixture's closed response does not require disconnecting every client.
 rex now uses its normal connection policy; `test_dash_audio_copy.py` verifies
-socket reuse, exact slice bytes and explicit close. After deployment, warm
-five-second segments took about 4.2 seconds and playback was confirmed smooth;
-logs still showed copied HEVC and TrueHD converted to six-channel AAC.
+socket reuse, exact slice bytes and explicit close.
 
 ### A subtitle track dense from its start; a live DASH restart behind the clock (2026-10-27)
 

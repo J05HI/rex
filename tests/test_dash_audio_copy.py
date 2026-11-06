@@ -147,19 +147,20 @@ def run(scratch):
 
     items = [
         make_media(key, codec + ".mkv", 90000, [
-            "-f", "lavfi", "-i", "testsrc2=s=320x180:r=%s:d=90" % ("30000/1001" if codec == "dense" else "25"), "-f", "lavfi", "-i", "sine=d=90",
+            "-f", "lavfi", "-i", "testsrc2=s=320x180:r=%s:d=90" % ("30000/1001" if codec == "dense" else "24000/1001" if codec == "uneven" else "25"), "-f", "lavfi", "-i", "sine=d=90",
             "-c:v", enc, "-preset", "ultrafast", "-g", str(gop), "-sc_threshold", "0",
+            *(["-force_key_frames", "expr:gte(t,n_forced*1.002)", "-bf", "2"] if codec == "uneven" else []),
             "-c:a", "truehd" if codec == "hevc" else "dca", "-strict", "-2", "-shortest",
         ])
         for key, codec, enc, gop in (("1", "h264", "libx264", 300), ("2", "hevc", "libx265", 300),
-                                     ("5", "dense", "libx264", 30))
+                                     ("5", "dense", "libx264", 30), ("6", "uneven", "libx264", 250))
     ]
     items.append(make_media("3", "sparse.mkv", 36000, [
         "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=36", "-f", "lavfi", "-i", "sine=d=36",
         "-c:v", "libx264", "-preset", "ultrafast", "-g", "1000", "-sc_threshold", "0",
         "-c:a", "dca", "-strict", "-2", "-shortest",
     ]))
-    # A real timestamp discontinuity, like Agent Ranjid's tail: the video
+    # A timestamp discontinuity: the video
     # resumes a minute later while audio continues on the original clock.
     items.append(make_media("4", "timestamp-gap.mkv", 91000, [
         "-f", "lavfi", "-i", "testsrc2=s=160x90:r=24:d=30", "-f", "lavfi", "-i", "sine=d=91",
@@ -179,7 +180,7 @@ def run(scratch):
     port, process, log = nt.start_server(catalog, source.server_address[1], True, scratch, token=token)
     try:
         assert nt.get(port, "/library/sections")[0] == 401
-        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense")):
+        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense"), ("6", "uneven")):
             session = "audio-copy-" + codec
             extra = "append-transcode-target-codec(type=videoProfile&context=streaming&protocol=dash&videoCodec=h264,hevc&audioCodec=aac)"
             query = nt.dash_query(key, session, directStream="1", directStreamAudio="0",
@@ -257,14 +258,21 @@ def run(scratch):
             unauthenticated = [(k, v) for k, v in query if k != "X-Plex-Token"]
             assert nt.get(port, "/video/:/transcode/universal/start.mpd", unauthenticated)[0] == 401
             template = ET.fromstring(manifest).find(".//{urn:mpeg:dash:schema:mpd:2011}SegmentTemplate")
-            length = int(template.attrib["duration"]) / int(template.attrib["timescale"])
-            assert length == (1.001 if codec == "dense" else 12), length
+            if codec == "uneven":
+                timeline = template.find("{urn:mpeg:dash:schema:mpd:2011}SegmentTimeline")
+                assert timeline is not None, manifest
+                durations = [int(entry.attrib["d"]) / 1000 for entry in timeline]
+                starts = [sum(durations[:index]) for index in range(len(durations))]
+            else:
+                length = int(template.attrib["duration"]) / int(template.attrib["timescale"])
+                assert length == (1.001 if codec == "dense" else 12), length
+                starts = [index * length for index in range(math.ceil(90 / length))]
             paths = []
             for rep in (0, 1):
                 path = os.path.join(scratch, "%s-%d.mp4" % (codec, rep))
                 paths.append(path)
                 with open(path, "wb") as f:
-                    for index in range(math.ceil(90 / length)):
+                    for index in range(len(starts)):
                         status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/%d/%d.m4s" % (session, rep, index), timeout=45)
                         assert status == 200, (status, rep, index)
                         f.write(data)
@@ -311,7 +319,8 @@ def run(scratch):
                 times = [float(p["pts_time"]) for p in packets if "pts_time" in p]
                 # Input seeking starts at the preceding keyframe. Codec delay can put
                 # the last packet just before the slot boundary; the next slot follows.
-                target = 6 * length
+                target = starts[6]
+                length = starts[6] - starts[5]
                 assert times and target - length - 0.5 <= min(times) <= target + 0.5 and max(times) >= target - 0.5, (min(times), max(times), length)
                 decoded_hash(seek, "v" if rep == 0 else "a")
             nt.get(port, "/video/:/transcode/universal/stop", lookup + [("X-Plex-Token", token)])

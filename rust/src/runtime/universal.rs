@@ -637,34 +637,45 @@ impl Plan {
         i64::from(self.segment_length_ms.unwrap_or_else(|| self.segment_seconds() * 1000))
     }
 
-    /// Fixed DASH slots must be at least as long as the source's largest keyframe gap.
-    /// Otherwise two slots can collapse into one video chunk while audio keeps counting.
+    /// Uneven cues need explicit cuts: rounding their largest gap into a fixed
+    /// duration can skip a keyframe, merging video slots while audio keeps counting.
     fn fit_copy_segments(&mut self) {
         if self.protocol != Protocol::Dash || self.live() { return; }
         let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return };
         let read = |offset, length| read_range(&self.url, self.auth.as_deref(), offset, length);
         if let Ok(cues) = super::mkvsubs::video_cues(&read, video.index, self.duration_ms) {
-            let gap = cues.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0);
-            if gap > 20_000 {
-                self.fit_copy_timeline(&cues);
-            } else {
-                self.segment_length_ms = Some(gap.max(1000) as u32);
-            }
+            self.fit_copy_cues(&cues);
+        }
+    }
+
+    fn fit_copy_cues(&mut self, cues: &[i64]) {
+        let gap = cues.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0);
+        // The title boundaries can shorten the opening and closing intervals.
+        let regular = cues[1..cues.len() - 1].windows(2).all(|pair| pair[1] - pair[0] == gap);
+        if (1000..=20_000).contains(&gap) && regular {
+            self.segment_length_ms = Some(gap as u32);
+        } else {
+            self.fit_copy_timeline(cues);
         }
     }
 
     /// Only the slot spanning a sparse cue interval grows; opening slots stay short.
     fn fit_copy_timeline(&mut self, cues: &[i64]) {
         let mut times = vec![0];
+        // Both track cut lists share one FFmpeg argument (Linux caps it at 128 KiB).
+        // Bound the number of cuts for long titles with dense, uneven keyframes.
+        let minimum = ((self.duration_ms - 1) / 4000 + 1).max(
+            if cues.windows(2).any(|pair| pair[1] - pair[0] > 20_000) { i64::from(DASH_COPY_SEGMENT) * 1000 } else { 1000 }
+        );
         for &time in cues.iter().filter(|&&time| time > 0 && time < self.duration_ms) {
-            if time - times.last().copied().unwrap_or(0) >= i64::from(DASH_COPY_SEGMENT) * 1000 {
+            if time - times.last().copied().unwrap_or(0) >= minimum {
                 times.push(time);
             }
         }
         times.push(self.duration_ms);
         self.dash_timeline = times;
         self.segment_length_ms = Some(DASH_COPY_SEGMENT * 1000);
-        warning!("TRANSCODE sparse video index: using variable DASH copy segments on the source timeline");
+        debug!("TRANSCODE uneven video index: using variable DASH copy segments on the source timeline");
     }
 
     fn segment_start_ms(&self, index: i64) -> i64 {
@@ -4370,6 +4381,55 @@ mod tests {
         let args = ffmpeg_args(&stream, Path::Software, &Hardware::software(), 42, std::path::Path::new("/tmp/s"));
         let at = args.iter().position(|arg| arg == "-output_ts_offset").unwrap();
         assert_eq!(args[at + 1], "42");
+    }
+
+    #[test]
+    fn uneven_keyframes_keep_their_cue_times_instead_of_rounding_up() {
+        for cues in [
+            vec![0, 1001, 2002, 3004, 4005, 5006],
+            vec![0, 10_427, 20_854, 31_282, 41_709, 45_000],
+            vec![0, 1001, 2002, 2502, 3503, 4504, 5000],
+        ] {
+            let mut copy = plan(true, *cues.last().unwrap());
+            copy.protocol = Protocol::Dash;
+            copy.fit_copy_cues(&cues);
+            assert!(!copy.dash_timeline.is_empty(), "{cues:?}");
+            assert!(copy.dash_timeline.iter().all(|time| cues.contains(time)));
+            assert_eq!(copy.segment_start_ms(1), cues[1]);
+        }
+        let mut copy = plan(true, 5500);
+        copy.fit_copy_cues(&[0, 23, 1024, 2025, 3026, 4027, 5028, 5500]);
+        assert!(copy.dash_timeline.is_empty());
+        assert_eq!(copy.segment_ms(), 1001);
+    }
+
+    #[test]
+    fn dense_uneven_cues_bound_cut_count_and_argument_size() {
+        // A 3-hour title with 1-second uneven keyframes: uncapped would produce ~10,800 cuts.
+        // Cap is minimum = (duration_ms - 1) / 4000 + 1 = 10_800_000 / 4000 = 2700 ms.
+        let duration_ms = 10_800_000;
+        let cues: Vec<i64> = (0..=10_800).map(|i| {
+            if i % 2 == 0 { i * 1000 } else { i * 1000 + 42 }
+        }).collect();
+        let mut copy = plan(true, duration_ms);
+        copy.protocol = Protocol::Dash;
+        copy.fit_copy_cues(&cues);
+        assert!(!copy.dash_timeline.is_empty());
+        // Verify timeline cuts count is bounded well below Linux argument cap (4000).
+        assert!(copy.dash_timeline.len() <= 4005, "cuts count: {}", copy.dash_timeline.len());
+        // Verify segment_times argument string size stays safely under 64 KiB
+        let times = copy.dash_timeline.iter().skip(1)
+            .take_while(|&&time| time < copy.duration_ms)
+            .map(|time| format!("{:.6}", *time as f64 / 1000.0))
+            .collect::<Vec<_>>().join(",");
+        assert!(times.len() < 50_000, "segment_times arg len: {}", times.len());
+        // Verify seek_start warming and segment_start_ms boundary guards
+        assert_eq!(copy.seek_start(0), 0);
+        assert_eq!(copy.seek_start(1), 0);
+        assert_eq!(copy.seek_start(5), 4);
+        assert_eq!(copy.segment_start_ms(0), 0);
+        assert!(copy.segment_start_ms(1) >= 2700);
+        assert_eq!(copy.segment_start_ms(copy.segment_count()), duration_ms);
     }
 
     #[test]
