@@ -12826,13 +12826,14 @@ copying video and converting audio as requested. The nested MP4 muxers keep
 absolute timestamps with edit lists disabled: otherwise B-frame composition
 offsets at a jump are applied twice. A seek warms up the preceding slot and
 uses a short, cancellable framecrc probe for each track's first packet PTS,
-because segment's cuts are relative to those origins. Opening playback needs
-no probe. Each track keeps one MP4 muxer across chunks and writes its
+because segment's cuts are relative to those origins. The opening run probes
+origins too, since video may start after zero. Each track keeps one MP4 muxer across chunks and writes its
 initialization separately, preserving fragment sequence numbers and decode
 state. Per-chunk muxer restarts reset fragment numbers to one.
 
 The same timeline drives manifests, lookup, seeks, pruning and progress.
-Minimum buffering stays at most two seconds, and the first closed segment is
+Fitted plans buffer at most two seconds; unfitted files and live channels keep
+their existing buffer target. The first closed segment is
 served without reading the remote tail. A genuinely long opening GOP must still
 be read; a single-slot title can still produce a title-sized segment. Missing
 indexes, other containers and live streams retain their existing behavior;
@@ -12866,15 +12867,16 @@ when video encoding was disabled.
 
 A largest keyframe gap is not a safe fixed duration for uneven cues: rounding
 and scene cuts can place a keyframe just before the next slot boundary. Indexed
-copy now uses fixed slots only when cue intervals, including the opening, lie
-on the same grid. A shorter closing interval is allowed. Other indexed files use the existing explicit
+copy leaves gaps below 4.5 seconds, including the opening video offset, on the
+existing five-second slots. Above that threshold it uses fitted fixed slots only
+when cue intervals, including the opening, lie on the same grid. A shorter closing interval is allowed. Other indexed files use the existing explicit
 source-cue timeline, preserving video copy. Ordinary uneven cues are grouped at
 least one second apart; sparse gaps retain the five-second grouping. Grouping
 also bounds the timeline to 1000 slots on Windows, leaving space for both cut
 lists and other arguments within its 32,767-character command-line limit. Unix
 retains the 4000-slot budget within its 128 KiB argument limit, preserving shorter
-segments for playback and seeking. Regular 1.001-second keyframes retain the fast
-fixed-slot path. The generated regression includes fractional, uneven keyframes
+segments for playback and seeking. Regular 1.001-second keyframes retain the existing five-second
+slots. The generated regression includes fractional, uneven keyframes
 with B-frames and checks every copied packet, decoded frame, AAC output and seek.
 Shifted opening keyframes use explicit cuts too. The first real cue starts video
 and is not an opening cut; timeline runs probe packet origins at startup as well
@@ -12884,6 +12886,10 @@ cadence starting 0.48 or 1.2 seconds late.
 Variable timing requires FFmpeg 6 or newer: earlier segment muxers interpret
 cut times as absolute PTS. Older or unidentified builds retain fixed slots with
 one second of margin above the largest fitted gap. The version is read once.
+
+Official Plex Web and Android playback of timeline sessions is still required
+before merging this follow-up. FFmpeg playback and seek checks do not establish
+those clients' compatibility.
 
 Timeline audio cuts use no keyframe tolerance. Applying video's 62.5 ms tolerance
 also to AAC cut chunks before their advertised slot boundaries. Video retains
