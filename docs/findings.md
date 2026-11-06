@@ -12820,8 +12820,9 @@ slots were too short for its keyframes.
 For recorded Matroska files with video cues, rex now reads the SeekHead, Info,
 Tracks and Cues using bounded Range reads before starting DASH. The largest gap
 between video cues (including the beginning and tail), plus the opening video
-offset, sets a minimum slot length,
-rounded up with one second of margin. Sparse cues lengthen fixed slots; they can
+offset, leaves existing five-second slots unchanged below 4.5 seconds. Above
+that threshold it sets a minimum slot length, rounded up with one second of
+margin. Sparse cues lengthen fixed slots; they can
 start slowly because a complete chunk must be produced before delivery. Media
 bytes stream from disk, so a long slot is not loaded into memory per request.
 The same length

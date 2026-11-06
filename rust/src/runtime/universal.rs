@@ -599,6 +599,7 @@ impl Plan {
     }
 
     fn fit_copy_gap(&mut self, gap_ms: i64) -> Result<(), String> {
+        if gap_ms < 4500 { return Ok(()); }
         let seconds = gap_ms.max(0).checked_add(1999).ok_or("rex: video gap overflow")? / 1000;
         self.segment_length = Some(u32::try_from(seconds.max(i64::from(DASH_COPY_SEGMENT))).map_err(|_| "rex: video gap overflow")?);
         Ok(())
@@ -4217,12 +4218,15 @@ mod tests {
 
     #[test]
     fn fitted_copy_gaps_leave_a_second_of_margin_without_conversion() {
-        let mut copy = plan(true, 90_000);
-        copy.protocol = Protocol::Dash;
-        for (gap, seconds) in [(0, 5), (4920, 6), (5000, 6), (12_001, 14), (20_000, 21), (90_000, 91)] {
+        for (gap, seconds) in [(0, 5), (4499, 5), (4500, 6), (4920, 6), (5000, 6), (12_001, 14), (20_000, 21), (90_000, 91)] {
+            let mut copy = plan(true, 90_000);
+            copy.protocol = Protocol::Dash;
             copy.fit_copy_gap(gap).unwrap();
             assert_eq!(copy.segment_seconds(), seconds);
         }
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        copy.fit_copy_gap(90_000).unwrap();
         for gap in [i64::MAX] {
             assert!(copy.fit_copy_gap(gap).is_err());
             assert_eq!(copy.segment_seconds(), 91);
