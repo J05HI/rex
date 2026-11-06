@@ -4457,11 +4457,32 @@ mod tests {
 
 
     #[test]
+    fn short_keyframe_gaps_keep_default_slots_including_the_opening_offset() {
+        for cues in [
+            vec![0, 2000, 4000, 6000, 8000],
+            vec![0, 1001, 2002, 3004, 4005, 5006],
+            vec![23, 1024, 2025, 3026, 4027, 5028, 5500],
+            vec![499, 4499, 8499, 12_499, 16_000],
+        ] {
+            let mut copy = plan(true, *cues.last().unwrap());
+            copy.protocol = Protocol::Dash;
+            copy.fit_copy_cues(&cues);
+            assert!(copy.dash_timeline.is_empty(), "{cues:?}");
+            assert_eq!(copy.segment_length_ms, None, "{cues:?}");
+            assert_eq!(copy.segment_ms(), 5000);
+        }
+        let mut delayed = plan(true, 16_000);
+        delayed.protocol = Protocol::Dash;
+        delayed.fit_copy_cues(&[500, 4500, 8500, 12_500, 16_000]);
+        assert!(!delayed.dash_timeline.is_empty(), "the opening offset consumes the safety margin");
+    }
+
+    #[test]
     fn uneven_keyframes_keep_their_cue_times_instead_of_rounding_up() {
         for cues in [
-            vec![0, 1001, 2002, 3004, 4005, 5006],
+            vec![0, 3000, 13_000, 23_000, 30_000],
             vec![0, 10_427, 20_854, 31_282, 41_709, 45_000],
-            vec![0, 1001, 2002, 2502, 3503, 4504, 5000],
+            vec![0, 4960, 9960, 14_960, 19_960, 24_000],
         ] {
             let mut copy = plan(true, *cues.last().unwrap());
             copy.protocol = Protocol::Dash;
@@ -4470,13 +4491,24 @@ mod tests {
             assert!(copy.dash_timeline.iter().all(|time| cues.contains(time)));
             assert_eq!(copy.segment_start_ms(1), cues[1]);
         }
-        let mut copy = plan(true, 5500);
-        copy.fit_copy_cues(&[0, 23, 1024, 2025, 3026, 4027, 5028, 5500]);
-        assert!(!copy.dash_timeline.is_empty());
-        assert_eq!(copy.dash_timeline[1], 1024);
-        copy.duration_ms = 20_880;
+        let mut copy = plan(true, 20_880);
         copy.fit_copy_cues(&[1200, 6120, 11_040, 15_960, 20_880]);
         assert_eq!(copy.dash_timeline[1], 6120, "a delayed first frame is not a segment boundary");
+    }
+
+    #[test]
+    fn dash_buffering_changes_only_for_fitted_plans() {
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        assert!(copy.mpd("default", 0.0).contains("minBufferTime=\"PT5S\""));
+        let mut converted = plan(false, 90_000);
+        converted.protocol = Protocol::Dash;
+        assert!(converted.mpd("converted", 0.0).contains("minBufferTime=\"PT2S\""));
+        copy.duration_ms = 0;
+        assert!(copy.mpd("live", 0.0).contains("minBufferTime=\"PT4S\""));
+        copy.duration_ms = 90_000;
+        copy.segment_length_ms = Some(6000);
+        assert!(copy.mpd("fitted", 0.0).contains("minBufferTime=\"PT2S\""));
     }
 
     #[test]
@@ -4631,7 +4663,7 @@ mod tests {
             audio.sampling_rate = 44100;
         }
         // Byte for byte the reference's, but for `minBufferTime`, which is ours (`mpd`).
-        assert_eq!(copy.mpd("rexdashdash-cop", 0.0), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT2S\""));
+        assert_eq!(copy.mpd("rexdashdash-cop", 0.0), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT5S\""));
     }
 
     #[test]
