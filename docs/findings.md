@@ -12862,8 +12862,10 @@ copy now uses fixed slots only when cue intervals, including the opening, lie
 on the same grid. A shorter closing interval is allowed. Other indexed files use the existing explicit
 source-cue timeline, preserving video copy. Ordinary uneven cues are grouped at
 least one second apart; sparse gaps retain the five-second grouping. Grouping
-also bounds the timeline to 4000 slots so both track cut lists fit FFmpeg's
-single output argument on Linux. Regular 1.001-second keyframes retain the fast
+also bounds the timeline to 1000 slots on Windows, leaving space for both cut
+lists and other arguments within its 32,767-character command-line limit. Unix
+retains the 4000-slot budget within its 128 KiB argument limit, preserving shorter
+segments for playback and seeking. Regular 1.001-second keyframes retain the fast
 fixed-slot path. The generated regression includes fractional, uneven keyframes
 with B-frames and checks every copied packet, decoded frame, AAC output and seek.
 Shifted opening keyframes use explicit cuts too. The first real cue starts video

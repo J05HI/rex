@@ -644,16 +644,16 @@ impl Plan {
         if (1000..=20_000).contains(&gap) && regular {
             self.segment_length_ms = Some(gap as u32);
         } else {
-            self.fit_copy_timeline(cues);
+            self.fit_copy_timeline(cues, if cfg!(windows) { 1000 } else { 4000 });
         }
     }
 
     /// Only the slot spanning a sparse cue interval grows; opening slots stay short.
-    fn fit_copy_timeline(&mut self, cues: &[i64]) {
+    fn fit_copy_timeline(&mut self, cues: &[i64], max_cuts: i64) {
         let mut times = vec![0];
-        // Both track cut lists share one FFmpeg argument (Linux caps it at 128 KiB).
-        // Bound the number of cuts for long titles with dense, uneven keyframes.
-        let minimum = ((self.duration_ms - 1) / 4000 + 1).max(
+        // Both track cut lists share one argument. Windows needs a smaller
+        // budget for its full command; Unix keeps shorter slots within 128 KiB.
+        let minimum = ((self.duration_ms - 1) / max_cuts + 1).max(
             if cues.windows(2).any(|pair| pair[1] - pair[0] > 20_000) { i64::from(DASH_COPY_SEGMENT) * 1000 } else { 1000 }
         );
         // The first real cue starts video; cutting there would create an empty slot.
@@ -4385,30 +4385,31 @@ mod tests {
 
     #[test]
     fn dense_uneven_cues_bound_cut_count_and_argument_size() {
-        // A 3-hour title with 1-second uneven keyframes: uncapped would produce ~10,800 cuts.
-        // Cap is minimum = (duration_ms - 1) / 4000 + 1 = 10_800_000 / 4000 = 2700 ms.
+        // A three-hour title with dense, uneven keyframes exercises both cut lists.
         let duration_ms = 10_800_000;
         let cues: Vec<i64> = (0..=10_800).map(|i| {
             if i % 2 == 0 { i * 1000 } else { i * 1000 + 42 }
         }).collect();
         let mut copy = plan(true, duration_ms);
         copy.protocol = Protocol::Dash;
-        copy.fit_copy_cues(&cues);
+        copy.fit_copy_timeline(&cues, 1000);
         assert!(!copy.dash_timeline.is_empty());
-        // Verify timeline cuts count is bounded well below Linux argument cap (4000).
-        assert!(copy.dash_timeline.len() <= 4005, "cuts count: {}", copy.dash_timeline.len());
-        // Verify segment_times argument string size stays safely under 64 KiB
-        let times = copy.dash_timeline.iter().skip(1)
-            .take_while(|&&time| time < copy.duration_ms)
-            .map(|time| format!("{:.6}", *time as f64 / 1000.0))
-            .collect::<Vec<_>>().join(",");
-        assert!(times.len() < 50_000, "segment_times arg len: {}", times.len());
+        assert!(copy.dash_timeline.len() <= 1002);
+        let win_dir = std::path::Path::new(r"C:\Transcode cache\日本語_öäü_Тест\session_42");
+        let args = ffmpeg_args(&copy, Path::Software, &Hardware::software(), 0, win_dir);
+
+        // Include the executable, quoting/escaping overhead and terminating NUL.
+        // Debug quoting conservatively escapes every argument and backslash.
+        let command_line = std::iter::once(r"C:\Program Files\ffmpeg\ffmpeg.exe".to_string())
+            .chain(args).map(|arg| format!("{arg:?}")).collect::<Vec<_>>().join(" ");
+        let utf16_len = command_line.encode_utf16().count() + 1;
+        assert!(utf16_len < 32_767, "command line UTF-16 code units: {utf16_len} exceeds 32,767");
         // Verify seek_start warming and segment_start_ms boundary guards
         assert_eq!(copy.seek_start(0), 0);
         assert_eq!(copy.seek_start(1), 0);
         assert_eq!(copy.seek_start(5), 4);
         assert_eq!(copy.segment_start_ms(0), 0);
-        assert!(copy.segment_start_ms(1) >= 2700);
+        assert!(copy.segment_start_ms(1) >= 10_800);
         assert_eq!(copy.segment_start_ms(copy.segment_count()), duration_ms);
     }
 
@@ -4459,7 +4460,7 @@ mod tests {
     fn sparse_copy_cues_use_a_timeline_and_keep_opening_slots_short() {
         let mut copy = plan(true, 90_000);
         copy.protocol = Protocol::Dash;
-        copy.fit_copy_timeline(&[0, 1000, 5000, 10_000, 15_000, 80_000, 85_000, 90_000]);
+        copy.fit_copy_timeline(&[0, 1000, 5000, 10_000, 15_000, 80_000, 85_000, 90_000], 4000);
         assert_eq!(copy.dash_timeline, [0, 5000, 10_000, 15_000, 80_000, 85_000, 90_000]);
         assert_eq!(copy.segment_seconds(), 5);
         assert_eq!(copy.segment_count(), 6);
