@@ -12827,7 +12827,9 @@ absolute timestamps with edit lists disabled: otherwise B-frame composition
 offsets at a jump are applied twice. A seek warms up the preceding slot and
 uses a short, cancellable framecrc probe for each track's first packet PTS,
 because segment's cuts are relative to those origins. Opening playback needs
-no probe. Initialization is kept from the first closed segment.
+no probe. Each track keeps one MP4 muxer across chunks and writes its
+initialization separately, preserving fragment sequence numbers and decode
+state. Per-chunk muxer restarts reset fragment numbers to one.
 
 The same timeline drives manifests, lookup, seeks, pruning and progress.
 Minimum buffering stays at most two seconds, and the first closed segment is

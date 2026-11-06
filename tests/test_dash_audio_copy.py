@@ -150,7 +150,7 @@ def run(scratch):
             "-f", "lavfi", "-i", "testsrc2=s=320x180:r=%s:d=90" % ("30000/1001" if codec == "dense" else "24000/1001" if codec == "uneven" else "25"), "-f", "lavfi", "-i", "sine=d=90",
             "-c:v", enc, "-preset", "ultrafast", "-g", str(gop), "-sc_threshold", "0",
             *(["-force_key_frames", "expr:gte(t,n_forced*1.002)", "-bf", "2"] if codec == "uneven" else []),
-            "-c:a", "truehd" if codec == "hevc" else "dca", "-strict", "-2", "-shortest",
+            "-c:a", "truehd" if codec in ("hevc", "uneven") else "dca", "-strict", "-2", "-shortest",
         ])
         for key, codec, enc, gop in (("1", "h264", "libx264", 300), ("2", "hevc", "libx265", 300),
                                      ("5", "dense", "libx264", 30), ("6", "uneven", "libx264", 250))
@@ -271,11 +271,28 @@ def run(scratch):
             for rep in (0, 1):
                 path = os.path.join(scratch, "%s-%d.mp4" % (codec, rep))
                 paths.append(path)
+                prev_end = None
                 with open(path, "wb") as f:
                     for index in range(len(starts)):
                         status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/%d/%d.m4s" % (session, rep, index), timeout=45)
                         assert status == 200, (status, rep, index)
                         f.write(data)
+                        if codec == "uneven":
+                            mfhd = data.index(b"mfhd")
+                            assert int.from_bytes(data[mfhd + 8:mfhd + 12], "big") == index + 1, "fragment sequence restarted"
+                        if rep == 1 and codec == "uneven":
+                            chunk_file = os.path.join(scratch, "chunk-check.m4s")
+                            with open(chunk_file, "wb") as cf:
+                                cf.write(data)
+                            pkts = packet_entries(chunk_file, "pts_time,duration_time")
+                            first = float(pkts[0]["pts_time"])
+                            last = float(pkts[-1]["pts_time"])
+                            last_dur = float(pkts[-1]["duration_time"])
+                            cue = starts[index]
+                            if index > 0:
+                                assert first >= cue - last_dur, (index, first, cue, last_dur)
+                                assert abs(first - prev_end) < 0.001, (index, first, prev_end)
+                            prev_end = last + last_dur
                 # Native players read each segment in small ranges. Reuse the same
                 # socket across both tracks, as measured on PMS 1.43.5.
                 connection = http.client.HTTPConnection("127.0.0.1", port, timeout=45)

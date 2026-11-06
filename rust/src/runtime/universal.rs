@@ -397,18 +397,6 @@ fn chunk_end(head: &[u8]) -> Option<f64> {
     }
 }
 
-/// The reusable initialization boxes of a self-contained fragmented MP4.
-fn fragment_init(bytes: &[u8]) -> Option<&[u8]> {
-    let mut at = 0;
-    while at + 8 <= bytes.len() {
-        let size = u32::from_be_bytes(bytes.get(at..at + 4)?.try_into().ok()?) as usize;
-        if bytes.get(at + 4..at + 8)? == b"moof" { return Some(&bytes[..at]); }
-        if size < 8 { return None; }
-        at = at.checked_add(size)?;
-    }
-    None
-}
-
 /// First encoded/copied packet PTS for each representation in FFmpeg framecrc output.
 fn framecrc_origins(lines: impl IntoIterator<Item = impl AsRef<str>>, count: usize) -> Option<Vec<f64>> {
     let mut scales = BTreeMap::new();
@@ -1172,7 +1160,7 @@ fn ffmpeg_args_at(plan: &Plan, path: Path, hardware: &Hardware, start: i64, dir:
             // Use explicit source-cue cuts for both representations. The segment
             // muxer follows these boundaries instead of incrementing a fixed DASH
             // slot for every keyframe after a timestamp jump. Each output is a
-            // self-contained fragmented MP4, as segment() already serves to Plex.
+            // fragmented MP4 using one muxer per track across all chunks.
             push(&mut args, &["-flags", "+global_header", "-output_ts_offset", &offset.to_string()]);
             // The nested MP4 muxers must keep absolute tfdt timestamps too.
             // Two escaping levels: tee's slave options, then segment's options.
@@ -1192,7 +1180,11 @@ fn ffmpeg_args_at(plan: &Plan, path: Path, hardware: &Hardware, start: i64, dir:
                 // Video needs tolerance for rounded cue PTS; audio cuts must not
                 // precede their manifest slot or players can discard its opening packets.
                 let delta = if kind == "v" { 0.0625 } else { 0.0 };
-                let options = format!("f=segment:segment_format=mp4:segment_start_number=1:segment_time_delta={delta}:segment_format_options=movflags=+empty_moov+frag_keyframe+default_base_moof+frag_discont\\\\:avoid_negative_ts=disabled\\\\:use_editlist=0{}",
+                // Keep one MP4 muxer per track, so fragment sequence numbers and
+                // decoder state continue across chunks instead of restarting at 1.
+                let header = dir.join(format!("r{start}")).join(format!("init-{rep}.m4s"))
+                    .to_string_lossy().replace('\\', "/").replace(':', "\\\\:").replace('\'', "\\\\\\'").replace('|', "\\|");
+                let options = format!("f=segment:segment_format=mp4:segment_start_number=1:individual_header_trailer=0:segment_header_filename={header}:segment_time_delta={delta}:segment_format_options=movflags=+empty_moov+frag_custom+default_base_moof+frag_discont+skip_trailer\\\\:avoid_negative_ts=disabled\\\\:use_editlist=0{}",
                     if times.is_empty() { ":segment_time=2147483647".to_string() } else { format!(":segment_times={times}") });
                 let file = dir.join(format!("r{start}")).join(format!("chunk-{rep}-%05d.m4s"))
                     .to_string_lossy().replace('\\', "/").replace('\'', "\\'").replace('|', "\\|");
@@ -1528,18 +1520,6 @@ impl Session {
 
     fn init_file(&self, rep: usize, run: i64) -> PathBuf {
         self.run_dir(run).join(format!("init-{rep}.m4s"))
-    }
-
-    fn save_timeline_init(&self, index: i64, run: i64) -> Result<(), String> {
-        for rep in 0..self.plan.representations() {
-            let mut bytes = Vec::new();
-            std::fs::File::open(self.segment_file(index, rep, run))
-                .and_then(|file| file.take(1 << 20).read_to_end(&mut bytes))
-                .map_err(|error| error.to_string())?;
-            let init = fragment_init(&bytes).ok_or("missing fragmented MP4 initialization")?;
-            std::fs::write(self.init_file(rep, run), init).map_err(|error| error.to_string())?;
-        }
-        Ok(())
     }
 
     /// Whether every representation of segment `index` has been opened by run `run`.
@@ -2694,14 +2674,6 @@ impl Transcoder {
             let ahead = i64::from(copied_dash && !session.plan.live() && exited.is_none());
             while session.opened(done_at(next) + ahead, start)
                 || (timeline && exited == Some(0) && session.opened(next, start)) {
-                if timeline && next == start {
-                    // The next file or successful EOF proves the opening slot is closed.
-                    if let Err(error) = session.save_timeline_init(next, start) {
-                        error!("TRANSCODE {} initialization: {error}", session.id);
-                        if let Ok(mut state) = session.state.lock() { state.error = true; }
-                        return;
-                    }
-                }
                 // A copied video's chunk is checked before it is served (a remux runs far ahead of
                 // the player): one that runs past the next slot's end leaves the one after it a slot
                 // late, so the conversion starts at this one, and a file's first long gap is known
@@ -2988,7 +2960,7 @@ impl Transcoder {
             };
             if let Some(run) = ready {
                 let fragment = std::fs::read(session.segment_file(index, rep, run)).map_err(|_| 500u16)?;
-                if session.plan.protocol == Protocol::Dash && session.plan.dash_timeline.is_empty() {
+                if session.plan.protocol == Protocol::Dash {
                     let mut bytes = std::fs::read(session.init_file(rep, run)).map_err(|_| 500u16)?;
                     bytes.extend(fragment);
                     return Ok(bytes);
