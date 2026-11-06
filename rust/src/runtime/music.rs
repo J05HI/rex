@@ -1453,7 +1453,7 @@ impl Runtime {
             text_burn: None,
             incomplete_segments: false,
             copyts: false,
-            segment_length: Some(1),
+            segment_length_ms: Some(1000),
             dash_timeline: Vec::new(),
             silent_audio: false,
             account: self.viewer.id,

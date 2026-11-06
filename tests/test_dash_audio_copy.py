@@ -147,12 +147,12 @@ def run(scratch):
 
     items = [
         make_media(key, codec + ".mkv", 90000, [
-            "-f", "lavfi", "-i", "testsrc2=s=320x180:r=25:d=90", "-f", "lavfi", "-i", "sine=d=90",
+            "-f", "lavfi", "-i", "testsrc2=s=320x180:r=%s:d=90" % ("30000/1001" if codec == "dense" else "25"), "-f", "lavfi", "-i", "sine=d=90",
             "-c:v", enc, "-preset", "ultrafast", "-g", str(gop), "-sc_threshold", "0",
             "-c:a", "truehd" if codec == "hevc" else "dca", "-strict", "-2", "-shortest",
         ])
         for key, codec, enc, gop in (("1", "h264", "libx264", 300), ("2", "hevc", "libx265", 300),
-                                     ("5", "dense", "libx264", 25))
+                                     ("5", "dense", "libx264", 30))
     ]
     items.append(make_media("3", "sparse.mkv", 36000, [
         "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=36", "-f", "lavfi", "-i", "sine=d=36",
@@ -256,8 +256,9 @@ def run(scratch):
             assert nt.get(port, "/video/:/transcode/universal/start.mpd", lookup, method="POST")[0] == 401
             unauthenticated = [(k, v) for k, v in query if k != "X-Plex-Token"]
             assert nt.get(port, "/video/:/transcode/universal/start.mpd", unauthenticated)[0] == 401
-            length = int(re.search(rb'<SegmentTemplate timescale="1" duration="(\d+)"', manifest)[1])
-            assert length == (2 if codec == "dense" else 12), length
+            template = ET.fromstring(manifest).find(".//{urn:mpeg:dash:schema:mpd:2011}SegmentTemplate")
+            length = int(template.attrib["duration"]) / int(template.attrib["timescale"])
+            assert length == (1.001 if codec == "dense" else 12), length
             paths = []
             for rep in (0, 1):
                 path = os.path.join(scratch, "%s-%d.mp4" % (codec, rep))

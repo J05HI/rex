@@ -286,9 +286,9 @@ pub(crate) struct Plan {
     pub incomplete_segments: bool,
     /// The client's `copyts=1`: a Matroska stream keeps the title's clock from its `offset`.
     pub copyts: bool,
-    /// The session's segment length, kept when a forced conversion (`Session::plan_now`) would
+    /// The session's segment length in milliseconds, kept when a forced conversion (`Session::plan_now`) would
     /// otherwise change it under the playlist the player already has.
-    pub segment_length: Option<u32>,
+    pub segment_length_ms: Option<u32>,
     /// Indexed copy boundaries in milliseconds, including zero and the title end.
     pub dash_timeline: Vec<i64>,
     /// The live source has no audio now: a silent track of the plan's layout takes its place.
@@ -529,8 +529,9 @@ impl Plan {
     pub fn mpd(&self, session: &str, started: f64) -> String {
         let length = self.segment_seconds();
         let duration = dash_duration(self.duration_ms);
+        let (scale, slot) = if self.segment_ms() % 1000 == 0 { (1, self.segment_ms() / 1000) } else { (1000, self.segment_ms()) };
         let template = if self.dash_timeline.is_empty() { format!(
-            "\t\t\t<SegmentTemplate timescale=\"1\" duration=\"{length}\" initialization=\"session/{session}/$RepresentationID$/header\" media=\"session/{session}/$RepresentationID$/$Number$.m4s\" startNumber=\"0\">\n\t\t\t</SegmentTemplate>\n"
+            "\t\t\t<SegmentTemplate timescale=\"{scale}\" duration=\"{slot}\" initialization=\"session/{session}/$RepresentationID$/header\" media=\"session/{session}/$RepresentationID$/$Number$.m4s\" startNumber=\"0\">\n\t\t\t</SegmentTemplate>\n"
         ) } else {
             let entries = self.dash_timeline.windows(2).map(|pair| {
                 format!("\t\t\t\t\t<S t=\"{}\" d=\"{}\"/>\n", pair[0], pair[1] - pair[0])
@@ -574,7 +575,7 @@ impl Plan {
             // this far below the live edge: one segment, as close to FFmpeg's reader as it goes.
             if !self.dash_timeline.is_empty() {
                 self.dash_timeline.windows(2).map(|pair| ((pair[1] - pair[0] + 999) / 1000) as u64).max().unwrap_or(5)
-            } else if self.live() { u64::from(length) } else { u64::from(length) * 2 },
+            } else if self.live() { u64::from(length) } else { (self.segment_ms() as u64 * 2).div_ceil(1000) },
             // Ours, not the reference's 2x segment: Plex Web's Shaka player starts only
             // once max(minBufferTime, 2 s) is buffered, so PT10S held every start for
             // two 5 s segments (6.3 s to first frame on the test host, measured).
@@ -618,8 +619,8 @@ impl Plan {
     }
 
     pub fn segment_seconds(&self) -> u32 {
-        if let Some(length) = self.segment_length {
-            return length;
+        if let Some(length) = self.segment_length_ms {
+            return length.div_ceil(1000);
         }
         match (self.protocol, self.video.as_ref().is_none_or(|video| video.copy)) {
             (_, false) => TRANSCODE_SEGMENT,
@@ -630,6 +631,10 @@ impl Plan {
             (Protocol::Dash, true) => DASH_COPY_SEGMENT,
             (Protocol::Hls | Protocol::File | Protocol::Http, true) => COPY_SEGMENT,
         }
+    }
+
+    fn segment_ms(&self) -> i64 {
+        i64::from(self.segment_length_ms.unwrap_or_else(|| self.segment_seconds() * 1000))
     }
 
     /// Fixed DASH slots must be at least as long as the source's largest keyframe gap.
@@ -643,7 +648,7 @@ impl Plan {
             if gap > 20_000 {
                 self.fit_copy_timeline(&cues);
             } else {
-                self.segment_length = Some(((gap + 999) / 1000).max(i64::from(TRANSCODE_SEGMENT)) as u32);
+                self.segment_length_ms = Some(gap.max(1000) as u32);
             }
         }
     }
@@ -658,13 +663,13 @@ impl Plan {
         }
         times.push(self.duration_ms);
         self.dash_timeline = times;
-        self.segment_length = Some(DASH_COPY_SEGMENT);
+        self.segment_length_ms = Some(DASH_COPY_SEGMENT * 1000);
         warning!("TRANSCODE sparse video index: using variable DASH copy segments on the source timeline");
     }
 
     fn segment_start_ms(&self, index: i64) -> i64 {
         if self.dash_timeline.is_empty() {
-            index * i64::from(self.segment_seconds()) * 1000
+            index * self.segment_ms()
         } else {
             usize::try_from(index).ok().and_then(|index| self.dash_timeline.get(index)).copied().unwrap_or(self.duration_ms)
         }
@@ -680,7 +685,7 @@ impl Plan {
         if self.live() {
             return i64::MAX;
         }
-        let length = self.segment_seconds() as i64 * 1000;
+        let length = self.segment_ms();
         ((self.duration_ms.max(1) + length - 1) / length).max(1)
     }
 
@@ -845,7 +850,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
 }
 
 fn ffmpeg_args_at(plan: &Plan, path: Path, hardware: &Hardware, start: i64, dir: &std::path::Path, origins: Option<&[f64]>) -> Vec<String> {
-    let length = plan.segment_seconds() as i64;
+    let length = plan.segment_ms() as f64 / 1000.0;
     // A Matroska stream starts where the client's `offset` (seconds) says, and its media is
     // FFmpeg's stdout, so it reports no progress there.
     let http = plan.protocol == Protocol::Http;
@@ -1078,7 +1083,7 @@ fn ffmpeg_args_at(plan: &Plan, path: Path, hardware: &Hardware, start: i64, dir:
             }
             let rate = format!("{}k", video.bitrate);
             let buffer = format!("{}k", video.bitrate * 2);
-            let gop = ((video.frame_rate.max(1.0)) * length as f64).round() as i64;
+            let gop = ((video.frame_rate.max(1.0)) * length).round() as i64;
             if device.is_some() && path != Path::Software {
                 push(&mut args, &["-c:v", "h264_vaapi", "-rc_mode", "VBR", "-b:v", &rate, "-maxrate", &rate, "-bufsize", &buffer, "-profile:v", "high"]);
             } else if cuda && path != Path::Software {
@@ -1370,7 +1375,7 @@ impl Session {
     pub fn plan_now(&self) -> Plan {
         let mut plan = self.plan.clone();
         let (audio, video) = self.forced.lock().map(|forced| *forced).unwrap_or_default();
-        plan.segment_length = Some(self.plan.segment_seconds());
+        plan.segment_length_ms = Some(self.plan.segment_ms() as u32);
         plan.silent_audio = self.silent.load(Ordering::SeqCst) && plan.audio.is_some();
         if let Some(stream) = plan.audio.as_mut().filter(|stream| (audio || plan.silent_audio) && stream.copy) {
             stream.copy = false;
@@ -2637,7 +2642,7 @@ impl Transcoder {
     /// One run's monitor: notes each segment as the next one opens, throttles, and on an
     /// early failure moves the session down the ladder.
     fn watch(self: Arc<Self>, session: Arc<Session>, run: u64, start: i64, path: Path, errors: Arc<Mutex<String>>) {
-        let length = session.plan.segment_seconds() as f64;
+        let length = session.plan.segment_ms() as f64 / 1000.0;
         let duration = session.plan.duration_ms as f64 / 1000.0;
         let end = if session.plan.live() { f64::INFINITY } else { duration.max(length) };
         let timeline = !session.plan.dash_timeline.is_empty();
@@ -2900,7 +2905,7 @@ impl Transcoder {
             return Err(404);
         }
         session.touch();
-        let length = session.plan.segment_seconds() as f64;
+        let length = session.plan.segment_ms() as f64 / 1000.0;
         let deadline = Instant::now() + Duration::from_secs(45);
         let ticket = match session.state.lock() {
             Ok(mut state) => {
@@ -3744,7 +3749,7 @@ impl Runtime {
             incomplete_segments: query.get("X-Plex-Incomplete-Segments").map(String::as_str) == Some("1")
                 || headers.get("x-plex-incomplete-segments").map(String::as_str) == Some("1"),
             copyts: query.get("copyts").map(String::as_str) == Some("1"),
-            segment_length: None,
+            segment_length_ms: None,
             dash_timeline: Vec::new(),
             silent_audio: false,
             account: self.viewer.id,
@@ -4310,7 +4315,7 @@ mod tests {
             text_burn: None,
             incomplete_segments: true,
             copyts: false,
-            segment_length: None,
+            segment_length_ms: None,
             dash_timeline: Vec::new(),
             silent_audio: false,
             account: accounts::OWNER,
@@ -4365,6 +4370,20 @@ mod tests {
         let args = ffmpeg_args(&stream, Path::Software, &Hardware::software(), 42, std::path::Path::new("/tmp/s"));
         let at = args.iter().position(|arg| arg == "-output_ts_offset").unwrap();
         assert_eq!(args[at + 1], "42");
+    }
+
+    #[test]
+    fn fractional_dash_slots_keep_seek_and_manifest_clocks_together() {
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        copy.segment_length_ms = Some(1001);
+        assert_eq!(copy.segment_start_ms(2000), 2_002_000);
+        assert_eq!(copy.segment_count(), 90);
+        let manifest = copy.mpd("fractional", 0.0);
+        assert!(manifest.contains("timescale=\"1000\" duration=\"1001\""));
+        let args = ffmpeg_args(&copy, Path::Software, &Hardware::software(), 6, std::path::Path::new("/tmp/x"));
+        assert_eq!(args[args.iter().position(|arg| arg == "-ss").unwrap() + 1], "6.006");
+        assert_eq!(args[args.iter().position(|arg| arg == "-seg_duration").unwrap() + 1], "1.001");
     }
 
     #[test]
