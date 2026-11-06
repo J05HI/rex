@@ -12810,6 +12810,113 @@ suite's 2 s-GOP clips): its MPEG-TS far seek read the conversion's video at the 
 timescale (tfdt 2.731 s for 20 s).
 rex keeps `-use_timeline 0` and reads each chunk's `sidx`.
 
+### Indexed Matroska audio conversion with copied DASH video (2026-10-30)
+
+A playback started with H.264 copy and DTS-to-AAC,
+then the long-GOP check above switched it to video encoding. An audio-only FFmpeg
+policy rejected that fallback. The video codec was compatible; five-second DASH
+slots were too short for its keyframes.
+
+For recorded Matroska files with video cues, rex now reads the SeekHead, Info,
+Tracks and Cues using bounded Range reads before starting DASH. The largest gap
+between video cues (including the beginning and tail), plus the opening video
+offset, leaves existing five-second slots unchanged below 4.5 seconds. Above
+that threshold it sets a minimum slot length, rounded up with one second of
+margin. Sparse cues lengthen fixed slots; they can
+start slowly because a complete chunk must be produced before delivery. Media
+bytes stream from disk, so a long slot is not loaded into memory per request.
+The same length
+drives the manifest, FFmpeg, segment lookup and seeks. Index reads occur outside
+the runtime lock. Other containers, missing indexes and live streams retain the
+existing behavior; this is not a universal prohibition on video conversion.
+
+A DASH start registers a preparing session before releasing the runtime lock for
+those reads. Stop and newer starts invalidate that exact session. After reading,
+rex publishes the fitted plan only if the preparing session still owns the id;
+otherwise it answers 404 and starts no FFmpeg. After the reads, rex also checks
+for a connection error before launching FFmpeg. Read-side EOF alone does not
+cancel the start: a client can half-close its write side and still receive the
+manifest. A failed manifest
+write stops only that request's session, leaving any replacement running.
+A preparing session exposes no
+manifest or segments. The generated-media suite delays the source's index reads
+to check cancellation and replacement, and runs in the Linux and Windows CI jobs.
+
+`tests/test_dash_audio_copy.py` generates H.264 and HEVC with long keyframe gaps
+and DTS/TrueHD audio. It replays the recorded DASH request with the target codecs,
+checks the AAC output and every copied video packet hash, decodes the full
+output and requests a later segment first to exercise seeking. This is local
+generated-media validation.
+
+Index reads reuse the initial 64 KiB and fetch an uncached table's opening
+64 KiB with its header, reading only the missing remainder for larger tables.
+Video fitting shares a five-second read budget and logs elapsed time; an
+unavailable index retains the default copy validation path. Eight reads of four
+real remote-source indexes took 220–383 ms and three requests each (their Cues
+exceeded 64 KiB). These were current-source measurements, not guaranteed cold
+cache measurements.
+
+### Reopening an existing DASH manifest by session (2026-10-30)
+
+A player requested the full authenticated `start.mpd` for H.264/DTS and
+HEVC/TrueHD media, then requested `start.mpd?session=<same-id>` with
+no token, path or profile. Both attempts stopped immediately after rex's 401;
+neither reached a segment request.
+
+Replayed the authenticated DASH start followed by that session-only request on
+a disposable, network-isolated PMS 1.43.4.10903 using generated H.264/AAC media.
+The library control refused the tokenless request (401); a running DASH manifest
+answered GET and HEAD without a token (200). Unknown and stopped session ids
+answered 400. An HLS session also reopened through `start.mpd`, returning its
+HLS master playlist: the current request's `X-Plex-Incomplete-Segments=1`
+controls that playlist's query suffix.
+`tests/fixtures/transcode/dash_manifest_session.json` records the
+requests and response metadata; public codec modules were provisioned from the
+host so PMS required no network access.
+
+The session-only GET/HEAD returns the running DASH plan's manifest, including
+the fitted segment duration, without restarting FFmpeg. Live DASH keeps the session's
+original availability start time when reopened; only its publish time advances
+(`test_http_mkv.py`, generated live channel). Existing HLS sessions
+return their master playlist; unknown and stopped sessions return 400. Requests
+naming a media path still require authentication and the normal decision; this read cannot create a conversion.
+`test_dash_audio_copy.py` enables the token gate and replays the sequence before
+decoding and seeking both clips.
+
+### Completed segments stream from disk (2026-11-06)
+
+Serving a completed segment opens its media file and keeps only the small DASH
+initialization header in memory. Range requests seek into this combined view;
+HEAD sends no media body. Full and ranged responses use bounded buffers and
+preserve persistent connections. A sparse cue interval can still produce a
+large file and delay its completion, but each client request no longer reads
+and allocates that whole file.
+
+### DASH segments permit persistent connections (2026-10-30)
+
+An audio-converting playback downloaded each five-second video
+segment in roughly ten seconds. The player used many successive Range requests;
+rex forced every response closed, repeatedly restarting TCP and TLS. Conversion
+was already faster than real time, and the segments decoded successfully.
+
+A disposable PMS 1.43.5.11079 replayed the captured player decision parameters
+against generated H.264/AAC media. Completed DASH headers and segments answered
+HTTP/1.1 GET and Range GET with `Connection: Keep-Alive`, `Keep-Alive: timeout=20`
+and the appropriate Content-Length/Content-Range. An explicit request-side
+`Connection: close` produced a closed response. The observations are recorded in
+`tests/fixtures/transcode/dash_connections.json`. The older whole-GET fixture's
+closed response does not establish that all clients must be disconnected.
+
+Remove the forced close for DASH headers/segments and let the normal request
+connection policy apply. No codec or encoding decision changes. The audio-copy
+integration test proves successive ranges reuse the actual socket, preserve the
+segment bytes, and still honor an explicit close.
+
+After deployment, recent five-second video segments downloaded
+in about 4.2 seconds after connection warmup, compared with roughly ten seconds
+before. Smooth playback was confirmed after restarting. Production
+logs still showed copied HEVC video and TrueHD converted to six-channel AAC.
+
 ### A subtitle track dense from its start; a live DASH restart behind the clock (2026-10-27)
 
 **Round Two Time never started in Plex Web** (rex-fun, ratingKey 106616: HEVC Main10 1080p and Opus

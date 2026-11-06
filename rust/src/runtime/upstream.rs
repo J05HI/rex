@@ -121,15 +121,19 @@ impl Upstream {
 
     /// The whole body, bounded so a misbehaving upstream cannot exhaust memory.
     pub(super) fn read_body(&mut self, limit: usize) -> Result<Vec<u8>, String> {
+        self.read_body_until(limit, std::time::Instant::now() + BODY_DEADLINE)
+    }
+
+    pub(super) fn read_body_until(&mut self, limit: usize, deadline: std::time::Instant) -> Result<Vec<u8>, String> {
         let mut body = Vec::new();
         let mut chunk = [0_u8; 64 * 1024];
         // Bounded in time too: each read has the socket timeout, but a peer that drips a byte
         // under it held the request's thread for as long as it liked.
-        let deadline = std::time::Instant::now() + BODY_DEADLINE;
         loop {
-            if std::time::Instant::now() > deadline {
-                return Err("upstream body too slow".to_string());
-            }
+            let remaining = deadline.checked_duration_since(std::time::Instant::now()).filter(|time| !time.is_zero()).ok_or("upstream body too slow")?;
+            let socket = match self.reader.get_ref() { Conn::Plain(socket) => socket, Conn::Tls(stream) => &stream.sock };
+            let timeout = socket.read_timeout().map_err(|error| error.to_string())?.unwrap_or(remaining).min(remaining);
+            socket.set_read_timeout(Some(timeout)).map_err(|error| error.to_string())?;
             let count = self.read(&mut chunk).map_err(|error| error.to_string())?;
             if count == 0 {
                 return Ok(body);

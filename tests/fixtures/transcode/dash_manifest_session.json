@@ -1,0 +1,375 @@
+{
+  "reference": "Disposable unclaimed PMS 1.43.4.10903-e5521bd8c",
+  "recorded": "2026-10-31T07:42:14Z",
+  "image": "plexinc/pms-docker@sha256:e0ab27395614a8e1a4fdf84c6bc60ac664915cfdde70c52d030c7728a1c48e14",
+  "network": "none; loopback API through docker exec; Host gate.invalid enforces the token gate",
+  "source_request": "Plex Web 4.147.1 DASH query from scratch_dash_copy.json and 4.160.0 HLS query from scratch_copy_mkv.json; media path and sessions remapped to a generated 30-second H264/AAC Matroska clip. Session-only lookups reproduce the captured tokenless client request.",
+  "exchanges": [
+    {
+      "method": "GET",
+      "path": "/library/sections",
+      "query": [],
+      "host": "gate.invalid",
+      "status": 401,
+      "length": 91,
+      "headers": {
+        "content-length": "91",
+        "content-type": "text/html",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "16c0551784c9139620b075ea47e38f2e79c20735ec11c8933a0424360dc227dd",
+      "content_type": "text/html"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/decision",
+      "query": [
+        ["hasMDE", "1"],
+        ["path", "/library/metadata/1"],
+        ["mediaIndex", "0"],
+        ["partIndex", "0"],
+        ["protocol", "dash"],
+        ["fastSeek", "1"],
+        ["directPlay", "0"],
+        ["directStream", "1"],
+        ["subtitleSize", "100"],
+        ["audioBoost", "100"],
+        ["location", "lan"],
+        ["addDebugOverlay", "0"],
+        ["autoAdjustQuality", "0"],
+        ["directStreamAudio", "1"],
+        ["mediaBufferSize", "102400"],
+        ["session", "manifest-reopen-witness"],
+        ["subtitles", "burn"],
+        ["Accept-Language", "en"],
+        ["X-Plex-Session-Identifier", "playback-manifest-reopen-witness"],
+        ["X-Plex-Client-Profile-Extra", "append-transcode-target-codec(type=videoProfile&context=streaming&videoCodec=h264&audioCodec=aac&protocol=dash)"],
+        ["X-Plex-Incomplete-Segments", "1"],
+        ["X-Plex-Product", "Plex Web"],
+        ["X-Plex-Version", "4.147.1"],
+        ["X-Plex-Client-Identifier", "ububjnez3q8nez1fhigxja5j"],
+        ["X-Plex-Platform", "Chrome"],
+        ["X-Plex-Platform-Version", "151.0"],
+        ["X-Plex-Features", "external-media,indirect-media,hub-style-list"],
+        ["X-Plex-Model", "bundled"],
+        ["X-Plex-Device", "Linux"],
+        ["X-Plex-Device-Name", "Chrome"],
+        ["X-Plex-Device-Screen-Resolution", "1280x596,1280x720"],
+        ["X-Plex-Language", "en"],
+        ["X-Plex-Token", "<TOKEN>"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 2334,
+      "headers": {
+        "content-type": "text/xml;charset=utf-8",
+        "content-length": "2334",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "af5a93a8ae671cc6dcc36b128aabb321521d17eeed6a25e4c1ffa6e70d841ea6",
+      "content_type": "text/xml;charset=utf-8"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["hasMDE", "1"],
+        ["path", "/library/metadata/1"],
+        ["mediaIndex", "0"],
+        ["partIndex", "0"],
+        ["protocol", "dash"],
+        ["fastSeek", "1"],
+        ["directPlay", "0"],
+        ["directStream", "1"],
+        ["subtitleSize", "100"],
+        ["audioBoost", "100"],
+        ["location", "lan"],
+        ["addDebugOverlay", "0"],
+        ["autoAdjustQuality", "0"],
+        ["directStreamAudio", "1"],
+        ["mediaBufferSize", "102400"],
+        ["session", "manifest-reopen-witness"],
+        ["subtitles", "burn"],
+        ["Accept-Language", "en"],
+        ["X-Plex-Session-Identifier", "playback-manifest-reopen-witness"],
+        ["X-Plex-Client-Profile-Extra", "append-transcode-target-codec(type=videoProfile&context=streaming&videoCodec=h264&audioCodec=aac&protocol=dash)"],
+        ["X-Plex-Incomplete-Segments", "1"],
+        ["X-Plex-Product", "Plex Web"],
+        ["X-Plex-Version", "4.147.1"],
+        ["X-Plex-Client-Identifier", "ububjnez3q8nez1fhigxja5j"],
+        ["X-Plex-Platform", "Chrome"],
+        ["X-Plex-Platform-Version", "151.0"],
+        ["X-Plex-Features", "external-media,indirect-media,hub-style-list"],
+        ["X-Plex-Model", "bundled"],
+        ["X-Plex-Device", "Linux"],
+        ["X-Plex-Device-Name", "Chrome"],
+        ["X-Plex-Device-Screen-Resolution", "1280x596,1280x720"],
+        ["X-Plex-Language", "en"],
+        ["X-Plex-Token", "<TOKEN>"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 1521,
+      "headers": {
+        "content-type": "application/dash+xml",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "content-length": "1521",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "60a58331951bbb919e0dd36ac7a4dfa28b106d4d4b22cb002e4a597c941b735c",
+      "content_type": "application/dash+xml"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "manifest-reopen-witness"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 1521,
+      "headers": {
+        "content-type": "application/dash+xml",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "content-length": "1521",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "60a58331951bbb919e0dd36ac7a4dfa28b106d4d4b22cb002e4a597c941b735c",
+      "content_type": "application/dash+xml"
+    },
+    {
+      "method": "HEAD",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "manifest-reopen-witness"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 0,
+      "headers": {
+        "content-type": "application/dash+xml",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "content-length": "1521",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content_type": "application/dash+xml"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "missing"]
+      ],
+      "host": "gate.invalid",
+      "status": 400,
+      "length": 89,
+      "headers": {
+        "content-length": "89",
+        "content-type": "text/html",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "cd28bc8335111a9a1ebfaede703d6b027b5253f3251cbc998dcc2735dda40e83",
+      "content_type": "text/html"
+    },
+    {
+      "method": "HEAD",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "missing"]
+      ],
+      "host": "gate.invalid",
+      "status": 400,
+      "length": 0,
+      "headers": {
+        "content-length": "89",
+        "content-type": "text/html",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content_type": "text/html"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/stop",
+      "query": [
+        ["session", "manifest-reopen-witness"],
+        ["X-Plex-Token", "<TOKEN>"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 0,
+      "headers": {
+        "content-length": "0",
+        "content-type": "text/html",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content_type": "text/html"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "manifest-reopen-witness"]
+      ],
+      "host": "gate.invalid",
+      "status": 400,
+      "length": 89,
+      "headers": {
+        "content-length": "89",
+        "content-type": "text/html",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "cd28bc8335111a9a1ebfaede703d6b027b5253f3251cbc998dcc2735dda40e83",
+      "content_type": "text/html"
+    },
+    {
+      "method": "HEAD",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "manifest-reopen-witness"]
+      ],
+      "host": "gate.invalid",
+      "status": 400,
+      "length": 0,
+      "headers": {
+        "content-length": "89",
+        "content-type": "text/html",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content_type": "text/html"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/start.m3u8",
+      "query": [
+        ["hasMDE", "1"],
+        ["path", "/library/metadata/1"],
+        ["mediaIndex", "0"],
+        ["partIndex", "0"],
+        ["protocol", "hls"],
+        ["fastSeek", "1"],
+        ["directPlay", "0"],
+        ["directStream", "1"],
+        ["subtitleSize", "100"],
+        ["audioBoost", "100"],
+        ["location", "lan"],
+        ["addDebugOverlay", "0"],
+        ["autoAdjustQuality", "0"],
+        ["directStreamAudio", "1"],
+        ["autoAdjustSubtitle", "1"],
+        ["mediaBufferSize", "102400"],
+        ["session", "hls-manifest-witness"],
+        ["subtitles", "burn"],
+        ["Accept-Language", "en"],
+        ["X-Plex-Session-Identifier", "playback-hls-manifest-witness"],
+        ["X-Plex-Client-Profile-Extra", "append-transcode-target-codec(type=videoProfile&context=streaming&videoCodec=h264&audioCodec=aac&protocol=hls)"],
+        ["X-Plex-Incomplete-Segments", "1"],
+        ["X-Plex-Product", "Plex Web"],
+        ["X-Plex-Version", "4.160.0"],
+        ["X-Plex-Client-Identifier", "thuj6pv24kf5wr6qaqla8flz"],
+        ["X-Plex-Platform", "Chrome"],
+        ["X-Plex-Platform-Version", "151.0"],
+        ["X-Plex-Features", "external-media,indirect-media,hub-style-list"],
+        ["X-Plex-Model", "standalone"],
+        ["X-Plex-Device", "Linux"],
+        ["X-Plex-Device-Name", "Chrome"],
+        ["X-Plex-Device-Screen-Resolution", "1280x596,1280x720"],
+        ["X-Plex-Language", "en"],
+        ["X-Plex-Session-Id", "cb22220f-1e9f-4a50-8c54-1fd96224c096"],
+        ["X-Plex-Playback-Session-Id", "8a6deb6f-b9c0-4e42-81eb-6ae0bc1fb5d5"],
+        ["X-Plex-Playback-Id", "4698bde6-cc4c-44b9-83d7-a52a4cad98e5"],
+        ["X-Plex-Token", "<TOKEN>"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 170,
+      "headers": {
+        "content-type": "application/vnd.apple.mpegurl",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "content-length": "170",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "30539c8cdd22cb530f9c2928fdeff353314ea53a67cd9570ab56c6c44ddf2214",
+      "content_type": "application/vnd.apple.mpegurl"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "hls-manifest-witness"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 141,
+      "headers": {
+        "content-type": "application/vnd.apple.mpegurl",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "content-length": "141",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "28d444b8da3b7fcbc05fb85304afecd48f49ca4fd6bfc4cf159e5fc3c71ebdfa",
+      "content_type": "application/vnd.apple.mpegurl"
+    },
+    {
+      "method": "HEAD",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "hls-manifest-witness"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 0,
+      "headers": {
+        "content-type": "application/vnd.apple.mpegurl",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "content-length": "141",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content_type": "application/vnd.apple.mpegurl"
+    },
+    {
+      "method": "GET",
+      "path": "/video/:/transcode/universal/start.mpd",
+      "query": [
+        ["session", "hls-manifest-witness"],
+        ["X-Plex-Incomplete-Segments", "1"]
+      ],
+      "host": "gate.invalid",
+      "status": 200,
+      "length": 170,
+      "headers": {
+        "content-type": "application/vnd.apple.mpegurl",
+        "connection": "Keep-Alive",
+        "keep-alive": "timeout=20",
+        "content-length": "170",
+        "cache-control": "no-cache"
+      },
+      "body_sha256": "30539c8cdd22cb530f9c2928fdeff353314ea53a67cd9570ab56c6c44ddf2214",
+      "content_type": "application/vnd.apple.mpegurl"
+    }
+  ]
+}
