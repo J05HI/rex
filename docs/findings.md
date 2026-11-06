@@ -12819,11 +12819,12 @@ cues use a static `SegmentTimeline`, copying video while converting audio.
 
 FFmpeg keeps separate fragmented MP4 tracks with continuous muxer state and
 absolute timestamps; edit lists would apply B-frame offsets twice at jumps.
-Seeks probe packet origins because FFmpeg cuts relative to each track's
-first timestamp. The same timeline drives the manifest, lookup,
+Starts and seeks probe packet origins because FFmpeg cuts relative to each
+track's first timestamp. The same timeline drives the manifest, lookup,
 seeks and pruning.
 
-Fitted plans cap buffering at two seconds. Closed segments are served without reading the remote tail;
+Fitted plans cap buffering at two seconds; other plans keep their buffer
+target. Closed segments are served without reading the remote tail;
 a long opening GOP must still be read. Missing indexes, other containers and
 live streams retain their existing behavior.
 
@@ -12848,8 +12849,8 @@ cache measurements.
 
 A fixed duration based on the largest gap can still merge chunks when rounded
 or uneven keyframes fall before a slot boundary, triggering video encoding.
-Fitting
-uses fixed slots only when cues, including the opening, share a grid;
+Gaps below 4.5 seconds retain the existing five-second slots. Larger gaps
+use fitted fixed slots only when cues, including the opening, share a grid;
 otherwise explicit cue times preserve video copy. The first cue starts video
 rather than cutting an empty opening segment.
 
@@ -12859,7 +12860,8 @@ fixed slots with a margin. Video keeps 62.5 ms of keyframe tolerance; audio uses
 none, since that tolerance cut AAC chunks before their advertised boundaries.
 
 Generated tests cover fractional and shifted cues, B-frames, packet/frame
-preservation, audio and seeks.
+preservation, audio and seeks. Official Plex Web and Android validation of
+timeline sessions remains outstanding.
 
 ### Reopening an existing DASH manifest by session (2026-10-30)
 
