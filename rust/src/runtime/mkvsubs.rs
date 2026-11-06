@@ -165,15 +165,20 @@ fn matroska_tables(read: Read, head: &[u8]) -> Result<(usize, Vec<u8>, Vec<u8>, 
             break;
         }
     }
+    // The initial read usually already holds Info and Tracks; avoid fetching them again.
+    let cached_read = |offset: u64, length: usize| -> Result<Vec<u8>, String> {
+        let cached = usize::try_from(offset).ok().and_then(|start| start.checked_add(length).and_then(|end| head.get(start..end)));
+        cached.map_or_else(|| read(offset, length), |bytes| Ok(bytes.to_vec()))
+    };
     let element = |wanted: u64| -> Result<Vec<u8>, String> {
         let at = seeks.iter().find(|seek| seek.0 == wanted).map(|seek| seek.1).ok_or_else(|| format!("no SeekHead entry {wanted:x}"))?;
-        let header = read(at, 12)?;
+        let header = cached_read(at, 12)?;
         let (_, data) = vint(&header, 0, true).ok_or("bad element id")?;
         let (size, data) = vint(&header, data, false).ok_or("bad element size")?;
         if size > 64 * 1024 * 1024 {
             return Err(format!("element {wanted:x} of {size} bytes"));
         }
-        read(at + data as u64, size as usize)
+        cached_read(at + data as u64, size as usize)
     };
     let info = element(INFO)?;
     let tracks = element(TRACKS)?;
@@ -442,6 +447,20 @@ mod tests {
         assert!(video_cues(&read, 1, 1000).is_err());
         assert!(video_cues(&read, -1, 1000).is_err());
         assert!(video_cues(&read, 0, 0).is_err());
+    }
+
+    #[test]
+    fn seek_tables_reuse_the_initial_read_and_fetch_only_missing_bytes() {
+        let expected = matroska_tables(&read, RELEASE).unwrap();
+        let no_read = |_, _| Err("unexpected source request".to_string());
+        assert_eq!(matroska_tables(&no_read, RELEASE).unwrap(), expected);
+        let requests = std::sync::atomic::AtomicUsize::new(0);
+        let counted_read = |offset, length| {
+            requests.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            read(offset, length)
+        };
+        assert_eq!(matroska_tables(&counted_read, &RELEASE[..8192]).unwrap(), expected);
+        assert_eq!(requests.load(std::sync::atomic::Ordering::Relaxed), 2);
     }
 
     #[test]
