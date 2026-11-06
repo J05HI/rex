@@ -12812,41 +12812,43 @@ rex keeps `-use_timeline 0` and reads each chunk's `sidx`.
 
 ### Indexed Matroska audio conversion with copied DASH video (2026-10-30)
 
-A playback started with H.264 copy and DTS-to-AAC,
-then the long-GOP check above switched it to video encoding. An audio-only FFmpeg
-policy rejected that fallback. The video codec was compatible; five-second DASH
-slots were too short for its keyframes.
+H.264 copy with DTS-to-AAC hit the long-GOP fallback above and started encoding
+compatible video, which an audio-only FFmpeg policy rejected. rex now reads the
+Matroska SeekHead, Info, Tracks and Cues with bounded Range requests before DASH
+starts. Regular cue spacing sets the fixed slot length in milliseconds.
 
-For recorded Matroska files with video cues, rex now reads the SeekHead, Info,
-Tracks and Cues using bounded Range reads before starting DASH. The largest gap
-between video cues (including the beginning and tail), plus the opening video
-offset, leaves existing five-second slots unchanged below 4.5 seconds. Above
-that threshold it sets a minimum slot length, rounded up with one second of
-margin. Sparse cues lengthen fixed slots; they can
-start slowly because a complete chunk must be produced before delivery. Media
-bytes stream from disk, so a long slot is not loaded into memory per request.
-The same length
-drives the manifest, FFmpeg, segment lookup and seeks. Index reads occur outside
-the runtime lock. Other containers, missing indexes and live streams retain the
-existing behavior; this is not a universal prohibition on video conversion.
+Initially larger gaps were refused to bound two-chunk validation, rejecting a
+playable file with an indexed gap of 60.703 s.
+Since 2026-11-05, larger gaps use a static `SegmentTimeline`, choosing cues at
+least five seconds apart so only the slot crossing sparse cues grows. FFmpeg's
+tee/segment muxers cut separate fragmented MP4 tracks at those source times,
+copying video and converting audio as requested. The nested MP4 muxers keep
+absolute timestamps with edit lists disabled: otherwise B-frame composition
+offsets at a jump are applied twice. A seek warms up the preceding slot and
+uses a short, cancellable framecrc probe for each track's first packet PTS,
+because segment's cuts are relative to those origins. Opening playback needs
+no probe. Each track keeps one MP4 muxer across chunks and writes its
+initialization separately, preserving fragment sequence numbers and decode
+state. Per-chunk muxer restarts reset fragment numbers to one.
 
-A DASH start registers a preparing session before releasing the runtime lock for
-those reads. Stop and newer starts invalidate that exact session. After reading,
-rex publishes the fitted plan only if the preparing session still owns the id;
-otherwise it answers 404 and starts no FFmpeg. After the reads, rex also checks
-for a connection error before launching FFmpeg. Read-side EOF alone does not
-cancel the start: a client can half-close its write side and still receive the
-manifest. A failed manifest
-write stops only that request's session, leaving any replacement running.
-A preparing session exposes no
-manifest or segments. The generated-media suite delays the source's index reads
-to check cancellation and replacement, and runs in the Linux and Windows CI jobs.
+The same timeline drives manifests, lookup, seeks, pruning and progress.
+Minimum buffering stays at most two seconds, and the first closed segment is
+served without reading the remote tail. A genuinely long opening GOP must still
+be read; a single-slot title can still produce a title-sized segment. Missing
+indexes, other containers and live streams retain their existing behavior;
+wall-clock request timeouts still handle stalls.
 
-`tests/test_dash_audio_copy.py` generates H.264 and HEVC with long keyframe gaps
-and DTS/TrueHD audio. It replays the recorded DASH request with the target codecs,
-checks the AAC output and every copied video packet hash, decodes the full
-output and requests a later segment first to exercise seeking. This is local
-generated-media validation.
+Index I/O runs outside the runtime lock, after registering a preparing session
+that exposes neither manifest nor segments. Stop or replacement invalidates
+that exact session; a late start answers 404 and launches nothing. A connection
+error before launch or a failed manifest write cancels only that start, never
+its replacement. Read-side EOF alone can be a half-close and does not cancel.
+
+`tests/test_dash_audio_copy.py` generates H.264/DTS, HEVC/TrueHD, sparse cues and
+a timestamp jump. It checks copied packets and decoded frames, AAC output,
+seeks, opening delivery with the tail blocked, cancellation and replacement.
+It also decodes and seeks the public MPD when a DASH reader is available
+(`REX_DASH_CLIENT` selects one). The suite runs in Linux and Windows CI.
 
 Index reads reuse the initial 64 KiB and fetch an uncached table's opening
 64 KiB with its header, reading only the missing remainder for larger tables.
@@ -12856,32 +12858,54 @@ real remote-source indexes took 220–383 ms and three requests each (their Cues
 exceeded 64 KiB). These were current-source measurements, not guaranteed cold
 cache measurements.
 
+### Uneven fractional keyframes must keep their cue times (2026-11-06)
+
+Fixed DASH slots of 1.002, 10.428 or 1.001 seconds merged video chunks for
+files with uneven cues, triggering video conversion and interrupting playback
+when video encoding was disabled.
+
+A largest keyframe gap is not a safe fixed duration for uneven cues: rounding
+and scene cuts can place a keyframe just before the next slot boundary. Indexed
+copy now uses fixed slots only when cue intervals, including the opening, lie
+on the same grid. A shorter closing interval is allowed. Other indexed files use the existing explicit
+source-cue timeline, preserving video copy. Ordinary uneven cues are grouped at
+least one second apart; sparse gaps retain the five-second grouping. Grouping
+also bounds the timeline to 1000 slots on Windows, leaving space for both cut
+lists and other arguments within its 32,767-character command-line limit. Unix
+retains the 4000-slot budget within its 128 KiB argument limit, preserving shorter
+segments for playback and seeking. Regular 1.001-second keyframes retain the fast
+fixed-slot path. The generated regression includes fractional, uneven keyframes
+with B-frames and checks every copied packet, decoded frame, AAC output and seek.
+Shifted opening keyframes use explicit cuts too. The first real cue starts video
+and is not an opening cut; timeline runs probe packet origins at startup as well
+as on seeks. Regressions cover 4.96-second opening keyframes and a 4.92-second
+cadence starting 0.48 or 1.2 seconds late.
+
+Variable timing requires FFmpeg 6 or newer: earlier segment muxers interpret
+cut times as absolute PTS. Older or unidentified builds retain fixed slots with
+one second of margin above the largest fitted gap. The version is read once.
+
+Timeline audio cuts use no keyframe tolerance. Applying video's 62.5 ms tolerance
+also to AAC cut chunks before their advertised slot boundaries. Video retains
+the tolerance for rounded cue timestamps; AAC packets remain continuous.
+
 ### Reopening an existing DASH manifest by session (2026-10-30)
 
-A player requested the full authenticated `start.mpd` for H.264/DTS and
-HEVC/TrueHD media, then requested `start.mpd?session=<same-id>` with
-no token, path or profile. Both attempts stopped immediately after rex's 401;
-neither reached a segment request.
+A player started authenticated H.264/DTS and HEVC/TrueHD sessions, then stopped
+after rex refused `start.mpd?session=<same-id>` without token, path or profile.
+Replaying this on a disposable, network-isolated PMS 1.43.4.10903 with generated
+H.264/AAC media established: session-only GET/HEAD returns the running manifest
+without authentication (200); unknown/stopped ids return 400; a library control
+without a token returns 401. An HLS session reopens through `start.mpd` too,
+with the current lookup's `X-Plex-Incomplete-Segments=1` controlling its suffix.
+`tests/fixtures/transcode/dash_manifest_session.json` records requests and response
+metadata; codec modules came from the host, with no PMS network access.
 
-Replayed the authenticated DASH start followed by that session-only request on
-a disposable, network-isolated PMS 1.43.4.10903 using generated H.264/AAC media.
-The library control refused the tokenless request (401); a running DASH manifest
-answered GET and HEAD without a token (200). Unknown and stopped session ids
-answered 400. An HLS session also reopened through `start.mpd`, returning its
-HLS master playlist: the current request's `X-Plex-Incomplete-Segments=1`
-controls that playlist's query suffix.
-`tests/fixtures/transcode/dash_manifest_session.json` records the
-requests and response metadata; public codec modules were provisioned from the
-host so PMS required no network access.
-
-The session-only GET/HEAD returns the running DASH plan's manifest, including
-the fitted segment duration, without restarting FFmpeg. Live DASH keeps the session's
-original availability start time when reopened; only its publish time advances
-(`test_http_mkv.py`, generated live channel). Existing HLS sessions
-return their master playlist; unknown and stopped sessions return 400. Requests
-naming a media path still require authentication and the normal decision; this read cannot create a conversion.
-`test_dash_audio_copy.py` enables the token gate and replays the sequence before
-decoding and seeking both clips.
+rex returns the running plan without restarting FFmpeg. Live DASH preserves its
+original availability start time while publish time advances (`test_http_mkv.py`).
+A request naming a media path still needs normal authentication and a decision;
+a lookup cannot start a conversion. `test_dash_audio_copy.py` checks these gates,
+DASH/HLS reloads and subsequent playback.
 
 ### Completed segments stream from disk (2026-11-06)
 
@@ -12927,10 +12951,11 @@ video's `src` to stop is a media error to Plex Web, which restarts the item as a
 
 ### DASH segments permit persistent connections (2026-10-30)
 
-An audio-converting playback downloaded each five-second video
-segment in roughly ten seconds. The player used many successive Range requests;
-rex forced every response closed, repeatedly restarting TCP and TLS. Conversion
-was already faster than real time, and the segments decoded successfully.
+Five-second video segments took roughly ten seconds to download through many
+Range requests: rex closed every response, repeatedly restarting TCP/TLS,
+although conversion was faster than real time and segments decoded correctly.
+A disposable PMS 1.43.5.11079, queried with the captured decision parameters and
+generated 30-second H.264/AAC media (2026-10-30T18:00:06Z), answered:
 
 A disposable PMS 1.43.5.11079 replayed the captured player decision parameters
 against generated H.264/AAC media. Completed DASH headers and segments answered
@@ -12952,15 +12977,11 @@ and not in the client fixtures (the `dash_connections.json` record was dropped o
 The older whole-GET fixture's closed response does not establish that all clients must be
 disconnected.
 
-Remove the forced close for DASH headers/segments and let the normal request
-connection policy apply. No codec or encoding decision changes. The audio-copy
-integration test proves successive ranges reuse the actual socket, preserve the
-segment bytes, and still honor an explicit close.
-
-After deployment, recent five-second video segments downloaded
-in about 4.2 seconds after connection warmup, compared with roughly ten seconds
-before. Smooth playback was confirmed after restarting. Production
-logs still showed copied HEVC video and TrueHD converted to six-channel AAC.
+Content-Range matched each requested slice, with totals 829 and 1316142 bytes.
+These are curl observations, not real-player Range/Connection headers; the older
+whole-GET fixture's closed response does not require disconnecting every client.
+rex now uses its normal connection policy; `test_dash_audio_copy.py` verifies
+socket reuse, exact slice bytes and explicit close.
 
 ### A subtitle track dense from its start; a live DASH restart behind the clock (2026-10-27)
 
