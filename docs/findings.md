@@ -15638,3 +15638,13 @@ answers the same requests the same way, so none of it is a rex defect, and none 
 | Plezy | a photo library (comics as albums of pages) | lists the library, shows each album as a TV show, and Play fails with "File information not available". Plezy has no photo viewer; Plex for Android lists no photo library at all, from a real PMS either, and points to the Plex Photos app |
 
 The phone's screenshots and logs stay with the test notes, not here: they show Plex's own UI.
+
+## What a source's probe decides (2026-11-05/06)
+
+The whole study is `docs/ffprobe-study.md`: the same real files pushed with true and false ffprobe
+output, played in Plex for Android 2026.19.1 and Plezy 2.24.0 on a Pixel 6, in proxy and redirect mode,
+with multi-track audio and SRT, ASS and PGS subtitles. In short: the Plex app decides direct play on the
+phone from the probe's codecs alone and picks tracks by the probe's stream index (as rex's conversions
+map them); Plezy reads the file's own tracks; a wrong `format.size` hangs or cuts playback in proxy mode,
+because rex answers part reads with the probe's size; a too-short duration makes rex refuse the app's
+timelines, and none leaves no resume point.
