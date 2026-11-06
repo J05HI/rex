@@ -193,8 +193,9 @@ fn matroska_tables(read: Read, head: &[u8]) -> Result<(usize, Vec<u8>, Vec<u8>, 
     Ok((segment, info, tracks, element(CUES)?))
 }
 
-/// Actual video cue timestamps plus the title end, used to plan DASH slots.
-pub(crate) fn video_cues(read: Read, stream: i64, duration_ms: i64) -> Result<Vec<i64>, String> {
+/// A conservative upper bound on the spacing of indexed video keyframes, in ms.
+/// Sparse cues make segments longer, rather than claiming a cut the video cannot make.
+pub(crate) fn video_gap(read: Read, stream: i64, duration_ms: i64) -> Result<i64, String> {
     let head = read(0, 64 * 1024)?;
     if !head.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
         return Err("not Matroska".to_string());
@@ -220,10 +221,11 @@ pub(crate) fn video_cues(read: Read, stream: i64, duration_ms: i64) -> Result<Ve
         }
     }
     if times.is_empty() { return Err("no video cues".to_string()); }
-    times.push(duration_ms);
+    let opening = times.iter().copied().min().unwrap_or(0);
+    times.extend([0, duration_ms]);
     times.sort_unstable();
-    times.dedup();
-    Ok(times)
+    times.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0)
+        .checked_add(opening).ok_or_else(|| "video gap overflow".to_string())
 }
 
 fn subtitle_index(stream: i64, segment: usize, scale: u64, tracks: &[u8], cues_bytes: &[u8]) -> Result<Index, String> {
@@ -450,11 +452,11 @@ mod tests {
     fn video_spacing_includes_the_tail_and_ignores_subtitle_cues() {
         // This one-second release has video cues at zero and 500 ms, and three
         // subtitle cues. None of those subtitle timestamps can shorten the video gap.
-        assert_eq!(video_cues(&read, 0, 1000).unwrap(), [0, 500, 1000]);
-        assert_eq!(video_cues(&read, 0, 2000).unwrap(), [0, 500, 2000]);
-        assert!(video_cues(&read, 1, 1000).is_err());
-        assert!(video_cues(&read, -1, 1000).is_err());
-        assert!(video_cues(&read, 0, 0).is_err());
+        assert_eq!(video_gap(&read, 0, 1000).unwrap(), 500);
+        assert_eq!(video_gap(&read, 0, 2000).unwrap(), 1500);
+        assert!(video_gap(&read, 1, 1000).is_err());
+        assert!(video_gap(&read, -1, 1000).is_err());
+        assert!(video_gap(&read, 0, 0).is_err());
     }
 
     #[test]
@@ -523,13 +525,6 @@ mod tests {
         let reqs_cached = requests.lock().unwrap().clone();
         assert_eq!(reqs_cached.len(), 1);
         assert_eq!(reqs_cached[0], ((cues_in_head + header.len() + 50) as u64, total_size - 50));
-    }
-
-    #[test]
-    fn video_cues_past_the_duration_do_not_discard_the_index() {
-        assert_eq!(video_cues(&read, 0, 500).unwrap(), [0, 500]);
-        assert_eq!(video_cues(&read, 0, 400).unwrap(), [0, 400]);
-        assert!(video_cues(&read, 0, -1).is_err());
     }
 
     #[test]

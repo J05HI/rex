@@ -24550,7 +24550,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             write_or_log(snapshot);
             let mut response = response;
             if let Some(start) = dash_start.as_mut() {
-                let plan = start.fit();
+                let fitted = start.fit();
                 // Read through TLS too, so close_notify is seen. Preserve a pipelined
                 // request's byte rather than mistaking readable data for a hang-up.
                 stream.poll_timeout(Some(std::time::Duration::from_millis(1)));
@@ -24568,7 +24568,13 @@ fn handle_connection<S: Read + Write + PollRead>(
                     start.cancel(&mut guard);
                     return Ok(());
                 }
-                response = start.start(plan);
+                response = match fitted {
+                    Ok(()) => start.start(),
+                    Err(error) => {
+                        start.cancel(&mut guard);
+                        Response::error(400, &error)
+                    }
+                };
             }
             if let Some((jobs, artifact, seek, kind)) = artifact {
                 response = match jobs.resolve(&artifact) {
