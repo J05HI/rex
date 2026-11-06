@@ -567,8 +567,8 @@ impl Plan {
             // Ours, not the reference's 2x segment: Plex Web's Shaka player starts only
             // once max(minBufferTime, 2 s) is buffered, so PT10S held every start for
             // two 5 s segments (6.3 s to first frame on the test host, measured).
-            // Sparse cues or a source timestamp jump can require a long copy slot.
-            // Its length is not a requirement to buffer that much before playing.
+            // Keep the measured five-second cap for fitted slots too: Plex Web
+            // otherwise waits for another chunk after a seek (2026-11-07).
             self.segment_ms().min(i64::from(DASH_COPY_SEGMENT) * 1000) as f64 / 1000.0
         );
         let mut id = 0;
@@ -656,13 +656,15 @@ impl Plan {
 
     fn fit_copy_cues(&mut self, cues: &[i64]) {
         let gap = cues.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0);
-        if gap > Self::FITTED_SLOT_CAP_MS {
-            self.fit_copy_gap(gap);
+        let opening = cues.first().copied().unwrap_or(0);
+        let fitted_gap = gap.max(opening).saturating_add(opening);
+        if fitted_gap > Self::FITTED_SLOT_CAP_MS {
+            self.fit_copy_gap(fitted_gap);
             return;
         }
         // Leave ordinary short-GOP files on their existing five-second slots.
         // Include the opening offset so delayed video cannot consume that margin.
-        if gap.saturating_add(cues.first().copied().unwrap_or(0)) < 4500 { return; }
+        if fitted_gap < 4500 { return; }
         // A fixed template needs the opening keyframe on its grid too. A
         // shorter lead-in shifts every later cut, even with a regular cadence.
         let regular = cues.first() == Some(&0) && cues[..cues.len() - 1].windows(2).all(|pair| pair[1] - pair[0] == gap);
@@ -2683,7 +2685,10 @@ impl Transcoder {
         let done_at = |index: i64| if session.plan.protocol == Protocol::Dash && !timeline { index } else { index + 1 };
         let mut next = start;
         let mut progressed = Instant::now();
-        let copied_dash = session.plan.protocol == Protocol::Dash && !timeline && session.plan.segment_length_ms.is_none() && session.plan_now().video.is_some_and(|video| video.copy);
+        // Fitted slots already accommodate the index. Serve them as they close,
+        // without holding another complete chunk for the late-gap check.
+        let copied_dash = session.plan.protocol == Protocol::Dash && !timeline && session.plan.segment_length_ms.is_none()
+            && session.plan_now().video.is_some_and(|video| video.copy);
         // Since when the player has been waiting on this run's subtitle hold.
         let mut waited: Option<Instant> = None;
         loop {
@@ -4487,7 +4492,7 @@ mod tests {
     }
 
     #[test]
-    fn dash_buffering_changes_only_for_fitted_plans() {
+    fn dash_buffering_preserves_the_measured_file_and_live_targets() {
         let mut copy = plan(true, 90_000);
         copy.protocol = Protocol::Dash;
         assert!(copy.mpd("default", 0.0).contains("minBufferTime=\"PT5S\""));
@@ -4498,7 +4503,7 @@ mod tests {
         assert!(copy.mpd("live", 0.0).contains("minBufferTime=\"PT4S\""));
         copy.duration_ms = 90_000;
         copy.segment_length_ms = Some(6000);
-        assert!(copy.mpd("fitted", 0.0).contains("minBufferTime=\"PT2S\""));
+        assert!(copy.mpd("fitted", 0.0).contains("minBufferTime=\"PT5S\""));
     }
 
     #[test]
