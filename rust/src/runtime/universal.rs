@@ -286,9 +286,11 @@ pub(crate) struct Plan {
     pub incomplete_segments: bool,
     /// The client's `copyts=1`: a Matroska stream keeps the title's clock from its `offset`.
     pub copyts: bool,
-    /// The session's segment length, kept when a forced conversion (`Session::plan_now`) would
+    /// The session's segment length in milliseconds, kept when a forced conversion (`Session::plan_now`) would
     /// otherwise change it under the playlist the player already has.
-    pub segment_length: Option<u32>,
+    pub segment_length_ms: Option<u32>,
+    /// Indexed copy boundaries in milliseconds, including zero and the title end.
+    pub dash_timeline: Vec<i64>,
     /// The live source has no audio now: a silent track of the plan's layout takes its place.
     pub silent_audio: bool,
     /// Ownership is internal; public conversion IDs remain opaque bearer handles.
@@ -395,6 +397,35 @@ fn chunk_end(head: &[u8]) -> Option<f64> {
     }
 }
 
+/// First encoded/copied packet PTS for each representation in FFmpeg framecrc output.
+fn framecrc_origins(lines: impl IntoIterator<Item = impl AsRef<str>>, count: usize) -> Option<Vec<f64>> {
+    let mut scales = BTreeMap::new();
+    let mut origins = vec![None; count];
+    let mut bytes = 0;
+    for line in lines {
+        let line = line.as_ref();
+        bytes += line.len() + 1;
+        if bytes > 64 * 1024 { return None; }
+        if let Some(header) = line.strip_prefix("#tb ") {
+            let (rep, scale) = header.split_once(':')?;
+            let (num, den) = scale.trim().split_once('/')?;
+            let scale = num.parse::<f64>().ok()? / den.parse::<f64>().ok()?;
+            if !scale.is_finite() || scale <= 0.0 { return None; }
+            scales.insert(rep.trim().parse::<usize>().ok()?, scale);
+        } else if line.contains(',') && !line.starts_with('#') {
+            let mut fields = line.split(',').map(str::trim);
+            let rep = fields.next()?.parse::<usize>().ok()?;
+            if let Some(origin) = origins.get_mut(rep).filter(|origin| origin.is_none()) {
+                let pts = fields.nth(1)?.parse::<f64>().ok()? * scales.get(&rep)?;
+                if !pts.is_finite() { return None; }
+                *origin = Some(pts);
+                if origins.iter().all(Option::is_some) { return origins.into_iter().collect(); }
+            }
+        }
+    }
+    origins.into_iter().collect()
+}
+
 /// `2026-10-27T00:01:02Z`, a dynamic MPD's wall-clock times (UTC, whole seconds).
 fn utc(seconds: f64) -> String {
     let seconds = seconds.max(0.0) as i64;
@@ -486,9 +517,15 @@ impl Plan {
     pub fn mpd(&self, session: &str, started: f64) -> String {
         let length = self.segment_seconds();
         let duration = dash_duration(self.duration_ms);
-        let template = format!(
-            "\t\t\t<SegmentTemplate timescale=\"1\" duration=\"{length}\" initialization=\"session/{session}/$RepresentationID$/header\" media=\"session/{session}/$RepresentationID$/$Number$.m4s\" startNumber=\"0\">\n\t\t\t</SegmentTemplate>\n"
-        );
+        let (scale, slot) = if self.segment_ms() % 1000 == 0 { (1, self.segment_ms() / 1000) } else { (1000, self.segment_ms()) };
+        let template = if self.dash_timeline.is_empty() { format!(
+            "\t\t\t<SegmentTemplate timescale=\"{scale}\" duration=\"{slot}\" initialization=\"session/{session}/$RepresentationID$/header\" media=\"session/{session}/$RepresentationID$/$Number$.m4s\" startNumber=\"0\">\n\t\t\t</SegmentTemplate>\n"
+        ) } else {
+            let entries = self.dash_timeline.windows(2).map(|pair| {
+                format!("\t\t\t\t\t<S t=\"{}\" d=\"{}\"/>\n", pair[0], pair[1] - pair[0])
+            }).collect::<String>();
+            format!("\t\t\t<SegmentTemplate timescale=\"1000\" initialization=\"session/{session}/$RepresentationID$/header\" media=\"session/{session}/$RepresentationID$/$Number$.m4s\" startNumber=\"0\">\n\t\t\t\t<SegmentTimeline>\n{entries}\t\t\t\t</SegmentTimeline>\n\t\t\t</SegmentTemplate>\n")
+        };
         // A live source has no end: a static MPD said it was 0 s long, and players stopped after
         // the segment or two they had (Shaka 3.3.1, Plex Web's, and FFmpeg's DASH reader, rex-fun
         // 2026-10-27). A dynamic one starts its clock at the session's start; a segment asked for
@@ -524,14 +561,15 @@ impl Plan {
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<MPD xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n\txmlns=\"urn:mpeg:dash:schema:mpd:2011\"\n\txmlns:xlink=\"http://www.w3.org/1999/xlink\"\n\txsi:schemaLocation=\"urn:mpeg:dash:schema:mpd:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd\"\n\tprofiles=\"urn:mpeg:dash:profile:isoff-live:2011\"\n\ttype=\"{kind}\"\n{timing}\tmaxSegmentDuration=\"PT{}S\"\n\tminBufferTime=\"PT{}S\">\n\t<Period start=\"PT0S\" id=\"0\"{period}>\n",
             // A live remux's segment is as long as its source's GOP allows, and players start
             // this far below the live edge: one segment, as close to FFmpeg's reader as it goes.
-            if self.live() { length } else { length * 2 },
+            if !self.dash_timeline.is_empty() {
+                self.dash_timeline.windows(2).map(|pair| ((pair[1] - pair[0] + 999) / 1000) as u64).max().unwrap_or(5)
+            } else if self.live() { u64::from(length) } else { (self.segment_ms() as u64 * 2).div_ceil(1000) },
             // Ours, not the reference's 2x segment: Plex Web's Shaka player starts only
             // once max(minBufferTime, 2 s) is buffered, so PT10S held every start for
-            // two 5 s segments (6.3 s to first frame on the test host, measured). A fitted
-            // slot is longer than that and no reason to buffer more: at PT12S a seek into the
-            // middle of a 12 s slot sat 4-8 s on 5.7 s of buffer until the next chunk closed
-            // (Plex Web on the test rig, 2026-11-07); at PT5S it goes on from the chunk it has.
-            length.min(DASH_COPY_SEGMENT)
+            // two 5 s segments (6.3 s to first frame on the test host, measured).
+            // Sparse cues or a source timestamp jump can require a long copy slot.
+            // Its length is not a requirement to buffer that much before playing.
+            self.segment_ms().min(i64::from(DASH_COPY_SEGMENT) * 1000) as f64 / 1000.0
         );
         let mut id = 0;
         if let Some(video) = self.video.as_ref() {
@@ -569,64 +607,108 @@ impl Plan {
     }
 
     pub fn segment_seconds(&self) -> u32 {
-        if let Some(length) = self.segment_length {
-            return length;
+        (self.segment_ms() as u32).div_ceil(1000)
+    }
+
+    fn segment_ms(&self) -> i64 {
+        if let Some(length) = self.segment_length_ms {
+            return i64::from(length);
         }
-        match (self.protocol, self.video.as_ref().is_none_or(|video| video.copy)) {
+        let seconds = match (self.protocol, self.video.as_ref().is_none_or(|video| video.copy)) {
             (_, false) => TRANSCODE_SEGMENT,
-            // A live DASH remux too: a 5 s cut waits for the keyframe after it, which a channel's
-            // backlog of 2 s segments did not hold, and the first video chunk came 2.1 s after
-            // start.mpd where audio's came at once (probes/shaka_live_dash.py, 2026-10-27).
+            // Live copy uses shorter slots so clients stay near the live edge.
             (_, true) if self.live() => LIVE_COPY_SEGMENT,
             (Protocol::Dash, true) => DASH_COPY_SEGMENT,
             (Protocol::Hls | Protocol::File | Protocol::Http, true) => COPY_SEGMENT,
-        }
+        };
+        i64::from(seconds) * 1000
     }
 
-    /// Fixed DASH slots must be at least as long as the source's largest keyframe gap.
-    /// Otherwise two slots can collapse into one video chunk while audio keeps counting.
-    fn fit_copy_segments(&mut self) -> Result<(), String> {
-        if self.protocol != Protocol::Dash || self.live() { return Ok(()); }
-        let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return Ok(()) };
+    /// Uneven cues need explicit cuts: rounding their largest gap into a fixed
+    /// duration can skip a keyframe, merging video slots while audio keeps counting.
+    fn fit_copy_segments(&mut self) {
+        if self.protocol != Protocol::Dash || self.live() { return; }
+        let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return };
         let begun = Instant::now();
         let read = |offset, length| {
             let remaining = Duration::from_secs(5).checked_sub(begun.elapsed()).filter(|time| !time.is_zero()).ok_or("video index read budget exhausted")?;
             read_range_with_timeout(&self.url, self.auth.as_deref(), offset, length, remaining)
         };
-        match super::mkvsubs::video_gap(&read, video.index, self.duration_ms) {
-            Ok(gap) => self.fit_copy_gap(gap)?,
-            // A source that ignores Range keeps the default slots, so a long keyframe gap still
-            // converts the video there: said at INFO, since a debug line never reached anyone
-            // (a `python3 -m http.server` source on the test rig, 2026-11-07). An MP4 or a file
-            // with no index is the ordinary case and stays at debug.
+        match super::mkvsubs::video_cues(&read, video.index, self.duration_ms) {
+            Ok(cues) => self.fit_copy_cues(&cues),
             Err(error) if error.contains("answered 200 to a range") => info!("TRANSCODE video index unavailable: {error}; retaining default slots"),
             Err(error) => debug!("TRANSCODE video index unavailable: {error}; retaining default slots"),
         }
         debug!("TRANSCODE video index fitted in {:.3}s", begun.elapsed().as_secs_f64());
-        Ok(())
     }
 
-    /// A fitted slot above this keeps the default slots instead: the first segment waits for two
-    /// slots of media, and a slot this long is an index that stops early (a cut-off Cues element, a
-    /// video track much shorter than the container), not a keyframe gap a player could sit through.
+    /// An index that stops early must not create a title-sized copy slot.
     const FITTED_SLOT_CAP_MS: i64 = 120_000;
 
-    fn fit_copy_gap(&mut self, gap_ms: i64) -> Result<(), String> {
-        if gap_ms < 4500 { return Ok(()); }
+    fn fit_copy_gap(&mut self, gap_ms: i64) {
+        if gap_ms < 4500 { return; }
         if gap_ms > Self::FITTED_SLOT_CAP_MS {
             info!("TRANSCODE video index: a {gap_ms} ms gap is past the {} s slot cap; retaining default slots", Self::FITTED_SLOT_CAP_MS / 1000);
-            return Ok(());
+            return;
         }
-        let seconds = gap_ms.max(0).checked_add(1999).ok_or("rex: video gap overflow")? / 1000;
-        self.segment_length = Some(u32::try_from(seconds.max(i64::from(DASH_COPY_SEGMENT))).map_err(|_| "rex: video gap overflow")?);
-        Ok(())
+        self.segment_length_ms = Some((((gap_ms + 1999) / 1000).max(i64::from(DASH_COPY_SEGMENT)) * 1000) as u32);
+    }
+
+    fn fit_copy_cues(&mut self, cues: &[i64]) {
+        let gap = cues.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0);
+        if gap > Self::FITTED_SLOT_CAP_MS {
+            self.fit_copy_gap(gap);
+            return;
+        }
+        // A fixed template needs the opening keyframe on its grid too. A
+        // shorter lead-in shifts every later cut, even with a regular cadence.
+        let regular = cues.first() == Some(&0) && cues[..cues.len() - 1].windows(2).all(|pair| pair[1] - pair[0] == gap);
+        if (1000..=20_000).contains(&gap) && regular {
+            self.segment_length_ms = Some(gap as u32);
+        } else {
+            self.fit_copy_timeline(cues, if cfg!(windows) { 1000 } else { 4000 });
+        }
+    }
+
+    /// Only the slot spanning a sparse cue interval grows; opening slots stay short.
+    fn fit_copy_timeline(&mut self, cues: &[i64], max_cuts: i64) {
+        let mut times = vec![0];
+        // Both track cut lists share one argument. Windows needs a smaller
+        // budget for its full command; Unix keeps shorter slots within 128 KiB.
+        let minimum = ((self.duration_ms - 1) / max_cuts + 1).max(
+            if cues.windows(2).any(|pair| pair[1] - pair[0] > 20_000) { i64::from(DASH_COPY_SEGMENT) * 1000 } else { 1000 }
+        );
+        // The first real cue starts video; cutting there would create an empty slot.
+        for &time in cues.iter().skip(1).filter(|&&time| time > 0 && time < self.duration_ms) {
+            if time - times.last().copied().unwrap_or(0) >= minimum {
+                times.push(time);
+            }
+        }
+        times.push(self.duration_ms);
+        self.dash_timeline = times;
+        self.segment_length_ms = Some(DASH_COPY_SEGMENT * 1000);
+        debug!("TRANSCODE uneven video index: using variable DASH copy segments on the source timeline");
+    }
+
+    fn segment_start_ms(&self, index: i64) -> i64 {
+        if self.dash_timeline.is_empty() {
+            index * self.segment_ms()
+        } else {
+            usize::try_from(index).ok().and_then(|index| self.dash_timeline.get(index)).copied().unwrap_or(self.duration_ms)
+        }
+    }
+
+    /// Warm up the preceding timeline slot so a seek cuts at its cue, after input pre-roll.
+    fn seek_start(&self, index: i64) -> i64 {
+        if self.dash_timeline.is_empty() { index } else { (index - 1).max(0) }
     }
 
     pub fn segment_count(&self) -> i64 {
+        if !self.dash_timeline.is_empty() { return (self.dash_timeline.len() - 1) as i64; }
         if self.live() {
             return i64::MAX;
         }
-        let length = self.segment_seconds() as i64 * 1000;
+        let length = self.segment_ms();
         ((self.duration_ms.max(1) + length - 1) / length).max(1)
     }
 
@@ -787,11 +869,15 @@ fn audio_encoder(codec: &str) -> Option<&'static str> {
 
 /// The FFmpeg command line for one run of a session, starting at `start` (a segment).
 pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i64, dir: &std::path::Path) -> Vec<String> {
-    let length = plan.segment_seconds() as i64;
+    ffmpeg_args_at(plan, path, hardware, start, dir, None)
+}
+
+fn ffmpeg_args_at(plan: &Plan, path: Path, hardware: &Hardware, start: i64, dir: &std::path::Path, origins: Option<&[f64]>) -> Vec<String> {
+    let length = plan.segment_ms() as f64 / 1000.0;
     // A Matroska stream starts where the client's `offset` (seconds) says, and its media is
     // FFmpeg's stdout, so it reports no progress there.
     let http = plan.protocol == Protocol::Http;
-    let offset = if http { start } else { start * length };
+    let offset = if http { start as f64 } else { plan.segment_start_ms(start) as f64 / 1000.0 };
     let mut args: Vec<String> = ["-hide_banner", "-nostdin", "-nostats", "-loglevel", "error", "-progress", "pipe:1"]
         .iter()
         .take(if http { 5 } else { 7 })
@@ -849,7 +935,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
     }
     // A live source has no clock to seek on: a restart (after a dropped read) reads from its
     // live edge, and `-initial_offset` keeps the segments counting on.
-    if offset > 0 && !plan.live() {
+    if offset > 0.0 && !plan.live() {
         push(&mut args, &["-ss", &offset.to_string()]);
         if !converting {
             push(&mut args, &["-noaccurate_seek"]);
@@ -859,13 +945,13 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
     let sidecar_file = plan.sidecar.as_ref().map(|sidecar| dir.join(sidecar.file_name()).to_string_lossy().into_owned());
     if let (Some(file), false) = (&sidecar_file, Sidecar::burned(plan)) {
         // Its own seek, so its events land on the run's clock as the source's packets do.
-        if offset > 0 {
+        if offset > 0.0 {
             push(&mut args, &["-ss", &offset.to_string()]);
         }
         push(&mut args, &["-i", file]);
     }
     if plan.vobsub.is_some() {
-        if offset > 0 {
+        if offset > 0.0 {
             push(&mut args, &["-ss", &offset.to_string()]);
         }
         push(&mut args, &["-f", "vobsub", "-i", &dir.join("sidecar.idx").to_string_lossy()]);
@@ -888,7 +974,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         .map(|file| filter_path(&file));
     // libass draws by the frame's time, which a seek restarts at 0: shift it to the title's clock.
     let shifted = |subtitles: String| {
-        if offset > 0 {
+        if offset > 0.0 {
             format!("setpts=PTS+{offset}/TB,{subtitles},setpts=PTS-{offset}/TB")
         } else {
             subtitles
@@ -1020,7 +1106,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
             }
             let rate = format!("{}k", video.bitrate);
             let buffer = format!("{}k", video.bitrate * 2);
-            let gop = ((video.frame_rate.max(1.0)) * length as f64).round() as i64;
+            let gop = ((video.frame_rate.max(1.0)) * length).round() as i64;
             if device.is_some() && path != Path::Software {
                 push(&mut args, &["-c:v", "h264_vaapi", "-rc_mode", "VBR", "-b:v", &rate, "-maxrate", &rate, "-bufsize", &buffer, "-profile:v", "high"]);
             } else if cuda && path != Path::Software {
@@ -1050,7 +1136,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
     // but a copied audio stream keeps every packet from that keyframe: with x265's ~10 s GOP
     // a restart at 26 s started its AC3 5.3 s early on the title's clock (measured, FFmpeg 8).
     // An output `-ss 0` drops the copied packets before the seek too.
-    if converting && offset > 0 && (plan.audio.as_ref().is_some_and(|audio| audio.copy) || text.is_some()) {
+    if converting && offset > 0.0 && (plan.audio.as_ref().is_some_and(|audio| audio.copy) || text.is_some()) {
         push(&mut args, &["-ss", "0"]);
     }
     if text.is_none() {
@@ -1069,14 +1155,16 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
     }
     // A remux's pre-roll from the keyframe before the seek keeps its negative time, so
     // with the offset every packet lands on its true time on the title's clock.
-    push(&mut args, &["-dn", "-map_metadata", "-1", "-map_chapters", "-1", "-avoid_negative_ts", "disabled"]);
+    // DASH must shift negative AAC priming/B-frame timestamps before writing tfdt.
+    let timestamps = if plan.protocol == Protocol::Dash { "make_non_negative" } else { "disabled" };
+    push(&mut args, &["-dn", "-map_metadata", "-1", "-map_chapters", "-1", "-avoid_negative_ts", timestamps]);
     if let Some(seconds) = tail {
         push(&mut args, &["-t", &format!("{seconds:.3}")]);
     }
     if http {
         // Measured on plexlab (`http_mkv_s1434.json`): `copyts=1` with `offset=4` starts the
         // stream at 4.0 s, the title's clock; `copyts=0` (Plex Desktop's for live TV) at 0.
-        if plan.copyts && offset > 0 {
+        if plan.copyts && offset > 0.0 {
             push(&mut args, &["-output_ts_offset", &offset.to_string()]);
         }
         push(&mut args, &["-f", if plan.matroska { "matroska" } else { "mp3" }, "pipe:1"]);
@@ -1087,20 +1175,50 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         return args;
     }
     if plan.protocol == Protocol::Dash {
+        if !plan.dash_timeline.is_empty() {
+            // Use explicit source-cue cuts for both representations. The segment
+            // muxer follows these boundaries instead of incrementing a fixed DASH
+            // slot for every keyframe after a timestamp jump. Each output is a
+            // fragmented MP4 using one muxer per track across all chunks.
+            push(&mut args, &["-flags", "+global_header", "-output_ts_offset", &offset.to_string()]);
+            // The nested MP4 muxers must keep absolute tfdt timestamps too.
+            // Two escaping levels: tee's slave options, then segment's options.
+            // With edit lists enabled, movenc uses the first packet's PTS as
+            // the fragment origin. A B-frame's large PTS-DTS offset at a jump
+            // would then be applied twice. Keep the source DTS/CTS explicitly.
+            let mut outputs = Vec::new();
+            for rep in 0..plan.representations() {
+                let origin = origins.and_then(|origins| origins.get(rep)).copied().unwrap_or(0.0);
+                // segment adds its first reference packet's PTS to segment_times.
+                // On seeks that packet can precede the cue because of input pre-roll.
+                let times = plan.dash_timeline.iter().skip(start.max(0) as usize + 1)
+                    .take_while(|&&time| time < plan.duration_ms)
+                    .map(|time| format!("{:.6}", *time as f64 / 1000.0 - origin))
+                    .collect::<Vec<_>>().join(",");
+                let kind = if rep == 0 && plan.video.is_some() { "v" } else { "a" };
+                // Video needs tolerance for rounded cue PTS; audio cuts must not
+                // precede their manifest slot or players can discard its opening packets.
+                let delta = if kind == "v" { 0.0625 } else { 0.0 };
+                // Keep one MP4 muxer per track, so fragment sequence numbers and
+                // decoder state continue across chunks instead of restarting at 1.
+                let header = dir.join(format!("r{start}")).join(format!("init-{rep}.m4s"))
+                    .to_string_lossy().replace('\\', "/").replace(':', "\\\\:").replace('\'', "\\\\\\'").replace('|', "\\|");
+                let options = format!("f=segment:segment_format=mp4:segment_start_number=1:individual_header_trailer=0:segment_header_filename={header}:segment_time_delta={delta}:segment_format_options=movflags=+empty_moov+frag_custom+default_base_moof+frag_discont+skip_trailer\\\\:avoid_negative_ts=disabled\\\\:use_editlist=0{}",
+                    if times.is_empty() { ":segment_time=2147483647".to_string() } else { format!(":segment_times={times}") });
+                let file = dir.join(format!("r{start}")).join(format!("chunk-{rep}-%05d.m4s"))
+                    .to_string_lossy().replace('\\', "/").replace('\'', "\\'").replace('|', "\\|");
+                outputs.push(format!("[select={kind}:{options}]{file}"));
+            }
+            push(&mut args, &["-f", "tee", &outputs.join("|")]);
+            return args;
+        }
         // One fragmented MP4 per representation, `init-<rep>.m4s` and `chunk-<rep>-<n>.m4s`
         // numbered from 1 in the run's own directory. The MP4 muxer rebases every
         // fragment to zero unless told the fragments are discontinuous; with
         // `frag_discont` and the offset, `tfdt` is the title's clock (measured on the
         // 1.42.2 reference: a run from 600 s writes tfdt 14 400 000 at timescale 24 000).
-        if offset > 0 {
+        if offset > 0.0 {
             push(&mut args, &["-output_ts_offset", &offset.to_string()]);
-        }
-        // AAC's priming (and a copied stream's B-frame dts) starts a title below zero, and
-        // `frag_discont` writes that as a wrapped 64-bit `tfdt` (measured: 4.2e14 s on the
-        // first audio fragment). Shift a run that would go negative up to zero instead.
-        let position = args.iter().rposition(|arg| arg == "-avoid_negative_ts").map(|at| at + 1);
-        if let Some(position) = position {
-            args[position] = "make_non_negative".to_string();
         }
         let sets = match (plan.video.is_some(), plan.audio.is_some()) {
             (true, true) => "id=0,streams=v id=1,streams=a",
@@ -1135,7 +1253,7 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         push(&mut args, &["-max_delay", "5000000", "-f", "segment", "-segment_format", "mpegts"]);
     }
     push(&mut args, &["-segment_start_number", &start.to_string(), "-segment_time", &length.to_string()]);
-    if offset > 0 {
+    if offset > 0.0 {
         push(&mut args, &["-initial_offset", &offset.to_string()]);
     }
     // No `-segment_list`: FFmpeg buffers it and writes it only as the run ends, so it
@@ -1265,12 +1383,24 @@ impl Session {
         })
     }
 
+    fn manifest(&self, plan: &Plan) -> Response {
+        let (body, content_type) = match plan.protocol {
+            Protocol::Dash => (plan.mpd(&self.id, self.started), "application/dash+xml"),
+            Protocol::Hls => (plan.master_playlist(&self.id), "application/vnd.apple.mpegurl"),
+            _ => return Response::error(400, "rex: no manifest"),
+        };
+        let mut response = Response::bytes(200, content_type);
+        response.body = body.into_bytes();
+        response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
+        response
+    }
+
     /// The plan a run goes by: the session's, with each copied stream a failed copy has turned
     /// into a conversion, on the segment length the player already has.
     pub fn plan_now(&self) -> Plan {
         let mut plan = self.plan.clone();
         let (audio, video) = self.forced.lock().map(|forced| *forced).unwrap_or_default();
-        plan.segment_length = Some(self.plan.segment_seconds());
+        plan.segment_length_ms = Some(self.plan.segment_ms() as u32);
         plan.silent_audio = self.silent.load(Ordering::SeqCst) && plan.audio.is_some();
         if let Some(stream) = plan.audio.as_mut().filter(|stream| (audio || plan.silent_audio) && stream.copy) {
             stream.copy = false;
@@ -1433,6 +1563,7 @@ pub(crate) struct Transcoder {
     /// Numbers each start's directory: a session started again on its id never shares the
     /// directory the FFmpeg it replaces may still write into while it is killed.
     starts: std::sync::atomic::AtomicU64,
+    version: std::sync::OnceLock<Option<u32>>,
 }
 
 impl std::fmt::Debug for Transcoder {
@@ -1713,8 +1844,15 @@ impl DashStart {
     }
 
     /// Read the source index outside the runtime lock before publishing its timing.
-    pub fn fit(&mut self) -> Result<(), String> {
-        self.plan.fit_copy_segments()
+    pub fn fit(&mut self) {
+        self.plan.fit_copy_segments();
+        if !self.plan.dash_timeline.is_empty() && !self.transcoder.version().is_some_and(|major| major >= 6) {
+            let gap = self.plan.dash_timeline.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0);
+            self.plan.dash_timeline.clear();
+            self.plan.segment_length_ms = None;
+            self.plan.fit_copy_gap(gap);
+            warning!("TRANSCODE {}: variable DASH timing requires FFmpeg 6 or newer; using fixed slots", self.session.id);
+        }
     }
 
     /// Called with the runtime lock held again, before another route can stop the launch.
@@ -1730,11 +1868,8 @@ impl DashStart {
         sessions.insert(session.id.clone(), Arc::clone(&session));
         drop(sessions);
         self.session = Arc::clone(&session);
-        let manifest = session.plan.mpd(&session.id, session.started);
+        let response = session.manifest(&session.plan);
         self.transcoder.start_registered(&session);
-        let mut response = Response::bytes(200, "application/dash+xml");
-        response.body = manifest.into_bytes();
-        response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
         response
     }
 }
@@ -1780,7 +1915,7 @@ impl Transcoder {
             hardware: Mutex::new(Hardware::software()),
             sessions: Mutex::new(HashMap::new()),
             budgets: Mutex::new(HashMap::new()),
-            starts: std::sync::atomic::AtomicU64::new(0),
+            starts: std::sync::atomic::AtomicU64::new(0), version: std::sync::OnceLock::new(),
         });
         let probing = Arc::clone(&transcoder);
         thread::spawn(move || {
@@ -1854,8 +1989,10 @@ impl Transcoder {
     /// The major version `-version` names (`ffmpeg version 4.4.2-0ubuntu0.22.04.1`, `n7.0`,
     /// `8.1.2-Jellyfin`); a git build (`N-127900-...`) names none.
     fn version(&self) -> Option<u32> {
-        let output = Command::new(&self.ffmpeg).arg("-version").stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
-        major_version(&String::from_utf8_lossy(&output.stdout))
+        *self.version.get_or_init(|| {
+            let output = Command::new(&self.ffmpeg).arg("-version").stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
+            major_version(&String::from_utf8_lossy(&output.stdout))
+        })
     }
 
     fn probe(&self) -> Hardware {
@@ -2227,12 +2364,11 @@ impl Transcoder {
             }
             cover.unread = Some(unread);
         }
-        let length = plan.segment_seconds() as i64 * 1000;
         let mut pending: Vec<usize> = (0..index.cues.len()).collect();
         let (mut events, mut failed) = (Vec::new(), 0);
         while !pending.is_empty() {
             // Where the run is converting, and the lines a held run gave up on last.
-            let Ok(position) = session.state.lock().map(|state| state.done.range(state.run_start..).next_back().map_or(state.run_start, |(key, _)| key + 1) * length) else { return };
+            let Ok(position) = session.state.lock().map(|state| state.done.range(state.run_start..).next_back().map_or(state.run_start, |(key, _)| key + 1)).map(|index| plan.segment_start_ms(index)) else { return };
             let wanted = session.cover.lock().map(|cover| cover.unread.clone()).unwrap_or_default();
             let unread = |cue: usize| wanted.as_ref().is_none_or(|unread| unread.contains_key(&index.cues[cue].start));
             let pick = pending
@@ -2320,7 +2456,41 @@ impl Transcoder {
         self.launch_with(session, start, None, Some(path));
     }
 
+    /// Resolve packet origins for explicit cuts, including a delayed opening track.
+    /// The segment muxer measures explicit cuts relative to its first packet, which
+    /// can precede the requested cue. Probe the same copy/encode pipeline until both
+    /// origins are known, then cancel it; no full media scan or video decode is needed.
+    fn timeline_origins(&self, session: &Arc<Session>, args: &[String]) -> Result<Vec<f64>, String> {
+        let mut probe = args.to_vec();
+        let output = probe.iter().rposition(|arg| arg == "-f").ok_or("missing timeline output")?;
+        probe.truncate(output);
+        probe.extend(["-f", "framecrc", "pipe:1"].into_iter().map(str::to_string));
+        let mut command = Command::new(&self.ffmpeg);
+        command.args(probe).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+        let mut child = spawn_tied(command).map_err(|error| error.to_string())?;
+        let stdout = child.stdout.take().ok_or("seek timing pipe unavailable")?;
+        *session.child.lock().map_err(|_| "seek timing child lock")? = Some(child);
+        let count = session.plan.representations();
+        let (tx, rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let origins = framecrc_origins(BufReader::new(stdout).lines().map_while(Result::ok), count)
+                .ok_or_else(|| "FFmpeg did not report each seek origin".to_string());
+            let _ = tx.send(origins);
+        });
+        // Stop kills the registered child, closing stdout and waking the reader.
+        // Check again here in case it stopped before the child was registered.
+        let result = if session.stopped.load(Ordering::SeqCst) {
+            Err("cancelled".to_string())
+        } else {
+            rx.recv_timeout(Duration::from_secs(15))
+                .unwrap_or_else(|error| Err(format!("seek timing reader: {error}")))
+        };
+        session.kill_child();
+        result
+    }
+
     fn launch_with(self: &Arc<Self>, session: &Arc<Session>, start: i64, after: Option<Path>, same: Option<Path>) {
+        let run = session.run.fetch_add(1, Ordering::SeqCst) + 1;
         session.kill_child();
         let hardware = self.hardware();
         let plan = session.plan_now();
@@ -2348,9 +2518,31 @@ impl Transcoder {
         // Before the arguments look for the subtitle file: the reader writes a line to the file
         // before it counts it read, so what this limit counts is in the file FFmpeg opens.
         if let Ok(mut cover) = session.cover.lock() {
-            cover.run_limit = cover.limit(start * session.plan.segment_seconds() as i64 * 1000);
+            cover.run_limit = cover.limit(session.plan.segment_start_ms(start));
         }
-        let args = ffmpeg_args(&plan, path, &hardware, start, &session.dir);
+        let mut args = ffmpeg_args(&plan, path, &hardware, start, &session.dir);
+        if !plan.dash_timeline.is_empty() {
+            for attempt in 1..=3 {
+                if session.stopped.load(Ordering::SeqCst) || session.run.load(Ordering::SeqCst) != run { return; }
+                match self.timeline_origins(session, &args) {
+                    Ok(origins) => {
+                        args = ffmpeg_args_at(&plan, path, &hardware, start, &session.dir, Some(&origins));
+                        break;
+                    }
+                    Err(error) => {
+                        if session.stopped.load(Ordering::SeqCst) || session.run.load(Ordering::SeqCst) != run { return; }
+                        if attempt < 3 {
+                            warning!("TRANSCODE {} seek timing attempt {attempt}: {error}; retrying", session.id);
+                            continue;
+                        }
+                        error!("TRANSCODE {} seek timing: {error}", session.id);
+                        if let Ok(mut state) = session.state.lock() { state.error = true; }
+                        return;
+                    }
+                }
+            }
+        }
+        if session.stopped.load(Ordering::SeqCst) || session.run.load(Ordering::SeqCst) != run { return; }
         if let Some(sidecar) = &session.plan.sidecar {
             if let Err(err) = std::fs::write(session.dir.join(sidecar.file_name()), &sidecar.content) {
                 warning!("TRANSCODE {} cannot write its subtitle: {err}", session.id);
@@ -2359,7 +2551,6 @@ impl Transcoder {
         if let Some(Err(err)) = session.plan.vobsub.as_ref().map(|vobsub| vobsub.write(&session.dir, session.plan.auth.as_deref())) {
             warning!("TRANSCODE {} cannot read its VobSub: {err}", session.id);
         }
-        let run = session.run.fetch_add(1, Ordering::SeqCst) + 1;
         debug!(
             "TRANSCODE {} run {run}: {}",
             session.id,
@@ -2474,24 +2665,22 @@ impl Transcoder {
     /// One run's monitor: notes each segment as the next one opens, throttles, and on an
     /// early failure moves the session down the ladder.
     fn watch(self: Arc<Self>, session: Arc<Session>, run: u64, start: i64, path: Path, errors: Arc<Mutex<String>>) {
-        let length = session.plan.segment_seconds() as f64;
+        let length = session.plan.segment_ms() as f64 / 1000.0;
         let duration = session.plan.duration_ms as f64 / 1000.0;
         let end = if session.plan.live() { f64::INFINITY } else { duration.max(length) };
-        let span = |index: i64| (index as f64 * length, ((index + 1) as f64 * length).min(end), start);
+        let timeline = !session.plan.dash_timeline.is_empty();
+        let span = |index: i64| (
+            session.plan.segment_start_ms(index) as f64 / 1000.0,
+            (session.plan.segment_start_ms(index + 1) as f64 / 1000.0).min(end), start,
+        );
         // The segment FFmpeg is writing: finished once the one after it opens. FFmpeg's DASH muxer
         // writes each into `.tmp` and renames it when it is done, so there a segment's own file
         // says so: waiting on the next one's held every live DASH segment one segment's length
         // (chunk 1 renamed 0.25 s after start.mpd, served at 4.1 s; probes/shaka_live_dash.py).
-        let done_at = |index: i64| if session.plan.protocol == Protocol::Dash { index } else { index + 1 };
+        let done_at = |index: i64| if session.plan.protocol == Protocol::Dash && !timeline { index } else { index + 1 };
         let mut next = start;
         let mut progressed = Instant::now();
-        // A slot fitted to the index (`fit_copy_gap`, the only way a DASH copy gets a
-        // `segment_length`) already holds every keyframe gap, so its chunks need no late check
-        // and are served as they close: the check held each one back until the next had
-        // closed too, a whole slot of media before the first frame (24 s on the test rig's
-        // 61 s slots, where the chunk itself was done at 14 s; 2026-11-07).
-        let copied_dash = session.plan.protocol == Protocol::Dash && session.plan.segment_length.is_none()
-            && session.plan_now().video.is_some_and(|video| video.copy);
+        let copied_dash = session.plan.protocol == Protocol::Dash && !timeline && session.plan.segment_length_ms.is_none() && session.plan_now().video.is_some_and(|video| video.copy);
         // Since when the player has been waiting on this run's subtitle hold.
         let mut waited: Option<Instant> = None;
         loop {
@@ -2512,7 +2701,8 @@ impl Transcoder {
             // after its copied segment 0 had gone to FFmpeg's DASH reader, which kept the copy's
             // header and read 24 s of 30 (2026-10-27). A live chunk is served at once.
             let ahead = i64::from(copied_dash && !session.plan.live() && exited.is_none());
-            while session.opened(done_at(next) + ahead, start) {
+            while session.opened(done_at(next) + ahead, start)
+                || (timeline && exited == Some(0) && session.opened(next, start)) {
                 // A copied video's chunk is checked before it is served (a remux runs far ahead of
                 // the player): one that runs past the next slot's end leaves the one after it a slot
                 // late, so the conversion starts at this one, and a file's first long gap is known
@@ -2656,9 +2846,9 @@ impl Transcoder {
             }
             // A run burning a subtitle stops where its file stops knowing the lines, and restarts
             // there once the reader knows enough more: a little when the player waits on it.
-            let at = (next as f64 * length * 1000.0) as i64;
+            let at = session.plan.segment_start_ms(next);
             let (limit, known) = session.cover.lock().map(|cover| (cover.run_limit, cover.limit(at))).unwrap_or((None, None));
-            if let Some(limit) = limit.filter(|limit| ((next + 1) as f64 * length * 1000.0) as i64 > *limit) {
+            if let Some(limit) = limit.filter(|limit| session.plan.segment_start_ms(next + 1) > *limit) {
                 let (waiting, request, first) = match session.state.lock() {
                     // A seek has claimed the session for a run of its own.
                     Ok(state) if state.run_start != start => return,
@@ -2702,8 +2892,8 @@ impl Transcoder {
             // Throttle on how far production runs ahead of the player.
             let (ahead, paused) = match session.state.lock() {
                 Ok(state) => {
-                    let player = state.last_request.unwrap_or(start) as f64 * length;
-                    let produced = state.done.values().next_back().map_or(start as f64 * length, |range| range.1);
+                    let player = session.plan.segment_start_ms(state.last_request.unwrap_or(start)) as f64 / 1000.0;
+                    let produced = state.done.values().next_back().map_or(session.plan.segment_start_ms(start) as f64 / 1000.0, |range| range.1);
                     (produced - player, state.paused)
                 }
                 Err(_) => continue,
@@ -2730,7 +2920,7 @@ impl Transcoder {
             return Err(404);
         }
         session.touch();
-        let length = session.plan.segment_seconds() as f64;
+        let length = session.plan.segment_ms() as f64 / 1000.0;
         let deadline = Instant::now() + Duration::from_secs(45);
         let ticket = match session.state.lock() {
             Ok(mut state) => {
@@ -2747,7 +2937,12 @@ impl Transcoder {
                 Ok(mut state) => {
                     // Old segments behind the player go, so a long play keeps a bounded
                     // footprint on disk.
-                    let floor = (index as f64 - KEEP_BEHIND / length).floor() as i64;
+                    let floor = if session.plan.dash_timeline.is_empty() {
+                        (index as f64 - KEEP_BEHIND / length).floor() as i64
+                    } else {
+                        let before = session.plan.segment_start_ms(index) - (KEEP_BEHIND * 1000.0) as i64;
+                        session.plan.dash_timeline.partition_point(|time| *time < before) as i64
+                    };
                     let stale = state.done.range(..floor).map(|(key, range)| (*key, range.2)).collect::<Vec<_>>();
                     for (key, run) in stale {
                         state.done.remove(&key);
@@ -2780,7 +2975,7 @@ impl Transcoder {
                                 info!("TRANSCODE {} seek to segment {index} (run from {}, produced to {highest})", session.id, state.run_start);
                                 // Claimed under the lock, so the other representation's request
                                 // for the same segment waits for this restart.
-                                state.run_start = index;
+                                state.run_start = session.plan.seek_start(index);
                                 state.seek = ticket;
                                 state.finished = false;
                                 state.input_retries = 0;
@@ -2815,7 +3010,7 @@ impl Transcoder {
                 // time, and one a newer seek has overtaken is dropped.
                 let _launching = session.launching.lock();
                 if session.state.lock().is_ok_and(|state| state.seek == ticket) {
-                    self.launch(session, index, None);
+                    self.launch(session, session.plan.seek_start(index), None);
                 }
             } else if session.throttled() {
                 if let Ok(mut state) = session.state.lock() {
@@ -3604,7 +3799,8 @@ impl Runtime {
             incomplete_segments: query.get("X-Plex-Incomplete-Segments").map(String::as_str) == Some("1")
                 || headers.get("x-plex-incomplete-segments").map(String::as_str) == Some("1"),
             copyts: query.get("copyts").map(String::as_str) == Some("1"),
-            segment_length: None,
+            segment_length_ms: None,
+            dash_timeline: Vec::new(),
             silent_audio: false,
             account: self.viewer.id,
             playback: self.playback_session(query, headers),
@@ -3855,20 +4051,13 @@ impl Runtime {
             let Some(session) = session else {
                 return Some(Response::error(400, "rex: no session"));
             };
-            let (manifest, content_type) = match session.plan.protocol {
-                Protocol::Dash => (session.plan.mpd(&session.id, session.started), "application/dash+xml"),
-                Protocol::Hls => {
-                    let mut plan = session.plan.clone();
-                    plan.incomplete_segments = query.get("X-Plex-Incomplete-Segments").is_some_and(|value| value == "1");
-                    (plan.master_playlist(&session.id), "application/vnd.apple.mpegurl")
-                }
-                _ => return Some(Response::error(400, "rex: no manifest")),
-            };
             session.touch();
-            let mut response = Response::bytes(200, content_type);
-            response.body = manifest.into_bytes();
-            response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
-            return Some(response);
+            if session.plan.protocol == Protocol::Hls {
+                let mut plan = session.plan.clone();
+                plan.incomplete_segments = query.get("X-Plex-Incomplete-Segments").is_some_and(|value| value == "1");
+                return Some(session.manifest(&plan));
+            }
+            return Some(session.manifest(&session.plan));
         }
         match leaf {
             // Plex Desktop names no extension for `http` (its web client's `{dash: ".mpd",
@@ -3945,8 +4134,8 @@ impl Runtime {
                     return Some(response);
                 }
                 if plan.protocol == Protocol::Dash && !plan.live() && plan.video.as_ref().is_some_and(|video| video.copy) {
-                    match transcoder.register(&id, plan.clone(), true) {
-                        Ok(session) => self.pending_dash_start = Some(DashStart { session, plan, transcoder }),
+                    match transcoder.register(&id, plan, true) {
+                        Ok(session) => self.pending_dash_start = Some(DashStart { plan: session.plan.clone(), session, transcoder }),
                         Err(error) => {
                             self.release_stream_admission(self.viewer.id, &playback);
                             error!("TRANSCODE {id}: {error}");
@@ -3963,14 +4152,7 @@ impl Runtime {
                         return Some(Response::error(500, "rex: transcode failed"));
                     }
                 };
-                let manifest = match session.plan.protocol {
-                    Protocol::Dash => session.plan.mpd(&session.id, session.started),
-                    _ => session.plan.master_playlist(&session.id),
-                };
-                let mut response = Response::bytes(200, content_type);
-                response.body = manifest.into_bytes();
-                response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
-                Some(response)
+                Some(session.manifest(&session.plan))
             }
             "session" => {
                 let id = segments.get(5).copied().unwrap_or_default();
@@ -4183,7 +4365,8 @@ mod tests {
             text_burn: None,
             incomplete_segments: true,
             copyts: false,
-            segment_length: None,
+            segment_length_ms: None,
+            dash_timeline: Vec::new(),
             silent_audio: false,
             account: accounts::OWNER,
             playback: "p".into(),
@@ -4244,19 +4427,173 @@ mod tests {
         for (gap, seconds) in [(0, 5), (4499, 5), (4500, 6), (4920, 6), (5000, 6), (12_001, 14), (20_000, 21), (90_000, 91), (120_000, 121), (120_001, 5), (7_200_000, 5)] {
             let mut copy = plan(true, 90_000);
             copy.protocol = Protocol::Dash;
-            copy.fit_copy_gap(gap).unwrap();
+            copy.fit_copy_gap(gap);
             assert_eq!(copy.segment_seconds(), seconds);
         }
         let mut copy = plan(true, 90_000);
         copy.protocol = Protocol::Dash;
-        copy.fit_copy_gap(90_000).unwrap();
+        copy.fit_copy_gap(90_000);
         // Past the cap, a gap no u32 holds included, the slot it had stays and nothing errs.
-        copy.fit_copy_gap(i64::MAX).unwrap();
+        copy.fit_copy_gap(i64::MAX);
         assert_eq!(copy.segment_seconds(), 91);
         assert!(copy.video.as_ref().unwrap().copy);
         // The slot grows; what the player must buffer before it plays does not.
         let manifest = copy.mpd("fitted", 0.0);
         assert!(manifest.contains("duration=\"91\"") && manifest.contains("maxSegmentDuration=\"PT182S\"") && manifest.contains("minBufferTime=\"PT5S\""), "{manifest}");
+    }
+
+
+    #[test]
+    fn uneven_keyframes_keep_their_cue_times_instead_of_rounding_up() {
+        for cues in [
+            vec![0, 1001, 2002, 3004, 4005, 5006],
+            vec![0, 10_427, 20_854, 31_282, 41_709, 45_000],
+            vec![0, 1001, 2002, 2502, 3503, 4504, 5000],
+        ] {
+            let mut copy = plan(true, *cues.last().unwrap());
+            copy.protocol = Protocol::Dash;
+            copy.fit_copy_cues(&cues);
+            assert!(!copy.dash_timeline.is_empty(), "{cues:?}");
+            assert!(copy.dash_timeline.iter().all(|time| cues.contains(time)));
+            assert_eq!(copy.segment_start_ms(1), cues[1]);
+        }
+        let mut copy = plan(true, 5500);
+        copy.fit_copy_cues(&[0, 23, 1024, 2025, 3026, 4027, 5028, 5500]);
+        assert!(!copy.dash_timeline.is_empty());
+        assert_eq!(copy.dash_timeline[1], 1024);
+        copy.duration_ms = 20_880;
+        copy.fit_copy_cues(&[1200, 6120, 11_040, 15_960, 20_880]);
+        assert_eq!(copy.dash_timeline[1], 6120, "a delayed first frame is not a segment boundary");
+    }
+
+    #[test]
+    fn dense_uneven_cues_bound_cut_count_and_argument_size() {
+        // A three-hour title with dense, uneven keyframes exercises both cut lists.
+        let duration_ms = 10_800_000;
+        let cues: Vec<i64> = (0..=10_800).map(|i| {
+            if i % 2 == 0 { i * 1000 } else { i * 1000 + 42 }
+        }).collect();
+        let mut copy = plan(true, duration_ms);
+        copy.protocol = Protocol::Dash;
+        copy.fit_copy_timeline(&cues, 1000);
+        assert!(!copy.dash_timeline.is_empty());
+        assert!(copy.dash_timeline.len() <= 1002);
+        let win_dir = std::path::Path::new(r"C:\Transcode cache\日本語_öäü_Тест\session_42");
+        let args = ffmpeg_args(&copy, Path::Software, &Hardware::software(), 0, win_dir);
+
+        // Include the executable, quoting/escaping overhead and terminating NUL.
+        // Debug quoting conservatively escapes every argument and backslash.
+        let command_line = std::iter::once(r"C:\Program Files\ffmpeg\ffmpeg.exe".to_string())
+            .chain(args).map(|arg| format!("{arg:?}")).collect::<Vec<_>>().join(" ");
+        let utf16_len = command_line.encode_utf16().count() + 1;
+        assert!(utf16_len < 32_767, "command line UTF-16 code units: {utf16_len} exceeds 32,767");
+        // Verify seek_start warming and segment_start_ms boundary guards
+        assert_eq!(copy.seek_start(0), 0);
+        assert_eq!(copy.seek_start(1), 0);
+        assert_eq!(copy.seek_start(5), 4);
+        assert_eq!(copy.segment_start_ms(0), 0);
+        assert!(copy.segment_start_ms(1) >= 10_800);
+        assert_eq!(copy.segment_start_ms(copy.segment_count()), duration_ms);
+    }
+
+    #[test]
+    fn dash_start_version_gate_disables_timeline_for_old_or_unknown_ffmpeg() {
+        let temp = std::env::temp_dir().join(format!("rex-version-gate-{}", std::process::id()));
+        std::fs::create_dir_all(&temp).unwrap();
+        let mut p = plan(false, 30_000);
+        p.protocol = Protocol::Dash;
+        p.dash_timeline = vec![0, 4920, 9840, 15000, 20000, 25000, 30000];
+        for version in [None, Some(4), Some(5), Some(6), Some(8)] {
+            let transcoder = Arc::new(Transcoder {
+                ffmpeg: PathBuf::from("ffmpeg"), root: temp.clone(), hardware: Mutex::new(Hardware::software()),
+                sessions: Mutex::new(HashMap::new()), budgets: Mutex::new(HashMap::new()),
+                starts: std::sync::atomic::AtomicU64::new(0), version: std::sync::OnceLock::new(),
+            });
+            transcoder.version.set(version).unwrap();
+            let session = Session::new("version-gate", p.clone(), temp.clone(), false);
+            let mut start = DashStart { plan: session.plan.clone(), session, transcoder };
+            start.fit();
+            let fitted = start.plan;
+            if version.is_some_and(|major| major >= 6) {
+                assert_eq!(fitted.dash_timeline, p.dash_timeline, "{version:?}");
+            } else {
+                assert!(fitted.dash_timeline.is_empty(), "{version:?}");
+                assert_eq!(fitted.segment_length_ms, Some(7000));
+            }
+        }
+        let _ = std::fs::remove_dir_all(temp);
+    }
+
+    #[test]
+    fn fractional_dash_slots_keep_seek_and_manifest_clocks_together() {
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        copy.segment_length_ms = Some(1001);
+        assert_eq!(copy.segment_start_ms(2000), 2_002_000);
+        assert_eq!(copy.segment_count(), 90);
+        let manifest = copy.mpd("fractional", 0.0);
+        assert!(manifest.contains("timescale=\"1000\" duration=\"1001\""));
+        assert!(manifest.contains("minBufferTime=\"PT1.001S\""));
+        let args = ffmpeg_args(&copy, Path::Software, &Hardware::software(), 6, std::path::Path::new("/tmp/x"));
+        assert_eq!(args[args.iter().position(|arg| arg == "-ss").unwrap() + 1], "6.006");
+        assert_eq!(args[args.iter().position(|arg| arg == "-seg_duration").unwrap() + 1], "1.001");
+    }
+
+    #[test]
+    fn forced_conversion_preserves_fractional_segment_duration_and_keyframe_cadence() {
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        copy.segment_length_ms = Some(1001);
+        let session = Session::new("test-forced", copy, std::path::PathBuf::from("/tmp/test"), false);
+        session.forced.lock().unwrap().1 = true;
+        let converted = session.plan_now();
+        assert_eq!(converted.segment_length_ms, Some(1001));
+        assert_eq!(converted.segment_ms(), 1001);
+        assert!(!converted.video.as_ref().unwrap().copy);
+        let args = ffmpeg_args(&converted, Path::Software, &Hardware::software(), 6, std::path::Path::new("/tmp/x"));
+        assert_eq!(args[args.iter().position(|arg| arg == "-ss").unwrap() + 1], "6.006");
+        assert_eq!(args[args.iter().position(|arg| arg == "-seg_duration").unwrap() + 1], "1.001");
+        assert_eq!(args[args.iter().position(|arg| arg == "-force_key_frames").unwrap() + 1], "expr:gte(t,n_forced*1.001)");
+        assert_eq!(args[args.iter().position(|arg| arg == "-g").unwrap() + 1], "24");
+
+        let mut copy_2997 = plan(true, 90_000);
+        copy_2997.protocol = Protocol::Dash;
+        copy_2997.segment_length_ms = Some(1001);
+        copy_2997.video.as_mut().unwrap().frame_rate = 30000.0 / 1001.0;
+        let session_2997 = Session::new("test-forced-2997", copy_2997, std::path::PathBuf::from("/tmp/test2"), false);
+        session_2997.forced.lock().unwrap().1 = true;
+        let converted_2997 = session_2997.plan_now();
+        let args_2997 = ffmpeg_args(&converted_2997, Path::Software, &Hardware::software(), 6, std::path::Path::new("/tmp/x"));
+        assert_eq!(args_2997[args_2997.iter().position(|arg| arg == "-g").unwrap() + 1], "30");
+    }
+
+    #[test]
+    fn sparse_copy_cues_use_a_timeline_and_keep_opening_slots_short() {
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        copy.fit_copy_timeline(&[0, 1000, 5000, 10_000, 15_000, 80_000, 85_000, 90_000], 4000);
+        assert_eq!(copy.dash_timeline, [0, 5000, 10_000, 15_000, 80_000, 85_000, 90_000]);
+        assert_eq!(copy.segment_seconds(), 5);
+        assert_eq!(copy.segment_count(), 6);
+        assert_eq!(copy.segment_start_ms(4), 80_000);
+        assert!(copy.video.as_ref().unwrap().copy);
+        let manifest = copy.mpd("timeline", 0.0);
+        assert!(manifest.contains("<SegmentTimeline>"));
+        assert!(manifest.contains("<S t=\"15000\" d=\"65000\"/>"));
+        assert!(manifest.contains("minBufferTime=\"PT5S\""));
+        let args = ffmpeg_args(&copy, Path::Software, &Hardware::software(), 4, std::path::Path::new("/tmp/x"));
+        assert_eq!(args[args.iter().position(|arg| arg == "-ss").unwrap() + 1], "80");
+        assert!(args.iter().any(|arg| arg.contains("segment_times=85")));
+    }
+
+    #[test]
+    fn seek_origins_use_each_representations_timebase_and_first_packet() {
+        let crc = "#tb 0: 1/1000\n#tb 1: 1/48000\n1, 670000, 670000, 1024, 200, 0xff\n0, 13917, 14000, 41, 3000, 0xff\n0, 13958, 14083, 41, 1000, 0xff\n";
+        let origins = framecrc_origins(crc.lines().chain(std::iter::once_with(|| panic!("read past the first packets"))), 2).unwrap();
+        assert_eq!(origins[0], 14.0);
+        assert!((origins[1] - 670000.0 / 48000.0).abs() < 0.000001);
+        assert!(framecrc_origins("#tb 0: 1/1000\n0, 0, 0, 41, 100, 0xff\n".lines(), 2).is_none());
+        assert!(framecrc_origins("#tb 0: 1/0\n0, 0, 0, 41, 100, 0xff\n".lines(), 1).is_none());
     }
 
     #[test]
@@ -4281,7 +4618,7 @@ mod tests {
             audio.sampling_rate = 44100;
         }
         // Byte for byte the reference's, but for `minBufferTime`, which is ours (`mpd`).
-        assert_eq!(copy.mpd("rexdashdash-cop", 0.0), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT5S\""));
+        assert_eq!(copy.mpd("rexdashdash-cop", 0.0), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT2S\""));
     }
 
     #[test]
@@ -4712,6 +5049,62 @@ mod tests {
         assert!(!Hardware::software().can_boost_dialog());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn seek_timing_failures_are_bounded_and_cancelled_runs_do_not_retry() {
+        use std::os::unix::fs::PermissionsExt;
+        for mode in ["exhausted", "stopped", "superseded"] {
+            let root = std::env::temp_dir().join(format!("rex-seek-retry-{}-{mode}", std::process::id()));
+            std::fs::create_dir_all(&root).unwrap();
+            let ffmpeg = root.join("ffmpeg");
+            let calls = root.join("calls");
+            let release = root.join("release");
+            // Fail each timing probe; hold the first for cancellation cases.
+            std::fs::write(&ffmpeg, if mode == "exhausted" {
+                "#!/bin/sh\ncd -- \"$(dirname -- \"$0\")\"\necho probe >> calls\nexit 1\n"
+            } else {
+                "#!/bin/sh\ncd -- \"$(dirname -- \"$0\")\"\necho probe >> calls\nwhile [ ! -f release ]; do sleep 0.01; done\nexit 1\n"
+            }).unwrap();
+            std::fs::set_permissions(&ffmpeg, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let transcoder = Arc::new(Transcoder {
+                ffmpeg, root: root.clone(), hardware: Mutex::new(Hardware::software()),
+                sessions: Mutex::new(HashMap::new()), budgets: Mutex::new(HashMap::new()),
+                starts: std::sync::atomic::AtomicU64::new(0), version: std::sync::OnceLock::new(),
+            });
+            let mut p = plan(true, 30_000);
+            p.protocol = Protocol::Dash;
+            p.dash_timeline = vec![0, 5000, 25000, 30000];
+            let session = Session::new(mode, p, root.clone(), false);
+            let worker = {
+                let transcoder = transcoder.clone();
+                let session = session.clone();
+                thread::spawn(move || transcoder.launch_with(&session, 1, None, None))
+            };
+            if mode != "exhausted" {
+                let deadline = Instant::now() + Duration::from_secs(5);
+                while !calls.exists() && Instant::now() < deadline {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                let entered = calls.exists();
+                if mode == "stopped" {
+                    session.stopped.store(true, Ordering::SeqCst);
+                } else {
+                    session.run.fetch_add(1, Ordering::SeqCst);
+                }
+                std::fs::write(&release, b"").unwrap();
+                worker.join().unwrap();
+                assert!(entered, "probe did not start");
+            } else {
+                worker.join().unwrap();
+            }
+            let attempts = std::fs::read_to_string(&calls).unwrap().lines().count();
+            assert_eq!(attempts, if mode == "exhausted" { 3 } else { 1 }, "{mode}");
+            assert_eq!(session.errored(), mode == "exhausted", "{mode}");
+            assert!(session.child.lock().unwrap().is_none());
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
     #[test]
     #[ignore = "requires REX_TRANSCODER pointing to FFmpeg with AAC and lavfi"]
     fn converted_download_is_atomic_at_the_requested_destination() {
@@ -4724,7 +5117,7 @@ mod tests {
         let transcoder = Transcoder {
             ffmpeg, root: root.join("ephemeral"), hardware: Mutex::new(Hardware::software()),
             sessions: Mutex::new(HashMap::new()), budgets: Mutex::new(HashMap::new()),
-            starts: std::sync::atomic::AtomicU64::new(0),
+            starts: std::sync::atomic::AtomicU64::new(0), version: std::sync::OnceLock::new(),
         };
         let mut p = plan(false, 1000);
         p.url = source.to_string_lossy().into_owned();

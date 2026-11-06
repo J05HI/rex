@@ -24603,15 +24603,9 @@ fn handle_connection<S: Read + Write + PollRead>(
             if let Some(start) = dash_start.as_mut() {
                 // The index read happens here, outside the runtime lock. A client that left
                 // meanwhile is found out by the manifest write below, which cancels the start.
-                let fitted = start.fit();
-                let mut guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
-                response = match fitted {
-                    Ok(()) => start.start(),
-                    Err(error) => {
-                        start.cancel(&mut guard);
-                        Response::error(400, &error)
-                    }
-                };
+                start.fit();
+                let _guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+                response = start.start();
             }
             if let Some((jobs, artifact, seek, kind)) = artifact {
                 response = match jobs.resolve(&artifact) {
