@@ -205,7 +205,10 @@ the account rex is claimed with: rex refuses it (403) to the accounts it is shar
 real Plex Media Server does.
 
 A claimed rex refuses another claim (409). To move it to another account (the fresh one was
-lost or banned), stop it, remove `claim_state.json`, start it, claim again and share again. The
+lost or banned), stop it, remove `claim_state.json`, start it, claim again and share again. If
+the old account can still sign in, also remove the server there (app.plex.tv, Settings,
+Authorized Devices, Servers). Those two are the whole unclaim: rex has no sign-out, and
+`DELETE /myplex/account` answers 200 but leaves it claimed. The
 library, Fix Match, edits and the rex-direct name stay; each shared account's watch state comes
 back once rex is shared with it again, and the old owner's passes to the new one.
 
@@ -403,7 +406,8 @@ single-use claim token); the log still names your titles and addresses, so keep 
   current Plex Media Server's, which rex reports on purpose so the apps treat it as up to date.
 - **Start over:** `DELETE /rex/sources/<name>` (step 2) and a restart of the source refills its
   items, dropping their watch state. From nothing: stop rex, delete `rex.db*`,
-  `claim_state.json` and `rex-direct.json`, start it, claim it again (step 5).
+  `claim_state.json` and `rex-direct.json`, remove the old server from the fresh account in
+  app.plex.tv (Settings, Authorized Devices, Servers), start rex, claim it again (step 5).
 - **Remove rex:** stop and remove its service (on Windows also `Unregister-ScheduledTask rex` and
   `Remove-NetFirewallRule -DisplayName rex, "rex discovery"`), take rex's address out of each
   source (zurg: `rex_url`), remove the server from the fresh account in app.plex.tv (Settings, Authorized Devices,
@@ -609,6 +613,14 @@ poster and background the first time a listing shows it, and kept in `rex.db`.
 `REX_ARTWORK_ANALYSIS=off` turns that off.
 
 ### Apps downloading straight from the source
+
+**Keep the default proxy mode for shared debrid playback.** Real-Debrid tracks each downloader's
+public IP; multi-IP use of one account earns a sharing warning even when downloads succeed.
+Keep all use of an RD account on one public IP: redirecting remote apps while rex or its source
+also probes or converts from the server's IP is not safe. TorBox download URLs contain the full
+API key in `?token=`, so redirecting gives every client and shared user account access, including
+deletion, and can leak the key into player logs or browser history. Do not hand TorBox links to
+untrusted clients. Only use the optional modes below when these risks are acceptable.
 
 By default every byte an app plays passes through rex. Start rex with `--part-mode redirect` and,
 when an app plays a file as it is (direct play) and the source answers with a link elsewhere (rex-stremio answers with its stream addon's link,

@@ -284,8 +284,9 @@ def main():
 
         # Films, shows, seasons and episodes: colours of their own background, else their poster.
         film = {row["title"]: row for row in rex.rows("/library/sections/2/all?includeFields=thumbBlurHash,artBlurHash")}
-        poll_until(lambda: "thumbBlurHash" in ({row["title"]: row for row in rex.rows(
-            "/library/sections/2/all?includeFields=thumbBlurHash")}.get("Blur Film") or {}), 30)
+        # Both images: the background is read after the poster, and a loaded runner lists between them.
+        poll_until(lambda: {"thumbBlurHash", "artBlurHash"} <= set({row["title"]: row for row in rex.rows(
+            "/library/sections/2/all?includeFields=thumbBlurHash,artBlurHash")}.get("Blur Film") or {}), 30)
         film = {row["title"]: row for row in rex.rows("/library/sections/2/all?includeFields=thumbBlurHash,artBlurHash")}
         check("a film's colours are its background's, its art's hash plexav's for it",
               color_distance(film["Blur Film"].get("UltraBlurColors"), wide) <= COLOR_TOLERANCE

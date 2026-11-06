@@ -52,8 +52,11 @@ def make_pictures(root):
                         "color=c=0x%02x6040:s=%dx%d" % (index * 20, width, height), "-frames:v", "1", file], check=True)
         probe = json.loads(subprocess.check_output([M.tool("ffprobe"), "-v", "error", "-print_format", "json",
                                                     "-show_format", "-show_streams", file]))
+        # plexscratch dated these EXIF-less pictures by their files, the day it was recorded; rex
+        # dates one by the day it arrives, so a run on any later day differs unless the source
+        # dates it (`display.date`), as the recording's day.
         items.append({"id": "photos/" + path, "path": "photos/" + path, "kind": "photo",
-                      "size": os.path.getsize(file), "media_info": probe})
+                      "size": os.path.getsize(file), "media_info": probe, "display": {"date": "2026-11-04"}})
     return items
 
 
@@ -63,9 +66,10 @@ def start():
     bytes_port, handler = M.range_server(os.path.join(work, "media"))
     agent_url, _ = M.agent_server([])
     # A picture's createdAtTZOffset is the server's own offset: plexscratch ran in Europe/Amsterdam,
-    # 3600 when recorded (November), so rex runs at UTC+1 all year (POSIX's inverted Etc/GMT-1), or a
-    # UTC host (zen, CI) answers 0 and a summer run 7200.
-    os.environ["TZ"] = "Etc/GMT-1"
+    # 3600 when recorded (November), so rex runs at UTC+1 all year, or a UTC host (zen, CI) answers 0
+    # and a summer run 7200. A POSIX rule (sign inverted), not a zone name: CI's image has no tzdata,
+    # where `Etc/GMT-1` is UTC.
+    os.environ["TZ"] = "UTC-1"
     rex = M.Rex(work, bytes_port, agent_url, extra_sections=SEEDED, music=False,
                 register={"directories": [{"name": "photos", "photos": "Photos"}]})
     return work, items, rex, handler

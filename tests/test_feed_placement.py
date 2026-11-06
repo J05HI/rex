@@ -246,9 +246,11 @@ def declared_moves(bytes_port):
     """zurg's `anime` declared a library of its own after these sat in TV Shows and Movies: each
     row moves there on its key as it is (`relocate`). A film a person Fix Matched keeps their
     match; a show's edits and picked poster go with it to the show made for it there; an episode
-    held as two releases, one in `anime` and one in `shows` (Ascendance's two S4 - 01), stays put
-    and is said once; two releases both in `anime` move together. Re-identifying a moved row lost
-    the hand match, never moved a row of two releases, and dropped its show's edits."""
+    held as two releases, one in `anime` and one in `shows` (Ascendance's two S4 - 01), keeps its
+    key in TV Shows with the `shows` release while the `anime` one leaves for Anime (it stayed
+    whole in TV Shows until 2026-11-06, the way a user's 1080p film stayed in Debrid Movies); two
+    releases both in `anime` move together. Re-identifying a moved row lost the hand match, never
+    moved a row of two releases, and dropped its show's edits."""
     work = tempfile.mkdtemp(prefix="rex-placed-declared-")
     catalog(work, ANIME, TILES, EVA, anime=False)
     server = start(work, bytes_port)
@@ -306,9 +308,12 @@ def declared_moves(bytes_port):
         check("and the show and season it left are gone from TV Shows",
               server.request("/library/metadata/%s" % show)[0] == 404 and server.request("/library/metadata/%s" % season)[0] == 404,
               (server.request("/library/metadata/%s" % show)[0], server.request("/library/metadata/%s" % season)[0]))
-        check("an episode whose two releases sit in anime and shows stays in TV Shows, said once",
-              section_of(server, pair) == "2" and log_count(work, "FEED %s stays in TV Shows" % pair) == 1,
-              (section_of(server, pair), log_count(work, "stays in TV Shows")))
+        erai = server.keys().get(episode("ascendance_erai_s4_01")["id"])
+        check("an episode whose two releases sit in anime and shows keeps its key in TV Shows, its anime release in Anime",
+              section_of(server, pair) == "2" and server.keys().get(episode("ascendance_scene_s04e01")["id"]) == pair
+              and erai not in (None, pair) and section_of(server, erai) == made.get("Anime")
+              and log_count(work, "stays in TV Shows") == 0,
+              (section_of(server, pair), erai, section_of(server, erai) if erai else None, log_count(work, "stays in TV Shows")))
     finally:
         stop(server, work)
         shutil.rmtree(work, ignore_errors=True)

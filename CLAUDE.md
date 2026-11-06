@@ -681,6 +681,9 @@ python3 tests/test_artwork_blur.py          # thumbBlurHash, artBlurHash and Ult
                                             # covers: which rows carry which, the hash and corners within tolerance, kept by --state
 python3 tests/test_match_show_children.py  # a show Fix Matched takes the picked show's episodes by its rows' TMDB episode ids, by number only where every season's count is Plex's (a real library's Ben 10: Omniverse); one matched onto a show the library holds merges into it, its episodes kept; both listed for the source with the show's ids until Unmatch
 python3 tests/test_feed_episode_ids.py      # a pushed `tmdb_episode` is Plex's episode listing it, every page of a season is read, a re-placed version leaves a row of several (Re:ZERO, Ben 10, Animaniacs, SpongeBob)
+python3 tests/test_feed_kind_change.py      # a version placed in a library of the other kind leaves its row of several, pushed whole or by
+                                            # its digest (asked for whole); a person's match, unnumbered episodes and a rex with no show library
+                                            # keep the row (a Discord user's Primal S03, two releases once a film)
 python3 tests/test_feed_retry_placed.py     # an episode its source placed that Plex's agent had not named is named by the ten-minute retry, without a push (Animaniacs), one of several releases placed alike too (Re:ZERO S1E79)
 python3 tests/test_feed_named_on_claim.py   # what a source placed before rex could ask Plex's agent is named the moment it is claimed, and once
                                             # the agent is back on the next push, its show included (a sponsor's 7,035 releases)
@@ -806,7 +809,7 @@ Windows amd64 with MinGW, then tests that on Windows (the unit tests and every s
 one staged file and nothing else. Those are the platforms zurg's own releases are downloaded for.
 
 A nightly goes out beside zurg's: `/home/ben/zurg-nightly-dispatch.sh` on dmm dispatches
-CI with `nightly=true` at 00:40 Berlin (a `19 1 * * *` UTC cron is the fallback), and it
+CI with `nightly=true` at 01:10 Berlin, ten minutes after zurg's (a `19 3 * * *` UTC cron is the fallback), and it
 publishes every platform as the prerelease `YYYY.MM.DD.HHMM-nightly`, notes being the commits
 since the previous release, plus the `nightly` image, and posts it to Discord's #general
 through the webhook zurg's nightlies use (`DISCORD_RELEASE_WEBHOOK`, `.github/announce_nightly.py`;

@@ -117,6 +117,26 @@ def people(row, field):
     return [(tag.get("tag"), tag.get("tagKey")) for tag in row.get(field) or []]
 
 
+def agent_image(answers, alt, kind):
+    """The URL of the image of `kind` Plex's agent answers for `alt`."""
+    stack = [answers]
+    while stack:
+        value = stack.pop()
+        if isinstance(value, dict):
+            if value.get("type") == kind and value.get("alt") == alt and "url" in value:
+                return value["url"]
+            stack.extend(value.values())
+        elif isinstance(value, list):
+            stack.extend(value)
+    raise LookupError("no %s for %s" % (kind, alt))
+
+
+def fetched(url):
+    """What Plex's host serves for `url` to this machine now."""
+    with urllib.request.urlopen(url, timeout=60) as response:
+        return response.read()
+
+
 def online():
     try:
         socket.create_connection(("metadata-static.plex.tv", 443), timeout=5).close()
@@ -268,6 +288,12 @@ def described(label, server, bytes_too=True):
         logo = "/clearLogo/" in ref_path and ref_path.startswith("/library/metadata/1/")
         if logo:
             heads.pop("content-range"), same.pop("content-range")
+        # The show's logo is plexlab's file as Plex's CDN serves it here: one URL and ETag, but
+        # Frankfurt's copy is 11,818 bytes and Berlin's the recorded 11,816 (2026-11-05).
+        if ref_path == "/library/metadata/6/clearLogo/" + VERSIONS["show"]:
+            served = fetched(agent_image(SPECIALS["plex"], "Firefly", "clearLogo"))
+            want = dict(want, length=len(served), sha256=hashlib.sha256(served).hexdigest())
+            heads["content-length"] = str(len(served))
         check("%s: %s %s%s: plexlab's %d, %s%s" % (label, method, path.split("/", 4)[-1], " " + headers["Range"] if headers else "",
                                                      want["status"], heads.get("content-type"), "" if logo else " and its bytes"),
               status == want["status"] and same == heads

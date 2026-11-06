@@ -20,6 +20,7 @@ import urllib.parse
 
 from test_feed import BYTES_TOKEN, BODY, MOUNT, LEGACY, Bytes, Events, Server, check, results, serve
 from test_feed import item as feed_item
+from test_feed import libraries, moved_to, register
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURE = json.load(open(os.path.join(HERE, "fixtures", "feed", "duplicate_releases.json")))
@@ -135,6 +136,49 @@ def main():
               (status, body, server.keys()))
         server.feed("DELETE", "items", {"ids": [two["id"]]})
         check("removing the last release trashes the row as before", server.row(key).get("deletedAt"), server.row(key))
+    finally:
+        server.stop()
+        shutil.rmtree(work, ignore_errors=True)
+
+    # -- a version follows its folder to the library declared for it ---------------------------
+    # A user's rex (#rex-support, 2026-11-05): zurg's `movies` and `movies_fhd` both fed Debrid
+    # Movies, so a film's 2160p and 1080p releases became one row there. Once `movies_fhd` was
+    # declared a library of its own (REX-1080p Movies), the row stayed whole in Debrid Movies
+    # ("its releases sit in folders of different libraries"): its 1080p version listed there for
+    # good and missing from the 1080p library.
+    work = tempfile.mkdtemp(prefix="rex-versions-")
+    catalog(work)
+    server = Server(work, bytes_port)
+    try:
+        # Each with a probe digest, as zurg pushes them: its snapshots name a probe by it alone.
+        film, fhd = dict(one, probe="digest-of-one"), dict(moved_to(two, "movies_fhd"), probe="digest-of-fhd")
+        source.files.add("/dav/" + fhd["path"])
+        server.feed("POST", "items", {"items": [film, fhd]})
+        key = server.keys().get(film["id"])
+        server.request("/:/scrobble?key=%s&identifier=com.plexapp.plugins.library" % key)
+        check("with nothing declared, a title's releases in two folders are one row in Movies",
+              server.keys() == {film["id"]: key, fhd["id"]: key} and files(server.row(key)) == [film["file"], fhd["file"]],
+              (server.keys(), files(server.row(key))))
+        register(server, [{"name": "movies_fhd", "movies": "1080p Movies"}])
+        fhd_library = int(libraries(server).get("1080p Movies", ("-1",))[0])
+        status, body = server.feed("PUT", "snapshot", {"items": [dict(entry, media_info=None) for entry in (film, fhd)]})
+        check("a snapshot naming both by their digests asks for the version that leaves, whole, and for no other",
+              status == 200 and body.get("wants") == [fhd["id"]] and server.keys() == {film["id"]: key, fhd["id"]: key},
+              (status, body, server.keys()))
+        status, body = server.feed("POST", "items", {"items": [film, fhd]})
+        keys = server.keys()
+        row, split = server.row(key), server.row(keys.get(fhd["id"]))
+        check("the next push takes the version in the declared folder out of the row, into that folder's library",
+              status == 200 and keys.get(film["id"]) == key and keys.get(fhd["id"]) not in (None, key)
+              and files(row) == [film["file"]] and row.get("librarySectionID") == 1
+              and files(split) == [fhd["file"]] and split.get("librarySectionID") == fhd_library
+              and split.get("guid") == GUID,
+              (body, keys, files(row), row.get("librarySectionID"), files(split), split.get("librarySectionID"), split.get("guid")))
+        check("the row someone watched keeps its key and its play", row.get("viewCount") == 1, row.get("viewCount"))
+        ok, hit = read(server, split, fhd["file"])
+        check("the version that left streams from its own path", ok and hit == ["/dav/" + fhd["path"]], hit)
+        status, body = server.feed("POST", "items", {"items": [film, fhd]})
+        check("pushed again, both stay where they are", body.get("unchanged") == 2 and server.keys() == keys, (body, server.keys()))
     finally:
         server.stop()
         shutil.rmtree(work, ignore_errors=True)
