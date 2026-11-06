@@ -580,7 +580,7 @@ impl Plan {
             // two 5 s segments (6.3 s to first frame on the test host, measured).
             // Sparse cues or a source timestamp jump can require a long copy slot.
             // Its length is not a requirement to buffer that much before playing.
-            length.min(DASH_COPY_SEGMENT)
+            length.min(TRANSCODE_SEGMENT)
         );
         let mut id = 0;
         if let Some(video) = self.video.as_ref() {
@@ -643,7 +643,7 @@ impl Plan {
             if gap > 20_000 {
                 self.fit_copy_timeline(&cues);
             } else {
-                self.segment_length = Some(((gap + 999) / 1000).max(i64::from(DASH_COPY_SEGMENT)) as u32);
+                self.segment_length = Some(((gap + 999) / 1000).max(i64::from(TRANSCODE_SEGMENT)) as u32);
             }
         }
     }
@@ -4380,7 +4380,7 @@ mod tests {
         let manifest = copy.mpd("timeline", 0.0);
         assert!(manifest.contains("<SegmentTimeline>"));
         assert!(manifest.contains("<S t=\"15000\" d=\"65000\"/>"));
-        assert!(manifest.contains("minBufferTime=\"PT5S\""));
+        assert!(manifest.contains("minBufferTime=\"PT2S\""));
         let args = ffmpeg_args(&copy, Path::Software, &Hardware::software(), 4, std::path::Path::new("/tmp/x"));
         assert_eq!(args[args.iter().position(|arg| arg == "-ss").unwrap() + 1], "80");
         assert!(args.iter().any(|arg| arg.contains("segment_times=85")));
@@ -4418,7 +4418,7 @@ mod tests {
             audio.sampling_rate = 44100;
         }
         // Byte for byte the reference's, but for `minBufferTime`, which is ours (`mpd`).
-        assert_eq!(copy.mpd("rexdashdash-cop", 0.0), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT5S\""));
+        assert_eq!(copy.mpd("rexdashdash-cop", 0.0), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT2S\""));
     }
 
     #[test]

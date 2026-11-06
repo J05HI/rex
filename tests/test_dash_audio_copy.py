@@ -148,10 +148,11 @@ def run(scratch):
     items = [
         make_media(key, codec + ".mkv", 90000, [
             "-f", "lavfi", "-i", "testsrc2=s=320x180:r=25:d=90", "-f", "lavfi", "-i", "sine=d=90",
-            "-c:v", enc, "-preset", "ultrafast", "-g", "300", "-sc_threshold", "0",
-            "-c:a", "dca" if codec == "h264" else "truehd", "-strict", "-2", "-shortest",
+            "-c:v", enc, "-preset", "ultrafast", "-g", str(gop), "-sc_threshold", "0",
+            "-c:a", "truehd" if codec == "hevc" else "dca", "-strict", "-2", "-shortest",
         ])
-        for key, codec, enc in (("1", "h264", "libx264"), ("2", "hevc", "libx265"))
+        for key, codec, enc, gop in (("1", "h264", "libx264", 300), ("2", "hevc", "libx265", 300),
+                                     ("5", "dense", "libx264", 25))
     ]
     items.append(make_media("3", "sparse.mkv", 36000, [
         "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=36", "-f", "lavfi", "-i", "sine=d=36",
@@ -178,7 +179,7 @@ def run(scratch):
     port, process, log = nt.start_server(catalog, source.server_address[1], True, scratch, token=token)
     try:
         assert nt.get(port, "/library/sections")[0] == 401
-        for key, codec in (("1", "h264"), ("2", "hevc")):
+        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense")):
             session = "audio-copy-" + codec
             extra = "append-transcode-target-codec(type=videoProfile&context=streaming&protocol=dash&videoCodec=h264,hevc&audioCodec=aac)"
             query = nt.dash_query(key, session, directStream="1", directStreamAudio="0",
@@ -256,7 +257,7 @@ def run(scratch):
             unauthenticated = [(k, v) for k, v in query if k != "X-Plex-Token"]
             assert nt.get(port, "/video/:/transcode/universal/start.mpd", unauthenticated)[0] == 401
             length = int(re.search(rb'<SegmentTemplate timescale="1" duration="(\d+)"', manifest)[1])
-            assert length > 0, length
+            assert length == (2 if codec == "dense" else 12), length
             paths = []
             for rep in (0, 1):
                 path = os.path.join(scratch, "%s-%d.mp4" % (codec, rep))
@@ -330,7 +331,7 @@ def run(scratch):
             assert status == 200, (status, manifest)
             timeline = ET.fromstring(manifest).findall(".//{urn:mpeg:dash:schema:mpd:2011}SegmentTimeline")[0]
             slots = [(int(entry.attrib["t"]), int(entry.attrib["d"])) for entry in timeline]
-            assert max(length for _, length in slots) > 20_000 and b'minBufferTime="PT5S"' in manifest, manifest
+            assert max(length for _, length in slots) > 20_000 and b'minBufferTime="PT2S"' in manifest, manifest
             if name == "timestamp-gap":
                 assert slots[0][0] == 0 and 5000 <= slots[0][1] <= 5100, slots
                 assert len(slots) > 2 and slots[-2][0] >= 80_000, slots
