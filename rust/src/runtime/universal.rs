@@ -1188,9 +1188,12 @@ fn ffmpeg_args_at(plan: &Plan, path: Path, hardware: &Hardware, start: i64, dir:
                     .take_while(|&&time| time < plan.duration_ms)
                     .map(|time| format!("{:.6}", *time as f64 / 1000.0 - origin))
                     .collect::<Vec<_>>().join(",");
-                let options = format!("f=segment:segment_format=mp4:segment_start_number=1:segment_time_delta=0.0625:segment_format_options=movflags=+empty_moov+frag_keyframe+default_base_moof+frag_discont\\\\:avoid_negative_ts=disabled\\\\:use_editlist=0{}",
-                    if times.is_empty() { ":segment_time=2147483647".to_string() } else { format!(":segment_times={times}") });
                 let kind = if rep == 0 && plan.video.is_some() { "v" } else { "a" };
+                // Video needs tolerance for rounded cue PTS; audio cuts must not
+                // precede their manifest slot or players can discard its opening packets.
+                let delta = if kind == "v" { 0.0625 } else { 0.0 };
+                let options = format!("f=segment:segment_format=mp4:segment_start_number=1:segment_time_delta={delta}:segment_format_options=movflags=+empty_moov+frag_keyframe+default_base_moof+frag_discont\\\\:avoid_negative_ts=disabled\\\\:use_editlist=0{}",
+                    if times.is_empty() { ":segment_time=2147483647".to_string() } else { format!(":segment_times={times}") });
                 let file = dir.join(format!("r{start}")).join(format!("chunk-{rep}-%05d.m4s"))
                     .to_string_lossy().replace('\\', "/").replace('\'', "\\'").replace('|', "\\|");
                 outputs.push(format!("[select={kind}:{options}]{file}"));

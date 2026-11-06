@@ -12865,6 +12865,10 @@ single output argument on Linux. Regular 1.001-second keyframes retain the fast
 fixed-slot path. The generated regression includes fractional, uneven keyframes
 with B-frames and checks every copied packet, decoded frame, AAC output and seek.
 
+Timeline audio cuts use no keyframe tolerance. Applying video's 62.5 ms tolerance
+also to AAC cut chunks before their advertised slot boundaries. Video retains
+the tolerance for rounded cue timestamps; AAC packets remain continuous.
+
 ### Reopening an existing DASH manifest by session (2026-10-30)
 
 A player started authenticated H.264/DTS and HEVC/TrueHD sessions, then stopped
