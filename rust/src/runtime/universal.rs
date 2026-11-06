@@ -630,10 +630,16 @@ impl Plan {
     fn fit_copy_segments(&mut self) {
         if self.protocol != Protocol::Dash || self.live() { return; }
         let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return };
-        let read = |offset, length| read_range(&self.url, self.auth.as_deref(), offset, length);
-        if let Ok(cues) = super::mkvsubs::video_cues(&read, video.index, self.duration_ms) {
-            self.fit_copy_cues(&cues);
+        let begun = Instant::now();
+        let read = |offset, length| {
+            let remaining = Duration::from_secs(5).checked_sub(begun.elapsed()).filter(|time| !time.is_zero()).ok_or("video index read budget exhausted")?;
+            read_range_with_timeout(&self.url, self.auth.as_deref(), offset, length, remaining)
+        };
+        match super::mkvsubs::video_cues(&read, video.index, self.duration_ms) {
+            Ok(cues) => self.fit_copy_cues(&cues),
+            Err(error) => debug!("TRANSCODE video index unavailable: {error}; retaining default slots"),
         }
+        debug!("TRANSCODE video index fitted in {:.3}s", begun.elapsed().as_secs_f64());
     }
 
     fn fit_copy_cues(&mut self, cues: &[i64]) {
@@ -3065,6 +3071,11 @@ fn filter_path(path: &str) -> String {
 
 /// `length` bytes of a source's file from `offset`, as `mkvsubs` reads a subtitle track.
 pub(super) fn read_range(url: &str, auth: Option<&str>, offset: u64, length: usize) -> Result<Vec<u8>, String> {
+    read_range_with_timeout(url, auth, offset, length, Duration::from_secs(30))
+}
+
+fn read_range_with_timeout(url: &str, auth: Option<&str>, offset: u64, length: usize, timeout: Duration) -> Result<Vec<u8>, String> {
+    let deadline = Instant::now() + timeout;
     let mut headers = vec![
         ("User-Agent", super::upstream::UPSTREAM_UA.to_string()),
         ("Range", format!("bytes={offset}-{}", offset + length.max(1) as u64 - 1)),
@@ -3072,12 +3083,12 @@ pub(super) fn read_range(url: &str, auth: Option<&str>, offset: u64, length: usi
     if let Some(auth) = auth {
         headers.push(("Authorization", auth.to_string()));
     }
-    let mut response = super::upstream::open("GET", url, &headers, b"", Duration::from_secs(30))?;
+    let mut response = super::upstream::open("GET", url, &headers, b"", timeout)?;
     // A source that ignores Range would answer the whole release.
     if response.status != 206 {
         return Err(format!("the source answered {} to a range", response.status));
     }
-    response.read_body(length + 1024)
+    response.read_body_until(length + 1024, deadline)
 }
 
 /// Spawn FFmpeg so it dies with rex. On Linux the child asks for SIGKILL when its parent

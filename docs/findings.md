@@ -12850,6 +12850,14 @@ seeks, opening delivery with the tail blocked, cancellation and replacement.
 It also decodes and seeks the public MPD when a DASH reader is available
 (`REX_DASH_CLIENT` selects one). The suite runs in Linux and Windows CI.
 
+Index reads reuse the initial 64 KiB and fetch an uncached table's opening
+64 KiB with its header, reading only the missing remainder for larger tables.
+Video fitting shares a five-second read budget and logs elapsed time; an
+unavailable index retains the default copy validation path. Eight reads of four
+real remote-source indexes took 220–383 ms and three requests each (their Cues
+exceeded 64 KiB). These were current-source measurements, not guaranteed cold
+cache measurements.
+
 ### Uneven fractional keyframes must keep their cue times (2026-11-06)
 
 Fixed DASH slots of 1.002, 10.428 or 1.001 seconds merged video chunks for

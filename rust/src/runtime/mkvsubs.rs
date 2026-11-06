@@ -165,20 +165,28 @@ fn matroska_tables(read: Read, head: &[u8]) -> Result<(usize, Vec<u8>, Vec<u8>, 
             break;
         }
     }
-    // The initial read usually already holds Info and Tracks; avoid fetching them again.
-    let cached_read = |offset: u64, length: usize| -> Result<Vec<u8>, String> {
-        let cached = usize::try_from(offset).ok().and_then(|start| start.checked_add(length).and_then(|end| head.get(start..end)));
-        cached.map_or_else(|| read(offset, length), |bytes| Ok(bytes.to_vec()))
-    };
     let element = |wanted: u64| -> Result<Vec<u8>, String> {
         let at = seeks.iter().find(|seek| seek.0 == wanted).map(|seek| seek.1).ok_or_else(|| format!("no SeekHead entry {wanted:x}"))?;
-        let header = cached_read(at, 12)?;
-        let (_, data) = vint(&header, 0, true).ok_or("bad element id")?;
-        let (size, data) = vint(&header, data, false).ok_or("bad element size")?;
+        // Reuse the head, or fetch the element's header and opening payload together.
+        let cached = usize::try_from(at).ok().and_then(|start| head.get(start..)).filter(|bytes| bytes.len() >= 12);
+        let fetched;
+        let bytes = match cached {
+            Some(bytes) => bytes,
+            None => { fetched = read(at, 64 * 1024)?; &fetched }
+        };
+        let (_, data) = vint(bytes, 0, true).ok_or("bad element id")?;
+        let (size, data) = vint(bytes, data, false).ok_or("bad element size")?;
         if size > 64 * 1024 * 1024 {
             return Err(format!("element {wanted:x} of {size} bytes"));
         }
-        cached_read(at + data as u64, size as usize)
+        let size = size as usize;
+        let held = bytes.len().saturating_sub(data).min(size);
+        let mut payload = bytes[data..data + held].to_vec();
+        if held < size {
+            payload.extend(read(at + (data + held) as u64, size - held)?);
+        }
+        if payload.len() != size { return Err("truncated Matroska table".into()); }
+        Ok(payload)
     };
     let info = element(INFO)?;
     let tracks = element(TRACKS)?;
@@ -460,7 +468,61 @@ mod tests {
             read(offset, length)
         };
         assert_eq!(matroska_tables(&counted_read, &RELEASE[..8192]).unwrap(), expected);
-        assert_eq!(requests.load(std::sync::atomic::Ordering::Relaxed), 2);
+        assert_eq!(requests.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn seek_tables_larger_than_64k_or_partially_cached_fetch_missing_bytes() {
+        let at = 9255u64;
+        let total_size = 70_000usize;
+        let header = [0x1C, 0x53, 0xBB, 0x6B, 0x21, 0x11, 0x70];
+        let mut expected_payload = Vec::with_capacity(total_size);
+        for i in 0..total_size {
+            expected_payload.push((i % 251) as u8);
+        }
+        let requests = std::sync::Mutex::new(Vec::new());
+        let large_read = |offset: u64, length: usize| -> Result<Vec<u8>, String> {
+            requests.lock().unwrap().push((offset, length));
+            if offset == at {
+                let mut data = header.to_vec();
+                let opening_len = length.saturating_sub(header.len()).min(total_size);
+                data.extend_from_slice(&expected_payload[..opening_len]);
+                Ok(data)
+            } else if offset == at + (header.len() + (64 * 1024 - header.len())) as u64 {
+                let remaining_start = 64 * 1024 - header.len();
+                Ok(expected_payload[remaining_start..].to_vec())
+            } else {
+                read(offset, length)
+            }
+        };
+        let (_, _, _, cues_bytes) = matroska_tables(&large_read, &RELEASE[..8192]).unwrap();
+        assert_eq!(cues_bytes.len(), total_size);
+        assert_eq!(cues_bytes, expected_payload);
+        let reqs = requests.lock().unwrap().clone();
+        assert_eq!(reqs.len(), 2);
+        assert_eq!(reqs[0], (at, 64 * 1024));
+        assert_eq!(reqs[1], (at + 64 * 1024, total_size - (64 * 1024 - header.len())));
+
+        let cues_in_head = 9255;
+        let mut head_with_cues = RELEASE[..cues_in_head].to_vec();
+        head_with_cues.extend_from_slice(&header);
+        head_with_cues.extend_from_slice(&expected_payload[..50]);
+        assert!(head_with_cues.len() >= cues_in_head + 12);
+        requests.lock().unwrap().clear();
+        let cached_partial_read = |offset: u64, length: usize| -> Result<Vec<u8>, String> {
+            requests.lock().unwrap().push((offset, length));
+            if offset == (cues_in_head + header.len() + 50) as u64 {
+                Ok(expected_payload[50..].to_vec())
+            } else {
+                read(offset, length)
+            }
+        };
+        let (_, _, _, cues_cached) = matroska_tables(&cached_partial_read, &head_with_cues).unwrap();
+        assert_eq!(cues_cached.len(), total_size);
+        assert_eq!(cues_cached, expected_payload);
+        let reqs_cached = requests.lock().unwrap().clone();
+        assert_eq!(reqs_cached.len(), 1);
+        assert_eq!(reqs_cached[0], ((cues_in_head + header.len() + 50) as u64, total_size - 50));
     }
 
     #[test]
