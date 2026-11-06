@@ -2497,16 +2497,27 @@ impl Transcoder {
         }
         let mut args = ffmpeg_args(&plan, path, &hardware, start, &session.dir);
         if start > 0 && !plan.dash_timeline.is_empty() {
-            match self.timeline_origins(session, &args) {
-                Ok(origins) => args = ffmpeg_args_at(&plan, path, &hardware, start, &session.dir, Some(&origins)),
-                Err(error) => {
-                    error!("TRANSCODE {} seek timing: {error}", session.id);
-                    if let Ok(mut state) = session.state.lock() { state.error = true; }
-                    return;
+            for attempt in 1..=3 {
+                if session.stopped.load(Ordering::SeqCst) || session.run.load(Ordering::SeqCst) != run { return; }
+                match self.timeline_origins(session, &args) {
+                    Ok(origins) => {
+                        args = ffmpeg_args_at(&plan, path, &hardware, start, &session.dir, Some(&origins));
+                        break;
+                    }
+                    Err(error) => {
+                        if session.stopped.load(Ordering::SeqCst) || session.run.load(Ordering::SeqCst) != run { return; }
+                        if attempt < 3 {
+                            warning!("TRANSCODE {} seek timing attempt {attempt}: {error}; retrying", session.id);
+                            continue;
+                        }
+                        error!("TRANSCODE {} seek timing: {error}", session.id);
+                        if let Ok(mut state) = session.state.lock() { state.error = true; }
+                        return;
+                    }
                 }
             }
         }
-        if session.stopped.load(Ordering::SeqCst) { return; }
+        if session.stopped.load(Ordering::SeqCst) || session.run.load(Ordering::SeqCst) != run { return; }
         if let Some(sidecar) = &session.plan.sidecar {
             if let Err(err) = std::fs::write(session.dir.join(sidecar.file_name()), &sidecar.content) {
                 warning!("TRANSCODE {} cannot write its subtitle: {err}", session.id);
@@ -4871,6 +4882,62 @@ mod tests {
         assert!(!args.contains("tonemap"));
         assert!(!Hardware::software().can_normalize_loudness());
         assert!(!Hardware::software().can_boost_dialog());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn seek_timing_failures_are_bounded_and_cancelled_runs_do_not_retry() {
+        use std::os::unix::fs::PermissionsExt;
+        for mode in ["exhausted", "stopped", "superseded"] {
+            let root = std::env::temp_dir().join(format!("rex-seek-retry-{}-{mode}", std::process::id()));
+            std::fs::create_dir_all(&root).unwrap();
+            let ffmpeg = root.join("ffmpeg");
+            let calls = root.join("calls");
+            let release = root.join("release");
+            // Fail each timing probe; hold the first for cancellation cases.
+            std::fs::write(&ffmpeg, if mode == "exhausted" {
+                "#!/bin/sh\ncd -- \"$(dirname -- \"$0\")\"\necho probe >> calls\nexit 1\n"
+            } else {
+                "#!/bin/sh\ncd -- \"$(dirname -- \"$0\")\"\necho probe >> calls\nwhile [ ! -f release ]; do sleep 0.01; done\nexit 1\n"
+            }).unwrap();
+            std::fs::set_permissions(&ffmpeg, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let transcoder = Arc::new(Transcoder {
+                ffmpeg, root: root.clone(), hardware: Mutex::new(Hardware::software()),
+                sessions: Mutex::new(HashMap::new()), budgets: Mutex::new(HashMap::new()),
+                starts: std::sync::atomic::AtomicU64::new(0),
+            });
+            let mut p = plan(true, 30_000);
+            p.protocol = Protocol::Dash;
+            p.dash_timeline = vec![0, 5000, 25000, 30000];
+            let session = Session::new(mode, p, root.clone(), false);
+            let worker = {
+                let transcoder = transcoder.clone();
+                let session = session.clone();
+                thread::spawn(move || transcoder.launch_with(&session, 1, None, None))
+            };
+            if mode != "exhausted" {
+                let deadline = Instant::now() + Duration::from_secs(5);
+                while !calls.exists() && Instant::now() < deadline {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                let entered = calls.exists();
+                if mode == "stopped" {
+                    session.stopped.store(true, Ordering::SeqCst);
+                } else {
+                    session.run.fetch_add(1, Ordering::SeqCst);
+                }
+                std::fs::write(&release, b"").unwrap();
+                worker.join().unwrap();
+                assert!(entered, "probe did not start");
+            } else {
+                worker.join().unwrap();
+            }
+            let attempts = std::fs::read_to_string(&calls).unwrap().lines().count();
+            assert_eq!(attempts, if mode == "exhausted" { 3 } else { 1 }, "{mode}");
+            assert_eq!(session.errored(), mode == "exhausted", "{mode}");
+            assert!(session.child.lock().unwrap().is_none());
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
 
     #[test]

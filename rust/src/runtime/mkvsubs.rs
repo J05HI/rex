@@ -210,7 +210,8 @@ pub(crate) fn video_cues(read: Read, stream: i64, duration_ms: i64) -> Result<Ve
         if video {
             let ticks = child(&cues, start, end, CUE_TIME).map(uint).ok_or("cue without a timestamp")?;
             let ms = i64::try_from(ticks as u128 * scale as u128 / 1_000_000).map_err(|_| "cue timestamp overflow")?;
-            if ms < 0 || ms >= duration_ms { return Err("cue outside duration".to_string()); }
+            if ms < 0 { return Err("cue outside duration".to_string()); }
+            if ms >= duration_ms { continue; }
             times.push(ms);
         }
     }
@@ -450,6 +451,13 @@ mod tests {
         assert!(video_gap(&read, 1, 1000).is_err());
         assert!(video_gap(&read, -1, 1000).is_err());
         assert!(video_gap(&read, 0, 0).is_err());
+    }
+
+    #[test]
+    fn video_cues_past_the_duration_do_not_discard_the_index() {
+        assert_eq!(video_cues(&read, 0, 500).unwrap(), [0, 500]);
+        assert_eq!(video_cues(&read, 0, 400).unwrap(), [0, 400]);
+        assert!(video_cues(&read, 0, -1).is_err());
     }
 
     #[test]
