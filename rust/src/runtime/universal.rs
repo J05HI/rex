@@ -661,6 +661,9 @@ impl Plan {
             self.fit_copy_gap(gap);
             return;
         }
+        // Leave ordinary short-GOP files on their existing five-second slots.
+        // Include the opening offset so delayed video cannot consume that margin.
+        if gap.saturating_add(cues.first().copied().unwrap_or(0)) < 4500 { return; }
         // A fixed template needs the opening keyframe on its grid too. A
         // shorter lead-in shifts every later cut, even with a regular cadence.
         let regular = cues.first() == Some(&0) && cues[..cues.len() - 1].windows(2).all(|pair| pair[1] - pair[0] == gap);
