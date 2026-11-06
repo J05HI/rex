@@ -1546,6 +1546,7 @@ pub(crate) struct Transcoder {
     /// Numbers each start's directory: a session started again on its id never shares the
     /// directory the FFmpeg it replaces may still write into while it is killed.
     starts: std::sync::atomic::AtomicU64,
+    version: std::sync::OnceLock<Option<u32>>,
 }
 
 impl std::fmt::Debug for Transcoder {
@@ -1828,6 +1829,14 @@ impl DashStart {
     pub fn fit(&self) -> Plan {
         let mut plan = self.session.plan.clone();
         plan.fit_copy_segments();
+        if !plan.dash_timeline.is_empty() && !self.transcoder.version().is_some_and(|major| major >= 6) {
+            // Older segment muxers compare absolute PTS, not offsets from their
+            // first packet. Keep their fixed-slot path, with a full second of margin.
+            let gap = plan.dash_timeline.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0);
+            plan.segment_length_ms = Some((((gap + 1999) / 1000) * 1000).min(i64::from(u32::MAX)) as u32);
+            plan.dash_timeline.clear();
+            warning!("TRANSCODE {}: variable DASH timing requires FFmpeg 6 or newer; using fixed slots", self.session.id);
+        }
         plan
     }
 
@@ -1890,7 +1899,7 @@ impl Transcoder {
             hardware: Mutex::new(Hardware::software()),
             sessions: Mutex::new(HashMap::new()),
             budgets: Mutex::new(HashMap::new()),
-            starts: std::sync::atomic::AtomicU64::new(0),
+            starts: std::sync::atomic::AtomicU64::new(0), version: std::sync::OnceLock::new(),
         });
         let probing = Arc::clone(&transcoder);
         thread::spawn(move || {
@@ -1964,8 +1973,10 @@ impl Transcoder {
     /// The major version `-version` names (`ffmpeg version 4.4.2-0ubuntu0.22.04.1`, `n7.0`,
     /// `8.1.2-Jellyfin`); a git build (`N-127900-...`) names none.
     fn version(&self) -> Option<u32> {
-        let output = Command::new(&self.ffmpeg).arg("-version").stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
-        major_version(&String::from_utf8_lossy(&output.stdout))
+        *self.version.get_or_init(|| {
+            let output = Command::new(&self.ffmpeg).arg("-version").stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
+            major_version(&String::from_utf8_lossy(&output.stdout))
+        })
     }
 
     fn probe(&self) -> Hardware {
@@ -4414,6 +4425,32 @@ mod tests {
     }
 
     #[test]
+    fn dash_start_version_gate_disables_timeline_for_old_or_unknown_ffmpeg() {
+        let temp = std::env::temp_dir().join(format!("rex-version-gate-{}", std::process::id()));
+        std::fs::create_dir_all(&temp).unwrap();
+        let mut p = plan(false, 30_000);
+        p.protocol = Protocol::Dash;
+        p.dash_timeline = vec![0, 4920, 9840, 15000, 20000, 25000, 30000];
+        for version in [None, Some(4), Some(5), Some(6), Some(8)] {
+            let transcoder = Arc::new(Transcoder {
+                ffmpeg: PathBuf::from("ffmpeg"), root: temp.clone(), hardware: Mutex::new(Hardware::software()),
+                sessions: Mutex::new(HashMap::new()), budgets: Mutex::new(HashMap::new()),
+                starts: std::sync::atomic::AtomicU64::new(0), version: std::sync::OnceLock::new(),
+            });
+            transcoder.version.set(version).unwrap();
+            let session = Session::new("version-gate", p.clone(), temp.clone(), false);
+            let fitted = DashStart { session, transcoder }.fit();
+            if version.is_some_and(|major| major >= 6) {
+                assert_eq!(fitted.dash_timeline, p.dash_timeline, "{version:?}");
+            } else {
+                assert!(fitted.dash_timeline.is_empty(), "{version:?}");
+                assert_eq!(fitted.segment_length_ms, Some(7000));
+            }
+        }
+        let _ = std::fs::remove_dir_all(temp);
+    }
+
+    #[test]
     fn fractional_dash_slots_keep_seek_and_manifest_clocks_together() {
         let mut copy = plan(true, 90_000);
         copy.protocol = Protocol::Dash;
@@ -4958,7 +4995,7 @@ mod tests {
             let transcoder = Arc::new(Transcoder {
                 ffmpeg, root: root.clone(), hardware: Mutex::new(Hardware::software()),
                 sessions: Mutex::new(HashMap::new()), budgets: Mutex::new(HashMap::new()),
-                starts: std::sync::atomic::AtomicU64::new(0),
+                starts: std::sync::atomic::AtomicU64::new(0), version: std::sync::OnceLock::new(),
             });
             let mut p = plan(true, 30_000);
             p.protocol = Protocol::Dash;
@@ -5006,7 +5043,7 @@ mod tests {
         let transcoder = Transcoder {
             ffmpeg, root: root.join("ephemeral"), hardware: Mutex::new(Hardware::software()),
             sessions: Mutex::new(HashMap::new()), budgets: Mutex::new(HashMap::new()),
-            starts: std::sync::atomic::AtomicU64::new(0),
+            starts: std::sync::atomic::AtomicU64::new(0), version: std::sync::OnceLock::new(),
         };
         let mut p = plan(false, 1000);
         p.url = source.to_string_lossy().into_owned();

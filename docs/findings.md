@@ -12873,6 +12873,10 @@ and is not an opening cut; timeline runs probe packet origins at startup as well
 as on seeks. Regressions cover 4.96-second opening keyframes and a 4.92-second
 cadence starting 0.48 or 1.2 seconds late.
 
+Variable timing requires FFmpeg 6 or newer: earlier segment muxers interpret
+cut times as absolute PTS. Older or unidentified builds retain fixed slots with
+one second of margin above the largest fitted gap. The version is read once.
+
 Timeline audio cuts use no keyframe tolerance. Applying video's 62.5 ms tolerance
 also to AAC cut chunks before their advertised slot boundaries. Video retains
 the tolerance for rounded cue timestamps; AAC packets remain continuous.
