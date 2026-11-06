@@ -347,10 +347,8 @@ def walk_dash(port, label, key, expect_video, expect_audio, size, duration=DURAT
           and 'mimeType="video/mp4"' in mpd and 'mimeType="audio/mp4"' in mpd, str(status))
     base = "/video/:/transcode/universal/session/%s/" % session
     length = int(re.search(r'SegmentTemplate timescale="1" duration="(\d+)"', mpd).group(1)) if status == 200 else 5
-    buffer = float(re.search(r'minBufferTime="PT([\d.]+)S"', mpd).group(1))
-    check("%s: DASH slots fit the 2 s GOP and bound startup buffering" % label,
-          (2 <= length <= 6 if expect_video == "copy" else length == 2)
-          and 0 < buffer <= length, "slot %ds, buffer %gs" % (length, buffer))
+    check("%s: DASH segments are %d s" % (label, 5 if expect_video == "copy" else 2),
+          length == (5 if expect_video == "copy" else 2) and 'minBufferTime="PT%dS"' % length in mpd, "%d" % length)
     # A remux cuts on the source's own keyframes (the clips have a 2 s GOP); a
     # conversion places one on every boundary.
     slack = 2.1 if expect_video == "copy" else 0.6
