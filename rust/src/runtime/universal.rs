@@ -581,7 +581,7 @@ impl Plan {
             // two 5 s segments (6.3 s to first frame on the test host, measured).
             // Sparse cues or a source timestamp jump can require a long copy slot.
             // Its length is not a requirement to buffer that much before playing.
-            length.min(TRANSCODE_SEGMENT)
+            self.segment_ms().min(i64::from(TRANSCODE_SEGMENT) * 1000) as f64 / 1000.0
         );
         let mut id = 0;
         if let Some(video) = self.video.as_ref() {
@@ -4381,9 +4381,38 @@ mod tests {
         assert_eq!(copy.segment_count(), 90);
         let manifest = copy.mpd("fractional", 0.0);
         assert!(manifest.contains("timescale=\"1000\" duration=\"1001\""));
+        assert!(manifest.contains("minBufferTime=\"PT1.001S\""));
         let args = ffmpeg_args(&copy, Path::Software, &Hardware::software(), 6, std::path::Path::new("/tmp/x"));
         assert_eq!(args[args.iter().position(|arg| arg == "-ss").unwrap() + 1], "6.006");
         assert_eq!(args[args.iter().position(|arg| arg == "-seg_duration").unwrap() + 1], "1.001");
+    }
+
+    #[test]
+    fn forced_conversion_preserves_fractional_segment_duration_and_keyframe_cadence() {
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        copy.segment_length_ms = Some(1001);
+        let session = Session::new("test-forced", copy, std::path::PathBuf::from("/tmp/test"), false);
+        session.forced.lock().unwrap().1 = true;
+        let converted = session.plan_now();
+        assert_eq!(converted.segment_length_ms, Some(1001));
+        assert_eq!(converted.segment_ms(), 1001);
+        assert!(!converted.video.as_ref().unwrap().copy);
+        let args = ffmpeg_args(&converted, Path::Software, &Hardware::software(), 6, std::path::Path::new("/tmp/x"));
+        assert_eq!(args[args.iter().position(|arg| arg == "-ss").unwrap() + 1], "6.006");
+        assert_eq!(args[args.iter().position(|arg| arg == "-seg_duration").unwrap() + 1], "1.001");
+        assert_eq!(args[args.iter().position(|arg| arg == "-force_key_frames").unwrap() + 1], "expr:gte(t,n_forced*1.001)");
+        assert_eq!(args[args.iter().position(|arg| arg == "-g").unwrap() + 1], "24");
+
+        let mut copy_2997 = plan(true, 90_000);
+        copy_2997.protocol = Protocol::Dash;
+        copy_2997.segment_length_ms = Some(1001);
+        copy_2997.video.as_mut().unwrap().frame_rate = 30000.0 / 1001.0;
+        let session_2997 = Session::new("test-forced-2997", copy_2997, std::path::PathBuf::from("/tmp/test2"), false);
+        session_2997.forced.lock().unwrap().1 = true;
+        let converted_2997 = session_2997.plan_now();
+        let args_2997 = ffmpeg_args(&converted_2997, Path::Software, &Hardware::software(), 6, std::path::Path::new("/tmp/x"));
+        assert_eq!(args_2997[args_2997.iter().position(|arg| arg == "-g").unwrap() + 1], "30");
     }
 
     #[test]
