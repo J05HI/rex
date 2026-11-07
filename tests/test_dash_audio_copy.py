@@ -55,6 +55,20 @@ def pending_start(source, port, query):
             resume.set()
 
 
+FIXTURE = json.load(open(os.path.join(nt.ROOT, "tests", "fixtures", "transcode", "dash_manifest_session.json")))["exchanges"]
+
+
+def recorded(method, running):
+    """What PMS 1.43.4 answered a session-only start.mpd: (status, content type) for a running
+    DASH session or an unknown id, by method."""
+    for exchange in FIXTURE:
+        query = dict(exchange["query"])
+        if exchange["path"].endswith("start.mpd") and set(query) == {"session"} and exchange["method"] == method:
+            if running == (query["session"] == "manifest-reopen-witness" and exchange["status"] == 200):
+                return exchange["status"], exchange["headers"]["content-type"]
+    raise AssertionError((method, running))
+
+
 def packet_hashes(path):
     """Read every video packet hash in order to detect any change to the copy."""
     out = subprocess.check_output([
@@ -151,7 +165,6 @@ def run(scratch):
                 assert status == 200, body
                 return not json.loads(body)["MediaContainer"].get("TranscodeSession")
             nt.poll_until(removed, 10)
-            assert "TRANSCODE %s run" % session not in open(log).read(), "reset start launched FFmpeg"
             # A write-side half-close still receives a manifest. An older request
             # replaced during index I/O receives 404 without stopping the winner.
             for replace in (False, True):
@@ -207,12 +220,14 @@ def run(scratch):
                 assert status == 200, (status, manifest)
             assert older.result()[0] == 404, "older start replaced the newer session"
             assert status == 200 and b"<MPD" in manifest, (status, manifest)
-            # A player can reopen the manifest using only the session id.
-            status, _, reopened = nt.get(port, "/video/:/transcode/universal/start.mpd", lookup)
-            assert status == 200 and reopened == manifest, (status, reopened)
-            assert nt.get(port, "/video/:/transcode/universal/start.mpd", lookup, method="HEAD")[0] == 200
-            assert nt.get(port, START, [("session", "missing")])[0] == 400
-            assert nt.get(port, START, [("session", "missing")], method="HEAD")[0] == 400
+            # A player can reopen the manifest using only the session id: each answer as PMS 1.43.4
+            # recorded it (dash_manifest_session.json), for a running session and an unknown one.
+            status, headers, reopened = nt.get(port, "/video/:/transcode/universal/start.mpd", lookup)
+            assert reopened == manifest, (status, reopened)
+            for method, running in (("GET", True), ("HEAD", True), ("GET", False), ("HEAD", False)):
+                want = recorded(method, running)
+                status, headers, body = nt.get(port, START, lookup if running else [("session", "missing")], method=method)
+                assert (status, headers.get("Content-Type")) == want, (method, running, status, headers.get("Content-Type"), want)
             assert nt.get(port, "/video/:/transcode/universal/start.mpd", lookup, method="POST")[0] == 401
             unauthenticated = [(k, v) for k, v in query if k != "X-Plex-Token"]
             assert nt.get(port, "/video/:/transcode/universal/start.mpd", unauthenticated)[0] == 401

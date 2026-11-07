@@ -12903,9 +12903,21 @@ A disposable PMS 1.43.5.11079 replayed the captured player decision parameters
 against generated H.264/AAC media. Completed DASH headers and segments answered
 HTTP/1.1 GET and Range GET with `Connection: Keep-Alive`, `Keep-Alive: timeout=20`
 and the appropriate Content-Length/Content-Range. An explicit request-side
-`Connection: close` produced a closed response. The observations are recorded in
-`tests/fixtures/transcode/dash_connections.json`. The older whole-GET fixture's
-closed response does not establish that all clients must be disconnected.
+`Connection: close` produced a closed response:
+
+| Resource | Request Range | Request Connection | Status | Length | Response Connection | Keep-Alive |
+| --- | --- | --- | --- | --- | --- | --- |
+| `0/header` | absent | absent | 200 | 829 | Keep-Alive | timeout=20 |
+| `0/header` | bytes=0-499 | absent | 206 | 500 | Keep-Alive | timeout=20 |
+| `0/0.m4s` | absent | absent | 200 | 1316142 | Keep-Alive | timeout=20 |
+| `0/0.m4s` | bytes=0-499 | absent | 206 | 500 | Keep-Alive | timeout=20 |
+| `0/0.m4s` | bytes=500-999 | Keep-Alive | 206 | 500 | Keep-Alive | timeout=20 |
+| `0/0.m4s` | bytes=0-499 | close | 206 | 500 | close | absent |
+
+These are curl observations, not a player's own Range and Connection headers, so they live here
+and not in the client fixtures (the `dash_connections.json` record was dropped on 2026-11-07).
+The older whole-GET fixture's closed response does not establish that all clients must be
+disconnected.
 
 Remove the forced close for DASH headers/segments and let the normal request
 connection policy apply. No codec or encoding decision changes. The audio-copy
