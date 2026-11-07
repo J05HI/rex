@@ -305,7 +305,9 @@ impl RexDirect {
         *plextv.direct.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(self);
     }
 
-    fn register(&self, token: &str) -> Result<Registration, Later> {
+    /// `offer_ipv6`: send `publicIpv6`. Never before the port opens, where the provider's check
+    /// finds nothing listening and drops the AAAA.
+    fn register(&self, token: &str, offer_ipv6: bool) -> Result<Registration, Later> {
         let mut body = json!({"machineIdentifier": self.machine});
         // For a LAN name: plex.tv turns rex's http LAN connection into a plex.direct name rex
         // has no certificate for. Only RFC 1918, since the provider's record takes it on trust.
@@ -315,8 +317,10 @@ impl RexDirect {
         // For an AAAA, which reaches rex on a connection with no public IPv4 (CGNAT): the provider
         // connects back to it on `port` and points the AAAA there only when rex answers. Empty
         // without one, so the provider drops an AAAA that no longer reaches rex.
-        body["publicIpv6"] = json!(public_ipv6().map(|ip| ip.to_string()).unwrap_or_default());
-        body["port"] = json!(self.port);
+        if offer_ipv6 {
+            body["publicIpv6"] = json!(public_ipv6().map(|ip| ip.to_string()).unwrap_or_default());
+            body["port"] = json!(self.port);
+        }
         let body = body.to_string();
         let mut headers = vec![
             ("Content-Type", "application/json".to_string()),
@@ -375,9 +379,9 @@ impl RexDirect {
     }
 
     /// Register with the claim's server token and serve what comes back.
-    fn attempt(&self, previous: Option<&Registration>, plextv: &PlexTv) -> Result<Registration, Later> {
+    fn attempt(&self, previous: Option<&Registration>, plextv: &PlexTv, offer_ipv6: bool) -> Result<Registration, Later> {
         let token = super::plextv::claim_token(&plextv.claim).ok_or_else(|| Later::Failed("not claimed".to_string()))?;
-        let fresh = self.register(&token)?;
+        let fresh = self.register(&token, offer_ipv6)?;
         self.apply(&fresh, previous, plextv).map_err(Later::Failed)?;
         Ok(fresh)
     }
@@ -392,10 +396,12 @@ impl RexDirect {
 
     /// Once claimed, on the caller's thread (a claimed start's, before the port opens): the
     /// provider's answer, else the one kept, else none. Then a thread registers again every
-    /// 6 h, 10 min after a failure (1 min after one of the first 403s), and when a 202 says.
+    /// 6 h, 10 min after a failure (1 min after one of the first 403s), and when a 202 says. The
+    /// first call names no IPv6 (the port may not be open yet); with one to offer, the thread's
+    /// first call comes a minute on, when the provider's check can find rex there.
     pub(crate) fn start(self, plextv: Arc<PlexTv>) {
         let mut refused = 0;
-        let (mut current, mut next) = match self.attempt(None, &plextv) {
+        let (mut current, mut next) = match self.attempt(None, &plextv, false) {
             Ok(fresh) => (Some(fresh), REFRESH),
             Err(later) => {
                 let after = later.after(&mut refused);
@@ -413,9 +419,12 @@ impl RexDirect {
                 (kept, after)
             }
         };
+        if public_ipv6().is_some() {
+            next = next.min(SOON);
+        }
         let _ = thread::Builder::new().name("rex-direct".to_string()).spawn(move || loop {
             thread::sleep(next);
-            next = match self.attempt(current.as_ref(), &plextv) {
+            next = match self.attempt(current.as_ref(), &plextv, true) {
                 Ok(fresh) => {
                     current = Some(fresh);
                     REFRESH
@@ -639,7 +648,7 @@ mod tests {
             file: PathBuf::from("rex-direct.json"),
             certificates: Arc::new(Certificates::new(None)),
         };
-        let refusal = direct.register("SERVER-TOKEN").err().expect("a 403 is no answer");
+        let refusal = direct.register("SERVER-TOKEN", true).err().expect("a 403 is no answer");
         assert_eq!(refusal, Later::Refused("HTTP 403 (The Plex account does not own this server)".to_string()));
         // plex.tv lists a just-claimed server late: the next tries come at the short interval...
         let mut refused = 0;
@@ -653,7 +662,7 @@ mod tests {
         assert_eq!(Later::pending(br#"{"retryAfter": 60}"#).after(&mut none), Duration::from_secs(60));
         assert_eq!(none, 0);
         // The second refusal comes through register too: the stub answered both.
-        assert!(matches!(direct.register("SERVER-TOKEN"), Err(Later::Refused(_))));
+        assert!(matches!(direct.register("SERVER-TOKEN", true), Err(Later::Refused(_))));
     }
 
     /// plex.tv listed kids' just-claimed server somewhere inside the old 10-minute retry that found

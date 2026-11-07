@@ -66,19 +66,6 @@ results = []
 
 
 
-def public_ipv6():
-    """What rex sends as publicIpv6: the source of a route to a public IPv6 when it is global
-    (2000::/3, not 2001:db8::/32, Teredo or 6to4), else "". Connecting UDP sends nothing."""
-    try:
-        with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as probe:
-            probe.connect(("2001:4860:4860::8888", 53))
-            ip = ipaddress.IPv6Address(probe.getsockname()[0])
-    except OSError:
-        return ""
-    first, second = int(ip) >> 112, (int(ip) >> 96) & 0xFFFF
-    glob = first & 0xE000 == 0x2000 and first != 0x2002 and not (first == 0x2001 and second in (0, 0x0DB8))
-    return str(ip) if glob else ""
-
 def check(name, ok, detail=""):
     results.append(bool(ok))
     print("%s  %s%s" % ("PASS" if ok else "FAIL", name, "" if ok else "  -- " + str(detail)[:600]))
@@ -346,9 +333,10 @@ def main():
               "authorization" not in post["headers"] and "x-api-key" not in post["headers"], post["headers"])
         # --announce-url names a plain http RFC 1918 address (LAN), so that is the lanIp, whatever
         # this machine's own interface address is.
-        # publicIpv6 is this machine's global IPv6 (empty without one), checked on REX_DIRECT_PORT.
-        body = {"machineIdentifier": MACHINE, "lanIp": "10.0.0.1", "publicIpv6": public_ipv6(), "port": 32400}
-        check("...naming the server's machineIdentifier, --announce-url's LAN address as lanIp (10.0.0.1), its IPv6 and port",
+        # No publicIpv6 before the port opens: the provider would find nothing listening there and drop
+        # the AAAA on every restart (rex-v6 box, 2026-11-07). Without the key it leaves the AAAA alone.
+        body = {"machineIdentifier": MACHINE, "lanIp": "10.0.0.1"}
+        check("...naming the server's machineIdentifier and --announce-url's LAN address as lanIp (10.0.0.1), and no publicIpv6 before the port opens",
               json.loads(post["body"] or b"{}") == body, post["body"])
         check("the rex-direct name gets the provider's certificate", served(instance.port, HOSTNAME) == der(direct_crt))
         check("...and so does another name under its wildcard",
@@ -438,7 +426,7 @@ def main():
         posts = stub.taken("/api/rex-direct/register")
         check("bound to loopback, the request carries no lanIp",
               len(posts) == 1 and json.loads(posts[0]["body"] or b"{}")
-              == {"machineIdentifier": MACHINE, "publicIpv6": public_ipv6(), "port": instance.port},
+              == {"machineIdentifier": MACHINE},
               posts and posts[0]["body"])
         instance.stop()
 
