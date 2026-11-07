@@ -527,8 +527,11 @@ impl Plan {
             if self.live() { length } else { length * 2 },
             // Ours, not the reference's 2x segment: Plex Web's Shaka player starts only
             // once max(minBufferTime, 2 s) is buffered, so PT10S held every start for
-            // two 5 s segments (6.3 s to first frame on the test host, measured).
-            length
+            // two 5 s segments (6.3 s to first frame on the test host, measured). A fitted
+            // slot is longer than that and no reason to buffer more: at PT12S a seek into the
+            // middle of a 12 s slot sat 4-8 s on 5.7 s of buffer until the next chunk closed
+            // (Plex Web on the test rig, 2026-11-07); at PT5S it goes on from the chunk it has.
+            length.min(DASH_COPY_SEGMENT)
         );
         let mut id = 0;
         if let Some(video) = self.video.as_ref() {
@@ -2482,7 +2485,13 @@ impl Transcoder {
         let done_at = |index: i64| if session.plan.protocol == Protocol::Dash { index } else { index + 1 };
         let mut next = start;
         let mut progressed = Instant::now();
-        let copied_dash = session.plan.protocol == Protocol::Dash && session.plan_now().video.is_some_and(|video| video.copy);
+        // A slot fitted to the index (`fit_copy_gap`, the only way a DASH copy gets a
+        // `segment_length`) already holds every keyframe gap, so its chunks need no late check
+        // and are served as they close: the check held each one back until the next had
+        // closed too, a whole slot of media before the first frame (24 s on the test rig's
+        // 61 s slots, where the chunk itself was done at 14 s; 2026-11-07).
+        let copied_dash = session.plan.protocol == Protocol::Dash && session.plan.segment_length.is_none()
+            && session.plan_now().video.is_some_and(|video| video.copy);
         // Since when the player has been waiting on this run's subtitle hold.
         let mut waited: Option<Instant> = None;
         loop {
@@ -4245,6 +4254,9 @@ mod tests {
         copy.fit_copy_gap(i64::MAX).unwrap();
         assert_eq!(copy.segment_seconds(), 91);
         assert!(copy.video.as_ref().unwrap().copy);
+        // The slot grows; what the player must buffer before it plays does not.
+        let manifest = copy.mpd("fitted", 0.0);
+        assert!(manifest.contains("duration=\"91\"") && manifest.contains("maxSegmentDuration=\"PT182S\"") && manifest.contains("minBufferTime=\"PT5S\""), "{manifest}");
     }
 
     #[test]

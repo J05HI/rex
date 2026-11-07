@@ -18,6 +18,7 @@ import struct
 import subprocess
 import tempfile
 import threading
+import time
 import urllib.parse
 
 import test_native_transcode as nt
@@ -38,7 +39,49 @@ class Source(nt.Zurg):
             else:
                 entered.set()
                 assert resume.wait(15), "index read was not released"
-        super().do_GET()
+        # `tail_gate`: (file, byte offset, entered, resume) slows a read of that file to a crawl
+        # from that byte until released (a source that stops dead makes rex give the read up and
+        # FFmpeg end, which frees every chunk), so a check can ask what rex serves meanwhile.
+        gate = getattr(self.server, "tail_gate", None)
+        name = urllib.parse.unquote(self.path).rsplit("/", 1)[-1]
+        bounds = re.fullmatch(r"bytes=(\d+)-(\d*)", self.headers.get("Range", ""))
+        first = int(bounds[1]) if bounds else 0
+        last = int(bounds[2]) if bounds and bounds[2] else os.path.getsize(nt.MEDIA[name]) - 1
+        writer = self.wfile
+        if gate and name == gate[0] and first < gate[1] <= last:
+            _, cutoff, entered, resume = gate
+
+            class GatedWriter:
+                header = True
+                position = first
+
+                def write(self, data):
+                    if self.header:
+                        self.header = False
+                        return writer.write(data)
+                    at = 0
+                    if self.position < cutoff:
+                        at = min(len(data), cutoff - self.position)
+                        writer.write(data[:at])
+                    while at < len(data):
+                        entered.set()
+                        if resume.is_set():
+                            writer.write(data[at:])
+                            break
+                        writer.write(data[at:at + 16384])
+                        at += 16384
+                        time.sleep(0.5)
+                    self.position += len(data)
+                    return len(data)
+
+                def __getattr__(self, attribute):
+                    return getattr(writer, attribute)
+
+            self.wfile = GatedWriter()
+        try:
+            super().do_GET()
+        finally:
+            self.wfile = writer
 
 
 @contextmanager
@@ -215,10 +258,26 @@ def run(scratch):
             other_key = "2" if key == "1" else "1"
             other_query = [(name, "/library/metadata/" + other_key if name == "path" else value) for name, value in query]
             assert nt.get(port, "/video/:/transcode/universal/decision", other_query)[0] == 200
+            if codec == "h264":
+                # A fitted chunk is served as it closes, not once the next one has closed too: hold
+                # the source at 30 s, between the first cut (24 s, the keyframe after the 13 s slot)
+                # and the second (36 s), and ask for segment 0 meanwhile.
+                packets = json.loads(subprocess.check_output([nt.FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_packets",
+                                                              "-show_entries", "packet=pts_time,pos", "-of", "json", nt.MEDIA["h264.mkv"]]))["packets"]
+                gate_entered, gate_resume = threading.Event(), threading.Event()
+                source.tail_gate = ("h264.mkv", next(int(p["pos"]) for p in packets if float(p["pts_time"]) >= 30), gate_entered, gate_resume)
             with pending_start(source, port, other_query) as older:
                 status, _, manifest = nt.get(port, START, query)
                 assert status == 200, (status, manifest)
             assert older.result()[0] == 404, "older start replaced the newer session"
+            if codec == "h264":
+                asked = time.monotonic()
+                status, _, data = nt.get(port, "/video/:/transcode/universal/session/%s/0/0.m4s" % session, timeout=45)
+                waited = time.monotonic() - asked
+                assert status == 200 and waited < 20 and gate_entered.is_set() and not gate_resume.is_set(), (status, round(waited, 1), gate_entered.is_set(), "segment 0 waited for the chunk after it")
+                assert b"moof" in data, "segment 0 is not a fragment"
+                gate_resume.set()
+                source.tail_gate = None
             assert status == 200 and b"<MPD" in manifest, (status, manifest)
             # A player can reopen the manifest using only the session id: each answer as PMS 1.43.4
             # recorded it (dash_manifest_session.json), for a running session and an unknown one.
