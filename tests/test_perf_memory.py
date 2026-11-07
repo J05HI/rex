@@ -251,7 +251,16 @@ def main():
             if request(port, "/library/sections/2/all?type=4") != 200:
                 check("the unpaged episode listing answers", False)
             time.sleep(1)
-        after, _ = memory(process.pid)
+        # Given back, not given back within a second: the cache trims after the request, but the
+        # allocator returns pages to the OS in its own time, later on a loaded host (the nightly
+        # that runs beside zurg's build read +16 MB of 45 MB where idle runs read +3 MB of 54 MB,
+        # 2026-11-07), so wait for the resident size to settle, past one trim interval.
+        settled = time.time() + 40
+        while True:
+            after, _ = memory(process.pid)
+            if after - loaded < loaded / 4 or time.time() > settled:
+                break
+            time.sleep(2)
         print("after two unpaged episode listings: %.0f MB resident" % after, flush=True)
         check("what an unpaged listing built is given back (+%.0f MB of %.0f MB)" % (after - loaded, loaded),
               after - loaded < loaded / 4, (after, loaded))
