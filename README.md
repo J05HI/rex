@@ -51,7 +51,7 @@ Pick the guide for what you have.
 In short:
 
 1. **Get it.** [Download](https://github.com/debridmediamanager/rex/releases) the newest build for Linux (glibc 2.35 or newer, so Ubuntu 22.04 and up), macOS or Windows, run the [Docker image](docs/setup.md#docker) `ghcr.io/debridmediamanager/rex:nightly` on Linux, or build it with Rust.
-2. **Start it.** It makes an empty Movies and an empty TV Shows library.
+2. **Start it.** It makes an empty Movies and an empty TV Shows library. With Plex Media Server on the same machine, start it with `--port 32500` and use that port wherever a command says 32400.
 3. **Claim it** with a code from [plex.tv/claim](https://www.plex.tv/claim) on a fresh free Plex account, and share it with your own. At your own risk: rex is not made by Plex, and Plex could act against the account that claims it.
 4. **Point a source at it.** Give it `http://<rex's LAN IP>:32400` and it registers itself: for zurg that is `rex_url` in its `config.yml`, for rex-stremio **rex's address** on its settings page, for your own app the [feed API](docs/feed-api.md).
 5. **Forward port 32400** to rex to watch away from home (with no public IPv4 but IPv6, let it in over IPv6 instead; viewers then need IPv6 too). rex-direct gives rex an HTTPS address for that, and one for home that app.plex.tv uses with no port forward. [Check them](docs/setup.md#7-reach-it-from-outside-https-and-the-announce) from home and from a phone off Wi-Fi.

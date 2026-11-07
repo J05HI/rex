@@ -8,7 +8,7 @@ A rex server is four things: the binary, a **catalog** (its identity and two emp
 libraries, made on its first start), the **sources** that register with it, push the
 library and serve its bytes, and, if it is to appear in your Plex apps, a **claim** on a
 Plex account (a fresh one, shared with yours: step 5) and, for use outside your LAN, an
-HTTPS address. rex starts once (step 4), and nothing after that needs a restart, unless you add step 7's IPv6 firewall rule later. The steps below go through it in order.
+HTTPS address. rex starts once (step 4), with the flags the later steps need, so nothing after that needs a restart; a flag or key added later does, and so does step 7's IPv6 firewall rule added after rex started. The steps below go through it in order.
 
 ### What you need
 
@@ -144,12 +144,19 @@ restores them.
 else at home. With an HTTPS address of your own (step 7), its flags go here too: a flag or key
 added later needs a restart.
 
-Plex Media Server runs on the same machine? Add `--port 32500` and use `32500` wherever this
-guide says `32400`, the claim and step 7's port forward included (see LAN discovery below).
+Plex Media Server runs on the same machine? Add `--port 32500` and use `32500` wherever a
+command or setting says `32400`, the claim and step 7's port forward included (see LAN discovery
+below). Your apps then list two servers with the machine's name: rex is the one shared with you
+(step 5), with the fresh account's name beside it.
 
 The first lines of the log say whether it seeded the catalog, name each source it already
 knows (`source <name>: registered, feed at /rex/feed/<name>/`, or `no source yet`) and the state
 file.
+
+rex logs to the terminal it runs in. Run as a service (step 8), its log is
+`journalctl --user -u rex -f` under systemd, `tail -f rex.log` in rex's folder under the
+LaunchAgent, `Get-Content rex.log -Wait` in rex's folder under the [Windows](#windows) task and
+`docker compose logs -f rex` in [Docker](#docker). Started by hand, it is only in that terminal.
 
 Titles, summaries, posters and episode names come from Plex's own metadata once rex is claimed
 (step 5). Which film or episode a file is comes from its source (step 6); rex reads nothing off a
@@ -233,9 +240,15 @@ directory that is to be a library of its own gets `rex_shows`/`rex_movies` under
 rex's LAN IP works from the same machine, another one and a container alike. A source registers
 with rex once it has the address (zurg once you restart it and its library has loaded), pushes
 everything it holds, then each change as it happens. Watch it arrive in rex's log
-(`SOURCES <name> registered at ...`, then `FEED <name> upsert: ...` lines) and with the
-`/rex/sources` and `/rex/feed/<name>/items` calls above. zurg registers as `zurg`, or as its
-`rex_source`.
+(`SOURCES <name> registered at <its address>` when that address is new or changed, then
+`FEED <name> upsert: ...` lines) and with the `/rex/sources` and `/rex/feed/<name>/items` calls
+above. zurg registers as `zurg`, or as its `rex_source`.
+
+rex reads every file from the address the source registers, so that address must work from the
+rex machine. A source in a container registers the container's own address, which rex reaches
+only from the same Linux host: run a source natively on Windows and macOS rather than in Docker
+Desktop, and on Linux with rex on another machine give its container host networking.
+[Troubleshooting](#troubleshooting) checks the address.
 
 **An item appears only once its source has probed it with ffprobe**, because rex lists each
 file with its streams. Items never probed are held, not shown. A source sends ffprobe's
@@ -315,7 +328,8 @@ planned. Use `tailscale serve` for
 devices on your tailnet, or a small VPS that holds the public IP: frp's `frps` on it (with
 `proxyBindAddr = "127.0.0.1"`) and Caddy terminating HTTPS with `respond /rex/* 403`, `frpc`
 on the rex machine forwarding rex's LAN IP and port, `--announce-url https://<the VPS's name>:443`
-and `REX_DIRECT_URL=off` (the VPS then carries every stream, in place of rex-direct over IPv6). The notes guide has the files. Avoid hosted tunnels with bandwidth or data caps (Tailscale
+and `REX_DIRECT_URL=off` (the VPS then carries every stream, in place of rex-direct over IPv6; app.plex.tv at home goes
+through it too, while other Plex apps at home still connect directly). The notes guide has the files. Avoid hosted tunnels with bandwidth or data caps (Tailscale
 Funnel, ngrok): a film exhausts them, and Funnel also exposes `/rex/`.
 
 With your own hostname, add it to step 4's command with its certificate (rex adds its LAN
@@ -468,6 +482,11 @@ and `curl.exe` for `curl`. Four things differ:
   It runs while you are logged in. `Stop-Process -Name rex` stops it (`Stop-ScheduledTask` would end only `run.cmd`),
   and `Stop-Process -Name rex; Start-Sleep 1; Start-ScheduledTask rex` restarts it. Stop it before unpacking a
   newer build, as Windows will not replace a running `rex.exe`.
+
+  Started rex by hand in PowerShell instead? Its log is then only in that window, with no `rex.log`,
+  and no task starts it after a reboot. rex keeps `rex.db` and its claim in the folder it starts in,
+  so a rex started from another folder is a new, unclaimed server. Stop it with Ctrl+C, then start
+  it again from rex's folder with the same flags, or better, set up the task above.
 - `claim_state.json`, `rex-direct.json` (the certificate's private key) and `rex.db`, which holds
   the sources' credentials, are protected only by the folder they sit in, so keep the rex folder inside your user profile.
 - LAN discovery cannot share its ports with a Plex Media Server on the same Windows machine.
@@ -513,11 +532,16 @@ NVIDIA card needs the NVIDIA container toolkit and `gpus: all` instead; untested
 | Symptom | Cause |
 |---|---|
 | A push answers 404 `no such source: PUT /rex/sources/... first` | The source has not registered: start it again, or update it (zurg: What you need) |
-| Every part read answers 502 | No source is registered (`curl -s http://<rex's LAN IP>:32400/rex/sources`), or rex cannot reach the one that is |
+| Every play fails on every device, often as "This server is not powerful enough to convert video", and rex's log shows `upstream failed` or `502` right after Play (with an FFmpeg, `TRANSCODE ... exited` on a refused or timed-out connection) | rex cannot reach the source at the address it registered, and an FFmpeg does not fix that. `curl -s http://<rex's LAN IP>:32400/rex/sources` shows each source's `url`; run `curl -I` on it on the rex machine. Any HTTP answer, 401 included, is fine; `Failed to connect` means rex cannot reach it. A `172.` address is a container's (step 6). Newer builds say so: `SOURCES <name>: cannot reach <url> from this machine` |
+| The log shows `upstream failed: no source <name> configured` | rex has no registration from that source, or none at all: restart the source so it registers again |
+| The log shows `part ... is unavailable upstream` | The source answered 404 for that file: it does not have it now |
 | A push answers `rejected: no movie or show library holds ...`, or `no music library` or `no photo library` | No library of that item's kind is left (one was deleted in Plex), or, for music and pictures, none was made: add one with Add Library (step 3), or have the source declare one |
 | A source pushed but the library stays empty | Items are held until their source probes them (step 6) |
 | A directory a source declared (`directories`; zurg's `rex_shows`, `rex_movies`, `rex_music`, `rex_photos`) has no library | The source did not send it (`curl -s http://<rex's LAN IP>:32400/rex/sources` lists each source's `directories`), the source or rex skipped a mistyped entry (its log says why), or a library there was deleted in Plex, which keeps it deleted (the log says `stays deleted`): add it again with Add Library (step 3) |
-| A part read answers 502, or 401/403 | rex cannot reach the source's `url` (502), or the source refused its credential (its own status): the log line `PART ... upstream` says which |
+| A part read answers 401 or 403 (`PART ... upstream 401`) | The source refused its own credential: restart it so it registers the current one |
+| Only some files fail with "This server is not powerful enough to convert video", often only in a web browser | The app cannot play them as they are: install an [FFmpeg](#transcoding). rex logs `transcoder off` at start while it has none |
+| A Dolby Vision file is refused with `DoVi (Profile 5) color space is not supported` | rex has no FFmpeg, or one that is not [jellyfin-ffmpeg](#which-ffmpeg), or Settings, Transcoder, Enable HDR tone mapping is off |
+| rex exits with `cannot bind ...:32400 (another rex or Plex on this port? --port picks another)` | Another program holds the port: a Plex Media Server on this machine (give rex `--port 32500`, step 4) or another rex, such as one started by hand |
 | The server is not in the Plex apps | Not claimed (step 5), or, outside your home, no HTTPS address reachable from the internet (step 7). Over IPv6, the viewer's network needs IPv6 too |
 | No `rex-direct: ... and <IPv6>` line a few minutes after start, behind CGNAT with IPv6 | DMM could not reach rex at its IPv6 on port 32400: the router's firewall does not let 32400 in over IPv6 (rex offers its IPv6 a minute after it starts: restart it after adding the rule), rex runs in Docker without host networking, `REX_DIRECT_PORT` names another port, or Windows offered its temporary address (turn those off, step 7) |
 | A device at home cannot connect, and rex's `heartbeat ... ->` line shows no LAN address or the wrong one | rex announces the private address of the network it reaches the internet through; behind a VPN or a Tailscale exit node that is not your home network. In Docker without host networking that is the container's own network, so rex announces none and logs `no LAN address to announce` once. Add `--announce-url http://<rex's LAN IP>:32400` |
@@ -659,7 +683,8 @@ provider's link as `redirect` does and plays nothing else: no conversions, and n
 source that sends the file itself rather than a link (Usenet files, which zurg always sends
 itself). An app that cannot play a file as it is shows an error instead: "This server is not
 powerful enough to convert video" in Plex Web (every Real-Debrid file there), "This item can't be
-played right now" in Plex for Android when a quality below the original is picked.
+played right now" in Plex for Android when a quality below the original is picked. When every play
+fails in every app, see [Troubleshooting](#troubleshooting).
 
 ### Local owner controls
 
