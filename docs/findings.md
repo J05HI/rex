@@ -12892,6 +12892,39 @@ preserve persistent connections. A sparse cue interval can still produce a
 large file and delay its completion, but each client request no longer reads
 and allocates that whole file.
 
+### Fitted DASH slots in Plex Web, measured on a real file (2026-11-07)
+
+The merged fit (5c872662) played in Plex Web 4.160 (Chrome 157 on Windows, app.plex.tv through a
+Cloudflare quick tunnel: that Chrome refuses a public page's fetch to a LAN name even with the
+local-network permission granted over CDP, `LocalNetworkAccessPermissionDenied`) against a rex on
+the test host reading a 1080p x264 BRRip with AC3 (Firefly S01E01/E02/E04, 2.1 GB) through zurg's
+HTTP, and a generated 3-minute 720p clip with keyframes 60 s apart.
+
+- Firefly: the index read took 0.34 s (three Range requests), the slot came out 12 s (a 10.4 s
+  keyframe gap plus the margin), `minBufferTime` PT12S. First frame 2 s after the Play click,
+  no stall in 20 s, seeks to 25:00, 20:00, 5:00 and 40:00 resumed in about 6 s, two episodes at
+  once both advanced in real time with 96-132 s buffered. A seek that landed mid-slot (300 s on
+  slots of 12) sat 4-8 s on a 5.7 s buffer: Shaka waits for `minBufferTime`, so the chunk after
+  it had to close first. The buffer value now stays at the 5 s it had, whatever the slot.
+- The 60 s-gap clip: slot 61 s, copied video kept, played through to its end and Plex Web closed
+  the player at 179 of 180 s. First frame 16-24 s after the click, because its chunks are served
+  only once the chunk after them has closed, and with one keyframe at 60 s the first chunk runs
+  0-120 s and the second to the end: the whole file was copied before segment 0 went out. A
+  fitted slot already holds every keyframe gap, so its chunks are now served as they close; the
+  suite's throttled-source check asks for segment 0 while the source crawls past 30 s and gets
+  it in seconds where the old hold waited the request out (45 s).
+- A source that answers 200 to a Range request (`python3 -m http.server`) gets no index read, so
+  the clip kept 5 s slots and the late-chunk check converted its video after 10 s, the failure
+  the fit exists for. That was a debug line; it is INFO now and the feed API says so.
+- A fitted slot had no upper bound: an index that stops early would have made one title-sized
+  slot and a start that never arrives in the 45 s a segment request waits. Above 120 s the
+  default slots stay.
+
+A synthetic click (`button.click()`) carries no user activation, so the player sat paused at 0:00
+for 75 s; a pointer click over CDP (`Input.dispatchMouseEvent`) plays at once. Emptying the
+video's `src` to stop is a media error to Plex Web, which restarts the item as a full transcode
+(`video=h264->h264`): pause and go Home instead. Sessions a tab left behind were reaped after 120 s.
+
 ### DASH segments permit persistent connections (2026-10-30)
 
 An audio-converting playback downloaded each five-second video
