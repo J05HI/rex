@@ -22,6 +22,7 @@ conversion reads, never played (rex-fun, 2026-10-26). plexlab's answers are
 import calendar
 import http.client
 import json
+import math
 import os
 import re
 import shutil
@@ -32,6 +33,7 @@ import tempfile
 import threading
 import time
 import urllib.parse
+import xml.etree.ElementTree as ET
 
 import test_native_transcode as nt
 from test_native_transcode import FFMPEG, FFPROBE, MEDIA, check, get, make_clip, probe, row
@@ -748,20 +750,28 @@ def long_gop_files(port, scratch, files, log):
         query = nt.dash_query(key, session, directStream="1", directStreamAudio="1")
         decide(port, query)
         status, _, mpd = get(port, "/video/:/transcode/universal/start.mpd", query)
-        length = int(re.search(r'duration="(\d+)"', mpd.decode()).group(1)) if status == 200 else 5
+        assert status == 200, (status, mpd)
+        template = ET.fromstring(mpd).find(".//{urn:mpeg:dash:schema:mpd:2011}SegmentTemplate")
+        scale = int(template.attrib["timescale"])
+        timeline = template.find("{urn:mpeg:dash:schema:mpd:2011}SegmentTimeline")
+        if timeline is None:
+            length = int(template.attrib["duration"]) / scale
+            slots = [(index * length, length) for index in range(math.ceil(DURATION / length))]
+        else:
+            slots = [(int(entry.attrib["t"]) / scale, int(entry.attrib["d"]) / scale) for entry in timeline]
         placed = []
-        for index in range(-(-DURATION // length)):
+        for index, (start, length) in enumerate(slots):
             status, _, body = get(port, "/video/:/transcode/universal/session/%s/0/%d.m4s" % (session, index), timeout=90)
             kinds = nt.boxes(body) if status == 200 else []
             scale = next((extra["timescale"] for kind, extra in kinds if kind == "moov"), 0)
             tfdt = next((extra.get("tfdt") for kind, extra in kinds if kind == "moof"), None)
-            placed.append(round(tfdt / scale - index * length, 1) if scale and tfdt is not None else None)
+            placed.append(round(tfdt / scale - start, 1) if scale and tfdt is not None else None)
             path = os.path.join(scratch, "%s-%d.mp4" % (session, index))
             open(path, "wb").write(body)
         # A copied chunk starts on the first keyframe at or after its slot, so within the slot;
         # one a whole slot late holds the next segment's film.
         check("%s keyframes %s s apart: every DASH segment starts in its own slot" % (name, re.search(r"gop(\d+)", name).group(1)),
-              all(off is not None and -length < off < length - 0.05 for off in placed) and decodes(path), "offsets %s" % placed)
+              all(off is not None and -length < off < length - 0.05 for off, (_, length) in zip(placed, slots)) and decodes(path), "offsets %s" % placed)
         get(port, "/video/:/transcode/universal/stop", [("session", session)])
         if name == "gop2.mkv":
             # FFmpeg's `-use_timeline 1` cut each chunk 5 s after the last: 6 s chunks drifted a
