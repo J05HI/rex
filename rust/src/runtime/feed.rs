@@ -718,6 +718,14 @@ fn sources(shared: &SharedRuntime, request: &Request, name: &str) -> Response {
             if !source.ignored.is_empty() {
                 public["ignored"] = json!(source.ignored);
             }
+            // Checked on every registration, before the lock: a Docker zurg registered its
+            // container address, and every play failed with nothing naming it (2026-11-07). The
+            // registration stands, since a source may come up later.
+            let url = public["url"].as_str().unwrap_or_default().to_string();
+            if let Err(error) = super::upstream::dial(&url, std::time::Duration::from_secs(3)) {
+                warning!("SOURCES {name}: cannot reach {url} from this machine ({error}); nothing from it will play");
+                public["unreachable"] = json!(error);
+            }
             let mut guard = lock(shared);
             let changed = guard.sources.iter().find(|known| known.name == name).map(|known| &known.record) != Some(&source.record);
             let declared = source.clone();

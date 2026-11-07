@@ -412,6 +412,14 @@ fn connect(target: &Target, timeout: Duration) -> Result<Conn, String> {
     Err(last)
 }
 
+/// Whether a TCP connection to `url`'s host and port opens from here, resolved and dialled as
+/// a read of it is; no request is sent, so no credential and no path.
+pub(super) fn dial(url: &str, timeout: Duration) -> Result<(), String> {
+    let mut target = parse_url(url).ok_or_else(|| format!("unsupported url {url:?}"))?;
+    target.tls = false;
+    connect(&target, timeout).map(drop)
+}
+
 fn exchange(
     method: &str,
     target: &Target,
@@ -850,6 +858,16 @@ mod tests {
         let error = fetch("GET", &url, &[], b"", Duration::from_secs(1)).map(|_| ()).expect_err("closed port");
         assert!(error.starts_with(&format!("connect 127.0.0.1:{port}: ")), "{error}");
         assert!(!error.contains("secret-path") && !error.contains("token"), "{error}");
+    }
+
+    #[test]
+    fn a_registration_check_is_a_tcp_connect_to_the_urls_address() {
+        let port = TcpListener::bind(("127.0.0.1", 0)).expect("listener").local_addr().expect("address").port();
+        let error = dial(&format!("http://127.0.0.1:{port}/dav"), Duration::from_secs(1)).expect_err("closed port");
+        assert!(error.starts_with(&format!("connect 127.0.0.1:{port}: ")), "{error}");
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listener");
+        let open = format!("https://127.0.0.1:{}/dav", listener.local_addr().expect("address").port());
+        assert_eq!(dial(&open, Duration::from_secs(1)), Ok(()), "a TCP connect, no TLS handshake");
     }
 
     #[test]

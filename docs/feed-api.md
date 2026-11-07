@@ -68,7 +68,7 @@ internet, which needs a token once rex is claimed, but not the feed.
 
 | Field | Meaning |
 |---|---|
-| `url` | Required, `http` or `https`. A part's bytes are `GET <url>/<path>` with the client's `Range` forwarded; each path segment is percent-encoded. No `user:password@` in it: the url is answered back, so credentials go in their own fields |
+| `url` | Required, `http` or `https`. A part's bytes are `GET <url>/<path>` with the client's `Range` forwarded; each path segment is percent-encoded. rex fetches from this address itself, so it must be reachable from rex's machine: a source in a container or behind NAT gives an address rex can reach, not its own interface's. No `user:password@` in it: the url is answered back, so credentials go in their own fields |
 | `user`, `password` | Basic auth for `url` (optional) |
 | `bearer` | `Authorization: Bearer` for `url` instead (optional) |
 | `mount` | Optional, a label: the folder Plex apps show its files under in Get Info (`<mount>/<path>`, default `/<path>`) and its libraries under (default rex's own, `/mnt/rex`). Playback of what a source pushes never uses it |
@@ -84,6 +84,9 @@ starts a push session; zurg does. Answers `200` with the source as `GET` shows i
 that is not a JSON object; a refused registration changes nothing. The answer's `features`
 lists what this rex takes beyond the items below, so a source can tell before it relies on one:
 `probe_digest` ([Probe digests](#probe-digests)). A rex without `features` takes none.
+Each registration also opens one TCP connection to the url's host and port (3 s, no request
+sent); when that fails the `200` carries `unreachable`, the connection error naming the address
+tried, and rex logs `cannot reach` with it, but the source is registered all the same.
 
 A malformed `directories` entry never refuses the source: one typo in a config would stop its
 whole feed. The entry is left out, the rest register, and the `200` answers each one left out
