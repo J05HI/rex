@@ -105,6 +105,8 @@ pub(crate) struct Registration {
     /// A name on rex's LAN under `hostname`, and the address the provider says it points at.
     lan_hostname: Option<String>,
     lan_ip: Option<String>,
+    /// The IPv6 the provider pointed an AAAA at, once it found rex there.
+    ipv6: Option<String>,
     certificate: String,
     private_key: String,
     /// The answer as the provider sent it: what `rex-direct.json` holds.
@@ -138,6 +140,7 @@ fn parse(body: &[u8]) -> Result<Registration, String> {
         ip: field("ip")?,
         lan_hostname,
         lan_ip: answer.get("lanIp").and_then(Value::as_str).filter(|ip| !ip.is_empty()).map(str::to_string),
+        ipv6: answer.get("ipv6").and_then(Value::as_str).filter(|ip| !ip.is_empty()).map(str::to_string),
         certificate: field("certificate")?,
         private_key: field("privateKey")?,
         raw: body.to_vec(),
@@ -220,6 +223,26 @@ fn announced_lan_ipv4(announce: Option<&str>) -> Option<std::net::Ipv4Addr> {
         .find(std::net::Ipv4Addr::is_private)
 }
 
+/// The global IPv6 (2000::/3) this machine reaches the internet from: the source address of a
+/// route to a public IPv6. Connecting a UDP socket sends nothing.
+// ponytail: with IPv6 privacy extensions on, this is the temporary address, which the OS
+// replaces about daily; the 6-hourly registration follows it. Read the stable one from the
+// interface list if that ever leaves the AAAA behind.
+fn public_ipv6() -> Option<std::net::Ipv6Addr> {
+    let socket = std::net::UdpSocket::bind("[::]:0").ok()?;
+    socket.connect("[2001:4860:4860::8888]:53").ok()?;
+    match socket.local_addr().ok()?.ip() {
+        std::net::IpAddr::V6(ip) if global_ipv6(ip) => Some(ip),
+        _ => None,
+    }
+}
+
+/// Global unicast, and not documentation, Teredo or 6to4: DMM's `isGlobalIpv6`.
+fn global_ipv6(ip: std::net::Ipv6Addr) -> bool {
+    let [first, second, ..] = ip.segments();
+    first & 0xe000 == 0x2000 && first != 0x2002 && !(first == 0x2001 && (second == 0 || second == 0x0db8))
+}
+
 /// The server's rex-direct registration: what it registers as and announces with.
 pub(crate) struct RexDirect {
     /// `REX_DIRECT_KEY`, for a provider that wants one; DMM's ignores it.
@@ -289,6 +312,11 @@ impl RexDirect {
         if let Some(ip) = announced_lan_ipv4(self.announce.as_deref()).or_else(super::plextv::lan_ipv4) {
             body["lanIp"] = json!(ip.to_string());
         }
+        // For an AAAA, which reaches rex on a connection with no public IPv4 (CGNAT): the provider
+        // connects back to it on `port` and points the AAAA there only when rex answers. Empty
+        // without one, so the provider drops an AAAA that no longer reaches rex.
+        body["publicIpv6"] = json!(public_ipv6().map(|ip| ip.to_string()).unwrap_or_default());
+        body["port"] = json!(self.port);
         let body = body.to_string();
         let mut headers = vec![
             ("Content-Type", "application/json".to_string()),
@@ -333,8 +361,9 @@ impl RexDirect {
                     name: self.name.clone(),
                 });
         }
-        if previous.is_none_or(|previous| (&previous.hostname, &previous.ip) != (&fresh.hostname, &fresh.ip)) {
-            info!("rex-direct: https://{}:{} -> {}", fresh.hostname, self.port, fresh.ip);
+        if previous.is_none_or(|previous| (&previous.hostname, &previous.ip, &previous.ipv6) != (&fresh.hostname, &fresh.ip, &fresh.ipv6)) {
+            let ipv6 = fresh.ipv6.as_ref().map(|ip| format!(" and {ip}")).unwrap_or_default();
+            info!("rex-direct: https://{}:{} -> {}{ipv6}", fresh.hostname, self.port, fresh.ip);
         }
         if let Some(lan) = fresh.lan_hostname.as_ref().filter(|_| {
             previous.is_none_or(|previous| (&previous.lan_hostname, &previous.lan_ip) != (&fresh.lan_hostname, &fresh.lan_ip))
@@ -404,6 +433,37 @@ impl RexDirect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_global_ipv6_is_offered_for_an_aaaa() {
+        for (ip, want) in [
+            ("2a01:4f8:c012:e7cd::1", true),
+            ("2003:e5:1f00::1", true),
+            ("3fff::1", true),
+            ("::1", false),
+            ("fd00::1", false),
+            ("fe80::1", false),
+            ("ff02::1", false),
+            ("2001:db8::1", false),
+            ("2001:0:4136:e378::1", false),
+            ("2002:c000:204::1", false),
+            ("::ffff:203.0.113.7", false),
+        ] {
+            assert_eq!(global_ipv6(ip.parse().unwrap()), want, "{ip}");
+        }
+    }
+
+    #[test]
+    fn the_answer_carries_the_ipv6_the_provider_found_rex_at() {
+        let answer = |extra: Value| {
+            let mut answer = json!({"hostname": "a1b2.rex-direct.test", "ip": "203.0.113.7", "certificate": "C", "privateKey": "K"});
+            answer.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            parse(answer.to_string().as_bytes()).unwrap()
+        };
+        assert_eq!(answer(json!({"ipv6": "2a01:4f8::1"})).ipv6.as_deref(), Some("2a01:4f8::1"));
+        assert_eq!(answer(json!({})).ipv6, None);
+        assert_eq!(answer(json!({"ipv6": ""})).ipv6, None);
+    }
 
     #[test]
     fn its_name_and_its_wildcard_get_the_rex_direct_certificate() {
