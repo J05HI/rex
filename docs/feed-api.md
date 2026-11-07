@@ -41,14 +41,16 @@ Any source on your own networks. The feed and the sources API read no token and 
 behind the Plex gate, claimed or not, with or without `--token`, so a source may name rex by
 address or host name (`http://rex:32400` from a container, a Tailscale name). They answer
 only a peer whose address is this machine (127.0.0.0/8, `::1`), a home network (10/8,
-172.16/12, 192.168/16, IPv6 fc00::/7), Tailscale (100.64/10) or link-local (169.254/16,
+172.16/12, 192.168/16, IPv6 fc00::/7, and the home network's IPv6 /64, below), Tailscale
+(100.64/10) or link-local (169.254/16,
 fe80::/10), an IPv4-mapped IPv6 address of those included. To any other peer the source
 API does not exist: the request takes the ordinary PMS authentication and unknown-route
 path, with the same status, headers and body as an unrelated missing PMS path. No token,
 including an owner's valid Plex token, opens the source API to a public peer. rex also listens
-on IPv6, so a host name that resolves to rex's global IPv6 reaches it from a public address and is
-refused: name rex by its LAN IP. A global IPv6 is not taken as home even in rex's own /64, which
-some VPS providers share between customers.
+on IPv6, so a source naming rex by a host name with a global IPv6 reaches it from its own global
+IPv6. That counts as home when it is in rex's own /64 and rex reaches the internet from a private
+IPv4, as behind a home router. On a VPS (a public IPv4) it does not: some providers give
+customers addresses from a shared /64, so there name rex by an address on a private network.
 
 rex reads the connection's own peer address, never `X-Forwarded-For` or `Host`, so a header
 cannot open it. A reverse proxy on the same machine therefore reaches it as a local peer:

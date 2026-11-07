@@ -78,9 +78,7 @@ and pushes the same way, and [`docs/feed-api.md`](feed-api.md) is the full contr
 one of your own. zurg, for one, does both with nothing but `rex_url` in its `config.yml`
 (step 6), and asks DMM what each file is.
 
-Registering and pushing take no token, so a source may name rex by address or host name (use rex's
-LAN IP or a name that resolves to it: a name that resolves to rex's public IPv6 reaches rex over
-IPv6, from an address the feed does not answer).
+Registering and pushing take no token, so a source may name rex by address or host name.
 They answer only this machine, your home network and Tailscale, so forwarding rex's port for
 rex-direct (step 7), or letting it in over IPv6, does not open them to the internet. A reverse proxy on rex's own machine
 looks local to rex, so block `/rex/` in it. A router that gives outside visitors its own
