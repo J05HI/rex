@@ -225,15 +225,49 @@ fn announced_lan_ipv4(announce: Option<&str>) -> Option<std::net::Ipv4Addr> {
 
 /// The global IPv6 (2000::/3) this machine reaches the internet from: the source address of a
 /// route to a public IPv6. Connecting a UDP socket sends nothing.
-// ponytail: with IPv6 privacy extensions on, this is the temporary address, which the OS
-// replaces about daily; the 6-hourly registration follows it. Read the stable one from the
-// interface list if that ever leaves the AAAA behind.
 fn public_ipv6() -> Option<std::net::Ipv6Addr> {
     let socket = std::net::UdpSocket::bind("[::]:0").ok()?;
+    prefer_stable_source(&socket);
     socket.connect("[2001:4860:4860::8888]:53").ok()?;
     match socket.local_addr().ok()?.ip() {
         std::net::IpAddr::V6(ip) if global_ipv6(ip) => Some(ip),
         _ => None,
+    }
+}
+
+/// Asks for the machine's stable IPv6 rather than a privacy (temporary) one, which the OS uses for
+/// outgoing connections where privacy extensions are on, replaces about daily, and which a
+/// router's firewall rule for this machine does not match (RFC 5014 on Linux).
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn prefer_stable_source(socket: &std::net::UdpSocket) {
+    set_ipv6_option(socket, libc::IPV6_ADDR_PREFERENCES, libc::IPV6_PREFER_SRC_PUBLIC);
+}
+
+/// macOS's own switch: `IPV6_PREFER_TEMPADDR` (netinet6/in6.h, not in the libc crate) set to 0.
+#[cfg(target_os = "macos")]
+fn prefer_stable_source(socket: &std::net::UdpSocket) {
+    set_ipv6_option(socket, 63, 0);
+}
+
+// ponytail: Windows has no socket option for it, so rex offers its temporary address there; the
+// 6-hourly registration follows it. Read the stable one with GetAdaptersAddresses if that leaves
+// Windows users without an AAAA.
+#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
+fn prefer_stable_source(_socket: &std::net::UdpSocket) {}
+
+/// Best effort: a kernel without the option keeps its default source address.
+#[cfg(unix)]
+fn set_ipv6_option(socket: &std::net::UdpSocket, option: libc::c_int, value: libc::c_int) {
+    use std::os::fd::AsRawFd;
+    // SAFETY: an int option on a socket this function borrows.
+    unsafe {
+        libc::setsockopt(
+            socket.as_raw_fd(),
+            libc::IPPROTO_IPV6,
+            option,
+            (&value as *const libc::c_int).cast(),
+            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+        );
     }
 }
 
@@ -442,6 +476,19 @@ impl RexDirect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Meaningful only on a Linux machine with a global IPv6 and privacy addresses on
+    /// (`use_tempaddr=2`), where the kernel's own pick for an outgoing connection is temporary.
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn the_ipv6_offered_is_the_stable_one_not_a_privacy_address() {
+        let Some(ip) = public_ipv6() else { return eprintln!("no global IPv6 here") };
+        let hex: String = ip.octets().iter().map(|byte| format!("{byte:02x}")).collect();
+        let table = std::fs::read_to_string("/proc/net/if_inet6").unwrap();
+        let line = table.lines().find(|line| line.starts_with(&hex)).expect("one of this machine's addresses");
+        let flags = u32::from_str_radix(line.split_whitespace().nth(4).unwrap(), 16).unwrap();
+        assert_eq!(flags & 0x01, 0, "{ip} is a temporary (privacy) address");
+    }
 
     #[test]
     fn only_a_global_ipv6_is_offered_for_an_aaaa() {
