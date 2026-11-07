@@ -15755,3 +15755,29 @@ phone from the probe's codecs alone and picks tracks by the probe's stream index
 map them); Plezy reads the file's own tracks; a wrong `format.size` hangs or cuts playback in proxy mode,
 because rex answers part reads with the probe's size; a too-short duration makes rex refuse the app's
 timelines, and none leaves no resume point.
+
+## rex-direct over IPv6, and plex.tv hiding an IPv6-registered server (2026-11-07)
+
+Two throwaway Hetzner boxes: rex (the home-videos addon, Big Buck Bunny) behind a Hetzner firewall
+that let TCP 32400 in over IPv6 only, the stand-in for a CGNAT home, and a client box running
+Chrome. Claimed on a free Plex account. From the client the rex-direct name timed out over IPv4
+and answered over IPv6 with a valid certificate; app.plex.tv played the film at 1920x1080 from
+4.6 s to 51.5 s in 50 s, and the only peer on rex's port was the client's IPv6.
+
+- **plex.tv lists no server whose device registration came over IPv6.** servers.plex.tv,
+  clients.plex.tv and www.plex.tv have AAAA records (plex.tv itself has none). rex reached them
+  over IPv6 and plex.tv recorded `publicAddress="2a01:4f8:c015:baa3::1"`; the server was missing
+  from `/api/v2/resources` (rex: `announced but NOT visible`) and DMM's ownership check answered
+  403 for 10 minutes. The same server, made to prefer IPv4 (`/etc/gai.conf`), registered with
+  `publicAddress="2.31.75.241"` and was listed at once. So rex tries plex.tv's hosts over IPv4
+  first (`upstream::connect_order`), as a PMS does with its IPv6 support off, the default.
+- **A start registers before its port opens**, so a provider check of the IPv6 then finds
+  nothing listening: the first test build dropped the AAAA on every restart until the 6-hourly
+  call. The start's request now names no `publicIpv6`, and a second one a minute later does.
+- **Privacy addresses.** With `use_tempaddr=2` (a `mngtmpaddr` static address on the box) the
+  kernel picked the temporary address for an outgoing connection; `IPV6_ADDR_PREFERENCES` with
+  `IPV6_PREFER_SRC_PUBLIC` picked the stable one, which a router's firewall rule for the machine
+  names. Windows has no such option; it offers its temporary address.
+- A cloud box has no RFC 1918 address, so rex announced nothing and plex.tv kept no device row
+  (`no address to announce yet: no private network address`); `--announce-url http://<private
+  address>:32400` stood in for a home LAN.

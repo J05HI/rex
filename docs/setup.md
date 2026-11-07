@@ -274,7 +274,7 @@ way rex terminates TLS itself, on the same port as plain HTTP.
   `rex-direct: https://lan.<name>:32400 -> <rex's LAN IP> (LAN)`. A new public IP and a
   renewed certificate are picked up without a restart. Keep copies of `rex-direct.json`
   private: it holds the certificate's key. One Plex account can hold up to ten
-  rex-direct names. Behind CGNAT the public name cannot work. At home, Plex apps, app.plex.tv
+  rex-direct names. Behind CGNAT the public name reaches rex only over IPv6 (below). At home, Plex apps, app.plex.tv
   included, can reach rex over HTTPS at the `lan.` name, straight over your network and with
   no port forward. The first time, Chrome asks whether app.plex.tv may access devices on your
   local network: allow it, or app.plex.tv falls back to the public name, which needs the port
@@ -288,14 +288,22 @@ way rex terminates TLS itself, on the same port as plain HTTP.
 Check rex-direct from both sides with the addresses from the `rex-direct: https://...` log lines:
 `curl -s https://lan.<name>:32400/identity` (curl refuses a bad certificate) should answer on a
 machine at home, and `https://<name>:<port>/identity` should open in a phone's browser on
-mobile data with no certificate warning. If the phone fails, the port is not forwarded, the connection is behind CGNAT,
-or the certificate is still being issued.
+mobile data with no certificate warning. If the phone fails, the port is not forwarded, the connection is behind CGNAT
+(with IPv6, see below), or the certificate is still being issued.
 
 Do not put a Cloudflare tunnel in front. Every byte would pass through your host and then
 Cloudflare. Cloudflare also drops the `Range` of a file's first read. rex then serves the
 whole file and every play start pulls all of it from your source.
 
-No public IP at home (CGNAT): rex has no relay and none is planned. Use `tailscale serve` for
+No public IPv4 at home (CGNAT, DS-Lite) but IPv6: rex-direct also points its public name at
+rex's IPv6 address, once DMM has connected to rex there and found the same server (rex nightly
+2026.11.08 or newer; in Docker, host networking). IPv6 needs no port forward, but your router's
+firewall must let TCP 32400 in to the rex machine over IPv6. The log line then reads
+`rex-direct: https://<name>:32400 -> <ip> and <IPv6>`; without `and <IPv6>`, DMM could not reach
+rex over IPv6. Viewers need IPv6 too, which most mobile networks have; from a network with IPv4
+only, the name does not reach rex.
+
+No public IP at home at all, or viewers without IPv6: rex has no relay and none is planned. Use `tailscale serve` for
 devices on your tailnet, or a small VPS that holds the public IP: frp's `frps` on it (with
 `proxyBindAddr = "127.0.0.1"`) and Caddy terminating HTTPS with `respond /rex/* 403`, `frpc`
 on the rex machine forwarding rex's LAN IP and port, `--announce-url https://<the VPS's name>:443`
