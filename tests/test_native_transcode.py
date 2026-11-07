@@ -407,7 +407,7 @@ def get(port, path, params=(), accept="application/json", timeout=60, method="GE
         return 0, {}, b""
 
 
-def start_server(catalog, zurg_port, transcoder, scratch, **env):
+def start_server(catalog, zurg_port, transcoder, scratch, token=None, **env):
     port = free_port()
     # Software encoding unless the caller names a device (`REX_TRANSCODE_HW=vaapi` with an Intel
     # iGPU).
@@ -418,7 +418,8 @@ def start_server(catalog, zurg_port, transcoder, scratch, **env):
         environment["REX_TRANSCODER"] = FFMPEG
     log = open(os.path.join(scratch, "rex-%d.log" % port), "w")
     process = subprocess.Popen(
-        server_command("--port", port, "--catalog", catalog, "--assert-claimed", root=ROOT),
+        server_command("--port", port, "--catalog", catalog, "--assert-claimed",
+                       *(["--token", token] if token else []), root=ROOT),
         cwd=ROOT, env=environment, stdout=log, stderr=subprocess.STDOUT)
     def ready():
         try:

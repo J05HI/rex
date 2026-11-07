@@ -12810,6 +12810,158 @@ suite's 2 s-GOP clips): its MPEG-TS far seek read the conversion's video at the 
 timescale (tfdt 2.731 s for 20 s).
 rex keeps `-use_timeline 0` and reads each chunk's `sidx`.
 
+### Indexed Matroska audio conversion with copied DASH video (2026-10-30)
+
+A playback started with H.264 copy and DTS-to-AAC,
+then the long-GOP check above switched it to video encoding. An audio-only FFmpeg
+policy rejected that fallback. The video codec was compatible; five-second DASH
+slots were too short for its keyframes.
+
+For recorded Matroska files with video cues, rex now reads the SeekHead, Info,
+Tracks and Cues using bounded Range reads before starting DASH. The largest gap
+between video cues (including the beginning and tail), plus the opening video
+offset, leaves existing five-second slots unchanged below 4.5 seconds. Above
+that threshold it sets a minimum slot length, rounded up with one second of
+margin. Sparse cues lengthen fixed slots; they can
+start slowly because a complete chunk must be produced before delivery. Media
+bytes stream from disk, so a long slot is not loaded into memory per request.
+The same length
+drives the manifest, FFmpeg, segment lookup and seeks. Index reads occur outside
+the runtime lock. Other containers, missing indexes and live streams retain the
+existing behavior; this is not a universal prohibition on video conversion.
+
+A DASH start registers a preparing session before releasing the runtime lock for
+those reads. Stop and newer starts invalidate that exact session. After reading,
+rex publishes the fitted plan only if the preparing session still owns the id;
+otherwise it answers 404 and starts no FFmpeg. After the reads, rex also checks
+for a connection error before launching FFmpeg. Read-side EOF alone does not
+cancel the start: a client can half-close its write side and still receive the
+manifest. A failed manifest
+write stops only that request's session, leaving any replacement running.
+A preparing session exposes no
+manifest or segments. The generated-media suite delays the source's index reads
+to check cancellation and replacement, and runs in the Linux and Windows CI jobs.
+
+`tests/test_dash_audio_copy.py` generates H.264 and HEVC with long keyframe gaps
+and DTS/TrueHD audio. It replays the recorded DASH request with the target codecs,
+checks the AAC output and every copied video packet hash, decodes the full
+output and requests a later segment first to exercise seeking. This is local
+generated-media validation.
+
+Index reads reuse the initial 64 KiB and fetch an uncached table's opening
+64 KiB with its header, reading only the missing remainder for larger tables.
+Video fitting shares a five-second read budget and logs elapsed time; an
+unavailable index retains the default copy validation path. Eight reads of four
+real remote-source indexes took 220–383 ms and three requests each (their Cues
+exceeded 64 KiB). These were current-source measurements, not guaranteed cold
+cache measurements.
+
+### Reopening an existing DASH manifest by session (2026-10-30)
+
+A player requested the full authenticated `start.mpd` for H.264/DTS and
+HEVC/TrueHD media, then requested `start.mpd?session=<same-id>` with
+no token, path or profile. Both attempts stopped immediately after rex's 401;
+neither reached a segment request.
+
+Replayed the authenticated DASH start followed by that session-only request on
+a disposable, network-isolated PMS 1.43.4.10903 using generated H.264/AAC media.
+The library control refused the tokenless request (401); a running DASH manifest
+answered GET and HEAD without a token (200). Unknown and stopped session ids
+answered 400. An HLS session also reopened through `start.mpd`, returning its
+HLS master playlist: the current request's `X-Plex-Incomplete-Segments=1`
+controls that playlist's query suffix.
+`tests/fixtures/transcode/dash_manifest_session.json` records the
+requests and response metadata; public codec modules were provisioned from the
+host so PMS required no network access.
+
+The session-only GET/HEAD returns the running DASH plan's manifest, including
+the fitted segment duration, without restarting FFmpeg. Live DASH keeps the session's
+original availability start time when reopened; only its publish time advances
+(`test_http_mkv.py`, generated live channel). Existing HLS sessions
+return their master playlist; unknown and stopped sessions return 400. Requests
+naming a media path still require authentication and the normal decision; this read cannot create a conversion.
+`test_dash_audio_copy.py` enables the token gate and replays the sequence before
+decoding and seeking both clips.
+
+### Completed segments stream from disk (2026-11-06)
+
+Serving a completed segment opens its media file and keeps only the small DASH
+initialization header in memory. Range requests seek into this combined view;
+HEAD sends no media body. Full and ranged responses use bounded buffers and
+preserve persistent connections. A sparse cue interval can still produce a
+large file and delay its completion, but each client request no longer reads
+and allocates that whole file.
+
+### Fitted DASH slots in Plex Web, measured on a real file (2026-11-07)
+
+The merged fit (5c872662) played in Plex Web 4.160 (Chrome 157 on Windows, app.plex.tv through a
+Cloudflare quick tunnel: that Chrome refuses a public page's fetch to a LAN name even with the
+local-network permission granted over CDP, `LocalNetworkAccessPermissionDenied`) against a rex on
+the test host reading a 1080p x264 BRRip with AC3 (Firefly S01E01/E02/E04, 2.1 GB) through zurg's
+HTTP, and a generated 3-minute 720p clip with keyframes 60 s apart.
+
+- Firefly: the index read took 0.34 s (three Range requests), the slot came out 12 s (a 10.4 s
+  keyframe gap plus the margin), `minBufferTime` PT12S. First frame 2 s after the Play click,
+  no stall in 20 s, seeks to 25:00, 20:00, 5:00 and 40:00 resumed in about 6 s, two episodes at
+  once both advanced in real time with 96-132 s buffered. A seek that landed mid-slot (300 s on
+  slots of 12) sat 4-8 s on a 5.7 s buffer: Shaka waits for `minBufferTime`, so the chunk after
+  it had to close first. The buffer value now stays at the 5 s it had, whatever the slot.
+- The 60 s-gap clip: slot 61 s, copied video kept, played through to its end and Plex Web closed
+  the player at 179 of 180 s. First frame 16-24 s after the click, because its chunks are served
+  only once the chunk after them has closed, and with one keyframe at 60 s the first chunk runs
+  0-120 s and the second to the end: the whole file was copied before segment 0 went out. A
+  fitted slot already holds every keyframe gap, so its chunks are now served as they close; the
+  suite's throttled-source check asks for segment 0 while the source crawls past 30 s and gets
+  it in seconds where the old hold waited the request out (45 s).
+- A source that answers 200 to a Range request (`python3 -m http.server`) gets no index read, so
+  the clip kept 5 s slots and the late-chunk check converted its video after 10 s, the failure
+  the fit exists for. That was a debug line; it is INFO now and the feed API says so.
+- A fitted slot had no upper bound: an index that stops early would have made one title-sized
+  slot and a start that never arrives in the 45 s a segment request waits. Above 120 s the
+  default slots stay.
+
+A synthetic click (`button.click()`) carries no user activation, so the player sat paused at 0:00
+for 75 s; a pointer click over CDP (`Input.dispatchMouseEvent`) plays at once. Emptying the
+video's `src` to stop is a media error to Plex Web, which restarts the item as a full transcode
+(`video=h264->h264`): pause and go Home instead. Sessions a tab left behind were reaped after 120 s.
+
+### DASH segments permit persistent connections (2026-10-30)
+
+An audio-converting playback downloaded each five-second video
+segment in roughly ten seconds. The player used many successive Range requests;
+rex forced every response closed, repeatedly restarting TCP and TLS. Conversion
+was already faster than real time, and the segments decoded successfully.
+
+A disposable PMS 1.43.5.11079 replayed the captured player decision parameters
+against generated H.264/AAC media. Completed DASH headers and segments answered
+HTTP/1.1 GET and Range GET with `Connection: Keep-Alive`, `Keep-Alive: timeout=20`
+and the appropriate Content-Length/Content-Range. An explicit request-side
+`Connection: close` produced a closed response:
+
+| Resource | Request Range | Request Connection | Status | Length | Response Connection | Keep-Alive |
+| --- | --- | --- | --- | --- | --- | --- |
+| `0/header` | absent | absent | 200 | 829 | Keep-Alive | timeout=20 |
+| `0/header` | bytes=0-499 | absent | 206 | 500 | Keep-Alive | timeout=20 |
+| `0/0.m4s` | absent | absent | 200 | 1316142 | Keep-Alive | timeout=20 |
+| `0/0.m4s` | bytes=0-499 | absent | 206 | 500 | Keep-Alive | timeout=20 |
+| `0/0.m4s` | bytes=500-999 | Keep-Alive | 206 | 500 | Keep-Alive | timeout=20 |
+| `0/0.m4s` | bytes=0-499 | close | 206 | 500 | close | absent |
+
+These are curl observations, not a player's own Range and Connection headers, so they live here
+and not in the client fixtures (the `dash_connections.json` record was dropped on 2026-11-07).
+The older whole-GET fixture's closed response does not establish that all clients must be
+disconnected.
+
+Remove the forced close for DASH headers/segments and let the normal request
+connection policy apply. No codec or encoding decision changes. The audio-copy
+integration test proves successive ranges reuse the actual socket, preserve the
+segment bytes, and still honor an explicit close.
+
+After deployment, recent five-second video segments downloaded
+in about 4.2 seconds after connection warmup, compared with roughly ten seconds
+before. Smooth playback was confirmed after restarting. Production
+logs still showed copied HEVC video and TrueHD converted to six-channel AAC.
+
 ### A subtitle track dense from its start; a live DASH restart behind the clock (2026-10-27)
 
 **Round Two Time never started in Plex Web** (rex-fun, ratingKey 106616: HEVC Main10 1080p and Opus
@@ -15638,3 +15790,39 @@ answers the same requests the same way, so none of it is a rex defect, and none 
 | Plezy | a photo library (comics as albums of pages) | lists the library, shows each album as a TV show, and Play fails with "File information not available". Plezy has no photo viewer; Plex for Android lists no photo library at all, from a real PMS either, and points to the Plex Photos app |
 
 The phone's screenshots and logs stay with the test notes, not here: they show Plex's own UI.
+
+## What a source's probe decides (2026-11-05/06)
+
+The whole study is `docs/ffprobe-study.md`: the same real files pushed with true and false ffprobe
+output, played in Plex for Android 2026.19.1 and Plezy 2.24.0 on a Pixel 6, in proxy and redirect mode,
+with multi-track audio and SRT, ASS and PGS subtitles. In short: the Plex app decides direct play on the
+phone from the probe's codecs alone and picks tracks by the probe's stream index (as rex's conversions
+map them); Plezy reads the file's own tracks; a wrong `format.size` hangs or cuts playback in proxy mode,
+because rex answers part reads with the probe's size; a too-short duration makes rex refuse the app's
+timelines, and none leaves no resume point.
+
+## rex-direct over IPv6, and plex.tv hiding an IPv6-registered server (2026-11-07)
+
+Two throwaway Hetzner boxes: rex (the home-videos addon, Big Buck Bunny) behind a Hetzner firewall
+that let TCP 32400 in over IPv6 only, the stand-in for a CGNAT home, and a client box running
+Chrome. Claimed on a free Plex account. From the client the rex-direct name timed out over IPv4
+and answered over IPv6 with a valid certificate; app.plex.tv played the film at 1920x1080 from
+4.6 s to 51.5 s in 50 s, and the only peer on rex's port was the client's IPv6.
+
+- **plex.tv lists no server whose device registration came over IPv6.** servers.plex.tv,
+  clients.plex.tv and www.plex.tv have AAAA records (plex.tv itself has none). rex reached them
+  over IPv6 and plex.tv recorded `publicAddress="2a01:4f8:c015:baa3::1"`; the server was missing
+  from `/api/v2/resources` (rex: `announced but NOT visible`) and DMM's ownership check answered
+  403 for 10 minutes. The same server, made to prefer IPv4 (`/etc/gai.conf`), registered with
+  `publicAddress="2.31.75.241"` and was listed at once. So rex tries plex.tv's hosts over IPv4
+  first (`upstream::connect_order`), as a PMS does with its IPv6 support off, the default.
+- **A start registers before its port opens**, so a provider check of the IPv6 then finds
+  nothing listening: the first test build dropped the AAAA on every restart until the 6-hourly
+  call. The start's request now names no `publicIpv6`, and a second one a minute later does.
+- **Privacy addresses.** With `use_tempaddr=2` (a `mngtmpaddr` static address on the box) the
+  kernel picked the temporary address for an outgoing connection; `IPV6_ADDR_PREFERENCES` with
+  `IPV6_PREFER_SRC_PUBLIC` picked the stable one, which a router's firewall rule for the machine
+  names. Windows has no such option; it offers its temporary address.
+- A cloud box has no RFC 1918 address, so rex announced nothing and plex.tv kept no device row
+  (`no address to announce yet: no private network address`); `--announce-url http://<private
+  address>:32400` stood in for a home LAN.

@@ -549,6 +549,16 @@ def live_dash(port, key):
     waited = time.time() - asked
     check("live over DASH: the first video segment is served within 1.5 s of start.mpd",
           status_h == status_s == 200 and first and waited < 1.5, "segment %d: %s/%s in %.2fs" % (index, status_h, status_s, waited))
+    # Reopening must keep the origin of the running segment numbers, even as
+    # publishTime advances. A moving origin sends the player back to old chunks.
+    time.sleep(1.1)
+    status_r, _, reopened = get(port, "/video/:/transcode/universal/start.mpd", [("session", session)])
+    origin = re.search(rb'availabilityStartTime="([^"]+)"', body)
+    reopened_origin = re.search(rb'availabilityStartTime="([^"]+)"', reopened)
+    check("live over DASH: reopening keeps the session clock",
+          status_r == 200 and origin is not None and reopened_origin is not None
+          and origin.group(1) == reopened_origin.group(1),
+          "%s -> %s" % (origin.group(1) if origin else None, reopened_origin.group(1) if reopened_origin else None))
     get(port, "/video/:/transcode/universal/stop", [("session", session)])
     session = "dash-live-read"
     query = nt.dash_query(key, session)
@@ -729,8 +739,8 @@ def loudness(path):
 def long_gop_files(port, scratch, files, log):
     """A recorded file remuxed over DASH whose keyframes are further apart than the 5 s template:
     one gap spanning two template slots made one chunk of them, and every later segment held the
-    film of the one after its number. Each chunk's own `sidx` shows it; the video is converted from
-    there, so every segment starts where its number says. A file whose keyframes fit keeps the copy."""
+    film of the one after its number. Indexed Matroska files now choose slots long enough for
+    their video cues, keeping the copied video even when audio needs conversion."""
     print("recorded files with keyframes further apart than a DASH segment")
     for name in ("gop8.mkv", "gop12.mkv", "gop2.mkv", "slowgop8.mkv"):
         key = files[name]
@@ -740,7 +750,7 @@ def long_gop_files(port, scratch, files, log):
         status, _, mpd = get(port, "/video/:/transcode/universal/start.mpd", query)
         length = int(re.search(r'duration="(\d+)"', mpd.decode()).group(1)) if status == 200 else 5
         placed = []
-        for index in range(DURATION // 5):
+        for index in range(-(-DURATION // length)):
             status, _, body = get(port, "/video/:/transcode/universal/session/%s/0/%d.m4s" % (session, index), timeout=90)
             kinds = nt.boxes(body) if status == 200 else []
             scale = next((extra["timescale"] for kind, extra in kinds if kind == "moov"), 0)
@@ -771,7 +781,8 @@ def long_gop_files(port, scratch, files, log):
         read = max([int(value) for value in re.findall(r"^out_time_us=(\d+)", out, re.M)] or [0]) / 1e6
         check("%s: a DASH reader reads the whole %d s" % (name, DURATION), read >= DURATION - 3, "%.1f s" % read)
         get(port, "/video/:/transcode/universal/stop", [("session", session)])
-    check("the log says where the copied video was converted from", "runs a segment past its own); converting it from segment" in open(log).read(), "")
+    check("indexed files keep copied video with long keyframe gaps",
+          not re.search(r"TRANSCODE vod-[^\n]*converting it from segment", open(log).read()), "")
 
 
 def long_gop(port, scratch, channels, log):

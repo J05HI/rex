@@ -24,7 +24,7 @@
 
 use super::*;
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Seek};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
@@ -483,7 +483,7 @@ impl Plan {
     }
 
     /// `start.mpd`, in the reference's own layout (`scratch_dash_copy.json`).
-    pub fn mpd(&self, session: &str) -> String {
+    pub fn mpd(&self, session: &str, started: f64) -> String {
         let length = self.segment_seconds();
         let duration = dash_duration(self.duration_ms);
         let template = format!(
@@ -510,7 +510,7 @@ impl Plan {
                     // and the max segment duration lower than FFmpeg's reader does: at
                     // `LIVE_DASH_FIRST`, where the run starts, with that many segments of margin
                     // above the window's oldest; FFmpeg's reader two segments on.
-                    utc(now_seconds() - f64::from(length) * (LIVE_DASH_FIRST + 4) as f64),
+                    utc(started - f64::from(length) * (LIVE_DASH_FIRST + 4) as f64),
                     utc(now_seconds()),
                     length * (LIVE_DASH_FIRST as u32 + 4),
                     length * 2
@@ -527,8 +527,11 @@ impl Plan {
             if self.live() { length } else { length * 2 },
             // Ours, not the reference's 2x segment: Plex Web's Shaka player starts only
             // once max(minBufferTime, 2 s) is buffered, so PT10S held every start for
-            // two 5 s segments (6.3 s to first frame on the test host, measured).
-            length
+            // two 5 s segments (6.3 s to first frame on the test host, measured). A fitted
+            // slot is longer than that and no reason to buffer more: at PT12S a seek into the
+            // middle of a 12 s slot sat 4-8 s on 5.7 s of buffer until the next chunk closed
+            // (Plex Web on the test rig, 2026-11-07); at PT5S it goes on from the chunk it has.
+            length.min(DASH_COPY_SEGMENT)
         );
         let mut id = 0;
         if let Some(video) = self.video.as_ref() {
@@ -578,6 +581,45 @@ impl Plan {
             (Protocol::Dash, true) => DASH_COPY_SEGMENT,
             (Protocol::Hls | Protocol::File | Protocol::Http, true) => COPY_SEGMENT,
         }
+    }
+
+    /// Fixed DASH slots must be at least as long as the source's largest keyframe gap.
+    /// Otherwise two slots can collapse into one video chunk while audio keeps counting.
+    fn fit_copy_segments(&mut self) -> Result<(), String> {
+        if self.protocol != Protocol::Dash || self.live() { return Ok(()); }
+        let Some(video) = self.video.as_ref().filter(|video| video.copy) else { return Ok(()) };
+        let begun = Instant::now();
+        let read = |offset, length| {
+            let remaining = Duration::from_secs(5).checked_sub(begun.elapsed()).filter(|time| !time.is_zero()).ok_or("video index read budget exhausted")?;
+            read_range_with_timeout(&self.url, self.auth.as_deref(), offset, length, remaining)
+        };
+        match super::mkvsubs::video_gap(&read, video.index, self.duration_ms) {
+            Ok(gap) => self.fit_copy_gap(gap)?,
+            // A source that ignores Range keeps the default slots, so a long keyframe gap still
+            // converts the video there: said at INFO, since a debug line never reached anyone
+            // (a `python3 -m http.server` source on the test rig, 2026-11-07). An MP4 or a file
+            // with no index is the ordinary case and stays at debug.
+            Err(error) if error.contains("answered 200 to a range") => info!("TRANSCODE video index unavailable: {error}; retaining default slots"),
+            Err(error) => debug!("TRANSCODE video index unavailable: {error}; retaining default slots"),
+        }
+        debug!("TRANSCODE video index fitted in {:.3}s", begun.elapsed().as_secs_f64());
+        Ok(())
+    }
+
+    /// A fitted slot above this keeps the default slots instead: the first segment waits for two
+    /// slots of media, and a slot this long is an index that stops early (a cut-off Cues element, a
+    /// video track much shorter than the container), not a keyframe gap a player could sit through.
+    const FITTED_SLOT_CAP_MS: i64 = 120_000;
+
+    fn fit_copy_gap(&mut self, gap_ms: i64) -> Result<(), String> {
+        if gap_ms < 4500 { return Ok(()); }
+        if gap_ms > Self::FITTED_SLOT_CAP_MS {
+            info!("TRANSCODE video index: a {gap_ms} ms gap is past the {} s slot cap; retaining default slots", Self::FITTED_SLOT_CAP_MS / 1000);
+            return Ok(());
+        }
+        let seconds = gap_ms.max(0).checked_add(1999).ok_or("rex: video gap overflow")? / 1000;
+        self.segment_length = Some(u32::try_from(seconds.max(i64::from(DASH_COPY_SEGMENT))).map_err(|_| "rex: video gap overflow")?);
+        Ok(())
     }
 
     pub fn segment_count(&self) -> i64 {
@@ -1194,6 +1236,8 @@ pub(crate) struct Session {
     run: std::sync::atomic::AtomicU64,
     stopped: AtomicBool,
     pub started: f64,
+    /// Registered for cancellation, but its indexed DASH timing is not ready to serve.
+    preparing: bool,
     cover: Mutex<Cover>,
     /// Copied streams converted since a copy failed: audio, video (`force_next`).
     forced: Mutex<(bool, bool)>,
@@ -1202,6 +1246,25 @@ pub(crate) struct Session {
 }
 
 impl Session {
+    fn new(id: &str, plan: Plan, dir: PathBuf, preparing: bool) -> Arc<Self> {
+        let plan_burns = plan.text_burn.is_some();
+        Arc::new(Self {
+            id: id.to_string(),
+            plan,
+            dir,
+            state: Mutex::new(Progress { touched: Some(Instant::now()), ..Progress::default() }),
+            child: Mutex::new(None),
+            launching: Mutex::new(()),
+            run: std::sync::atomic::AtomicU64::new(0),
+            stopped: AtomicBool::new(false),
+            started: now_seconds(),
+            preparing,
+            cover: Mutex::new(Cover { unread: if plan_burns { None } else { Some(BTreeMap::new()) }, run_limit: None }),
+            forced: Mutex::new((false, false)),
+            silent: AtomicBool::new(false),
+        })
+    }
+
     /// The plan a run goes by: the session's, with each copied stream a failed copy has turned
     /// into a conversion, on the segment length the player already has.
     pub fn plan_now(&self) -> Plan {
@@ -1634,6 +1697,48 @@ pub(crate) struct SegmentPlan {
     pub transcoder: Arc<Transcoder>,
 }
 
+/// Registered before index I/O so a stop or newer start invalidates this request.
+pub(crate) struct DashStart {
+    pub session: Arc<Session>,
+    pub plan: Plan,
+    pub transcoder: Arc<Transcoder>,
+}
+
+impl DashStart {
+    /// Release only this request's session; a newer start may already own its id.
+    pub fn cancel(&self, runtime: &mut Runtime) {
+        if self.transcoder.stop_session(&self.session) {
+            runtime.release_stream_admission(self.plan.account, &self.plan.playback);
+        }
+    }
+
+    /// Read the source index outside the runtime lock before publishing its timing.
+    pub fn fit(&mut self) -> Result<(), String> {
+        self.plan.fit_copy_segments()
+    }
+
+    /// Called with the runtime lock held again, before another route can stop the launch.
+    pub fn start(&mut self) -> Response {
+        let pending = &self.session;
+        let session = Session::new(&pending.id, self.plan.clone(), pending.dir.clone(), false);
+        let mut sessions = self.transcoder.sessions.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !sessions.get(&pending.id).is_some_and(|held| Arc::ptr_eq(held, pending)) {
+            return Response::error(404, "rex: session stopped or replaced");
+        }
+        // No child or segments exist yet; transfer the directory without deleting it.
+        pending.stopped.store(true, Ordering::SeqCst);
+        sessions.insert(session.id.clone(), Arc::clone(&session));
+        drop(sessions);
+        self.session = Arc::clone(&session);
+        let manifest = session.plan.mpd(&session.id, session.started);
+        self.transcoder.start_registered(&session);
+        let mut response = Response::bytes(200, "application/dash+xml");
+        response.body = manifest.into_bytes();
+        response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
+        response
+    }
+}
+
 impl Transcoder {
     /// The FFmpeg `REX_TRANSCODER` names; subtitle measuring reads audio with it too.
     pub(super) fn ffmpeg(&self) -> &std::path::Path {
@@ -1888,42 +1993,32 @@ impl Transcoder {
     /// `start.m3u8`: a fresh session under the client's `session` id (a previous one of
     /// the same id is replaced), already running from segment 0.
     pub fn start(self: &Arc<Self>, id: &str, plan: Plan) -> Result<Arc<Session>, String> {
-        let session = self.register(id, plan)?;
+        let session = self.register(id, plan, false)?;
+        self.start_registered(&session);
+        Ok(session)
+    }
+
+    fn start_registered(self: &Arc<Self>, session: &Arc<Session>) {
         let first = if session.plan.protocol == Protocol::Dash && session.plan.live() { LIVE_DASH_FIRST } else { 0 };
         match session.plan.text_burn.clone() {
             Some(text) => {
                 let transcoder = Arc::clone(self);
-                let reading = Arc::clone(&session);
+                let reading = Arc::clone(session);
                 thread::spawn(move || transcoder.read_text(&reading, &text));
             }
-            None => self.launch(&session, first, None),
+            None => self.launch(session, first, None),
         }
-        Ok(session)
     }
 
     /// A session under the client's `session` id, replacing an earlier one of that id, with
     /// nothing running yet: listed, pinged and stopped as any other.
-    fn register(&self, id: &str, plan: Plan) -> Result<Arc<Session>, String> {
+    fn register(&self, id: &str, plan: Plan, preparing: bool) -> Result<Arc<Session>, String> {
         self.stop(id);
         // `.` is no character `sanitize` keeps, so no session's directory is a download's
         // (`download-<id>`).
         let dir = self.root.join(format!("{}.{}", sanitize(id), self.starts.fetch_add(1, Ordering::SeqCst)));
         std::fs::create_dir_all(&dir).map_err(|error| format!("cannot create {}: {error}", dir.display()))?;
-        let plan_burns = plan.text_burn.is_some();
-        let session = Arc::new(Session {
-            id: id.to_string(),
-            plan,
-            dir,
-            state: Mutex::new(Progress { touched: Some(Instant::now()), ..Progress::default() }),
-            child: Mutex::new(None),
-            launching: Mutex::new(()),
-            run: std::sync::atomic::AtomicU64::new(0),
-            stopped: AtomicBool::new(false),
-            started: now_seconds(),
-            cover: Mutex::new(Cover { unread: if plan_burns { None } else { Some(BTreeMap::new()) }, run_limit: None }),
-            forced: Mutex::new((false, false)),
-            silent: AtomicBool::new(false),
-        });
+        let session = Session::new(id, plan, dir, preparing);
         self.sessions
             .lock()
             .map_err(|_| "transcoder lock poisoned".to_string())?
@@ -1934,7 +2029,7 @@ impl Transcoder {
     /// `start` with `protocol=http`: the session `serve_stream` runs FFmpeg for, once the
     /// runtime lock is released.
     pub fn open_stream(self: &Arc<Self>, id: &str, plan: Plan, offset: i64) -> Result<StreamPlan, String> {
-        Ok(StreamPlan { session: self.register(id, plan)?, offset, transcoder: Arc::clone(self) })
+        Ok(StreamPlan { session: self.register(id, plan, false)?, offset, transcoder: Arc::clone(self) })
     }
 
     /// Convert beside the persistent destination, then publish with an atomic rename.
@@ -2390,7 +2485,13 @@ impl Transcoder {
         let done_at = |index: i64| if session.plan.protocol == Protocol::Dash { index } else { index + 1 };
         let mut next = start;
         let mut progressed = Instant::now();
-        let copied_dash = session.plan.protocol == Protocol::Dash && session.plan_now().video.is_some_and(|video| video.copy);
+        // A slot fitted to the index (`fit_copy_gap`, the only way a DASH copy gets a
+        // `segment_length`) already holds every keyframe gap, so its chunks need no late check
+        // and are served as they close: the check held each one back until the next had
+        // closed too, a whole slot of media before the first frame (24 s on the test rig's
+        // 61 s slots, where the chunk itself was done at 14 s; 2026-11-07).
+        let copied_dash = session.plan.protocol == Protocol::Dash && session.plan.segment_length.is_none()
+            && session.plan_now().video.is_some_and(|video| video.copy);
         // Since when the player has been waiting on this run's subtitle hold.
         let mut waited: Option<Instant> = None;
         loop {
@@ -2624,7 +2725,7 @@ impl Transcoder {
     /// The bytes of segment `index` (of DASH representation `rep`), waiting for ffmpeg to
     /// finish it; a request far from what is being produced restarts ffmpeg there. A DASH
     /// segment is served as the reference serves it: its run's init, then the fragment.
-    pub fn segment(self: &Arc<Self>, session: &Arc<Session>, index: i64, rep: usize) -> Result<Vec<u8>, u16> {
+    pub fn segment(self: &Arc<Self>, session: &Arc<Session>, index: i64, rep: usize) -> Result<(Vec<u8>, std::fs::File), u16> {
         if index < 0 || index >= session.plan.segment_count() || rep >= session.plan.representations().max(1) {
             return Err(404);
         }
@@ -2692,13 +2793,12 @@ impl Transcoder {
                 Err(_) => return Err(500),
             };
             if let Some(run) = ready {
-                let fragment = std::fs::read(session.segment_file(index, rep, run)).map_err(|_| 500u16)?;
-                if session.plan.protocol == Protocol::Dash {
-                    let mut bytes = std::fs::read(session.init_file(rep, run)).map_err(|_| 500u16)?;
-                    bytes.extend(fragment);
-                    return Ok(bytes);
-                }
-                return Ok(fragment);
+                // Open before cleanup can unlink the run, without loading its media.
+                let fragment = std::fs::File::open(session.segment_file(index, rep, run)).map_err(|_| 500u16)?;
+                let init = if session.plan.protocol == Protocol::Dash {
+                    std::fs::read(session.init_file(rep, run)).map_err(|_| 500u16)?
+                } else { Vec::new() };
+                return Ok((init, fragment));
             }
             if session.stopped.load(Ordering::SeqCst) {
                 return Err(404);
@@ -2785,6 +2885,11 @@ fn filter_path(path: &str) -> String {
 
 /// `length` bytes of a source's file from `offset`, as `mkvsubs` reads a subtitle track.
 pub(super) fn read_range(url: &str, auth: Option<&str>, offset: u64, length: usize) -> Result<Vec<u8>, String> {
+    read_range_with_timeout(url, auth, offset, length, Duration::from_secs(30))
+}
+
+fn read_range_with_timeout(url: &str, auth: Option<&str>, offset: u64, length: usize, timeout: Duration) -> Result<Vec<u8>, String> {
+    let deadline = Instant::now() + timeout;
     let mut headers = vec![
         ("User-Agent", super::upstream::UPSTREAM_UA.to_string()),
         ("Range", format!("bytes={offset}-{}", offset + length.max(1) as u64 - 1)),
@@ -2792,12 +2897,12 @@ pub(super) fn read_range(url: &str, auth: Option<&str>, offset: u64, length: usi
     if let Some(auth) = auth {
         headers.push(("Authorization", auth.to_string()));
     }
-    let mut response = super::upstream::open("GET", url, &headers, b"", Duration::from_secs(30))?;
+    let mut response = super::upstream::open("GET", url, &headers, b"", timeout)?;
     // A source that ignores Range would answer the whole release.
     if response.status != 206 {
         return Err(format!("the source answered {} to a range", response.status));
     }
-    response.read_body(length + 1024)
+    response.read_body_until(length + 1024, deadline)
 }
 
 /// Spawn FFmpeg so it dies with rex. On Linux the child asks for SIGKILL when its parent
@@ -2898,6 +3003,12 @@ fn sanitize(id: &str) -> String {
         .collect()
 }
 
+impl std::fmt::Debug for DashStart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DashStart").field("session", &self.session.id).finish()
+    }
+}
+
 /// `TranscodeSession`, in the reference's field order. `key` is the bare id on
 /// `/transcode/sessions` and `/transcode/sessions/<id>` inside a session or timeline.
 impl std::fmt::Debug for SegmentPlan {
@@ -2985,23 +3096,54 @@ pub(crate) fn transcode_session_row(session: &Session, hardware: &Hardware, nest
     Value::Object(row)
 }
 
-/// Serve a segment plan: wait outside the runtime lock, then answer with the measured
-/// head (`video/MP2T`, `Accept-Ranges: bytes`, `Connection: close`).
-pub(crate) fn finish_segment(plan: SegmentPlan, response: &mut Response) {
-    let bytes = if plan.header {
-        plan.transcoder.header(&plan.session, plan.rep)
+/// A completed segment, opened before its run can be pruned. Only the small
+/// initialization header is held in memory; Range reads seek straight into the file.
+pub(crate) struct SegmentRead {
+    init: Vec<u8>,
+    file: std::fs::File,
+    first: u64,
+    length: u64,
+}
+
+pub(crate) fn finish_segment(plan: SegmentPlan, response: &mut Response, request: &Request) -> Option<SegmentRead> {
+    let result = if plan.header {
+        plan.transcoder.header(&plan.session, plan.rep).map(|bytes| { response.body = bytes; None })
     } else {
-        plan.transcoder.segment(&plan.session, plan.index, plan.rep)
+        plan.transcoder.segment(&plan.session, plan.index, plan.rep).and_then(|(init, file)| {
+            let total = file.metadata().map_err(|_| 500u16)?.len() + init.len() as u64;
+            let (status, range, first, last) = super::wire::range_window(total as usize, request.headers.get("range").map(String::as_str))
+                .unwrap_or((200, None, 0, total.saturating_sub(1) as usize));
+            if status == 416 {
+                *response = Response::error(416, "rex: range not satisfiable");
+            } else {
+                response.status = status;
+            }
+            if let Some(range) = range { response.headers.push(("Content-Range".into(), range)); }
+            Ok((status != 416).then_some(SegmentRead { init, file, first: first as u64, length: last.saturating_sub(first) as u64 + u64::from(total > 0) }))
+        })
     };
-    match bytes {
-        Ok(bytes) => {
-            response.status = 200;
-            response.body = bytes;
-        }
+    match result {
+        Ok(read) => read,
         Err(status) => {
             *response = Response::error(status, if status == 404 { "rex: not found" } else { "rex: transcode failed" });
+            None
         }
     }
+}
+
+pub(crate) fn serve_segment<S: Write>(stream: &mut S, response: &Response, mut read: SegmentRead, envelope: &super::wire::Wire, keep: bool) -> Result<bool, String> {
+    let init_len = read.init.len() as u64;
+    read.file.seek(std::io::SeekFrom::Start(read.first.saturating_sub(init_len))).map_err(|error| error.to_string())?;
+    let mut init = std::io::Cursor::new(read.init);
+    init.set_position(read.first.min(init_len));
+    let open = super::wire::write_enveloped_head(stream, response, envelope, keep, Some(read.length))?;
+    super::wire::LAST_PAYLOAD.with(|cell| cell.set(read.length));
+    if envelope.method == "HEAD" { return Ok(open); }
+    let mut body = init.chain(read.file).take(read.length);
+    let written = std::io::copy(&mut body, stream).map_err(|error| error.to_string())?;
+    if written != read.length { return Err("transcode segment ended early".into()); }
+    stream.flush().map_err(|error| error.to_string())?;
+    Ok(open)
 }
 
 /// `videoResolution` as PMS labels a converted Media: by width, `SD` below 720p.
@@ -3703,6 +3845,31 @@ impl Runtime {
     pub(super) fn route_universal(&mut self, segments: &[&str], query: &HashMap<String, String>, request: &Request) -> Option<Response> {
         let transcoder = Arc::clone(self.transcoder.as_ref()?);
         let leaf = segments.get(4).copied().unwrap_or_default();
+        // PMS 1.43.4 reopens a running DASH manifest by session alone, without a token.
+        // Unknown and stopped ids answer 400 (dash_manifest_session.json).
+        if leaf == "start.mpd" && !query.contains_key("path") && query.contains_key("session") {
+            if segments.len() != 5 || !matches!(request.method.as_str(), "GET" | "HEAD") {
+                return Some(Response::error(404, "rex: not found"));
+            }
+            let session = query.get("session").and_then(|id| transcoder.session(id)).filter(|session| !session.preparing);
+            let Some(session) = session else {
+                return Some(Response::error(400, "rex: no session"));
+            };
+            let (manifest, content_type) = match session.plan.protocol {
+                Protocol::Dash => (session.plan.mpd(&session.id, session.started), "application/dash+xml"),
+                Protocol::Hls => {
+                    let mut plan = session.plan.clone();
+                    plan.incomplete_segments = query.get("X-Plex-Incomplete-Segments").is_some_and(|value| value == "1");
+                    (plan.master_playlist(&session.id), "application/vnd.apple.mpegurl")
+                }
+                _ => return Some(Response::error(400, "rex: no manifest")),
+            };
+            session.touch();
+            let mut response = Response::bytes(200, content_type);
+            response.body = manifest.into_bytes();
+            response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
+            return Some(response);
+        }
         match leaf {
             // Plex Desktop names no extension for `http` (its web client's `{dash: ".mpd",
             // hls: ".m3u8", http: ""}`); a bare `start` for any other protocol stays refused.
@@ -3747,10 +3914,10 @@ impl Runtime {
                     return Some(Response::error(503, error.reason()));
                 }
                 let id = query.get("session").filter(|id| !id.is_empty()).cloned().unwrap_or_else(|| playback.clone());
-                let (manifest, content_type) = match plan.protocol {
-                    Protocol::Hls => (plan.master_playlist(&id), "application/vnd.apple.mpegurl"),
-                    Protocol::Dash => (plan.mpd(&id), "application/dash+xml"),
-                    Protocol::Http => (String::new(), if plan.matroska { "video/x-matroska" } else { "audio/mpeg" }),
+                let content_type = match plan.protocol {
+                    Protocol::Hls => "application/vnd.apple.mpegurl",
+                    Protocol::Dash => "application/dash+xml",
+                    Protocol::Http => if plan.matroska { "video/x-matroska" } else { "audio/mpeg" },
                     Protocol::File => return Some(Response::error(400, "rex: bad request")),
                 };
                 info!(
@@ -3777,11 +3944,29 @@ impl Runtime {
                     response.close = true;
                     return Some(response);
                 }
-                if let Err(error) = transcoder.start(&id, plan) {
-                    self.release_stream_admission(self.viewer.id, &playback);
-                    error!("TRANSCODE {id}: {error}");
-                    return Some(Response::error(500, "rex: transcode failed"));
+                if plan.protocol == Protocol::Dash && !plan.live() && plan.video.as_ref().is_some_and(|video| video.copy) {
+                    match transcoder.register(&id, plan.clone(), true) {
+                        Ok(session) => self.pending_dash_start = Some(DashStart { session, plan, transcoder }),
+                        Err(error) => {
+                            self.release_stream_admission(self.viewer.id, &playback);
+                            error!("TRANSCODE {id}: {error}");
+                            return Some(Response::error(500, "rex: transcode failed"));
+                        }
+                    }
+                    return Some(Response::bytes(200, content_type));
                 }
+                let session = match transcoder.start(&id, plan) {
+                    Ok(session) => session,
+                    Err(error) => {
+                        self.release_stream_admission(self.viewer.id, &playback);
+                        error!("TRANSCODE {id}: {error}");
+                        return Some(Response::error(500, "rex: transcode failed"));
+                    }
+                };
+                let manifest = match session.plan.protocol {
+                    Protocol::Dash => session.plan.mpd(&session.id, session.started),
+                    _ => session.plan.master_playlist(&session.id),
+                };
                 let mut response = Response::bytes(200, content_type);
                 response.body = manifest.into_bytes();
                 response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
@@ -3790,7 +3975,7 @@ impl Runtime {
             "session" => {
                 let id = segments.get(5).copied().unwrap_or_default();
                 // The reference answers a live session's playlist 404 to POST, PUT and DELETE.
-                let Some(session) = transcoder.session(id).filter(|_| matches!(request.method.as_str(), "GET" | "HEAD")) else {
+                let Some(session) = transcoder.session(id).filter(|session| !session.preparing && matches!(request.method.as_str(), "GET" | "HEAD")) else {
                     return Some(Response::error(404, "rex: not found"));
                 };
                 match (segments.get(6).copied(), segments.get(7).copied(), segments.len()) {
@@ -3843,7 +4028,9 @@ impl Runtime {
                         let mut response = Response::bytes(200, "application/octet-stream");
                         response.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
                         response.headers.push(("Accept-Ranges".to_string(), "bytes".to_string()));
-                        response.close = true;
+                        // PMS keeps completed DASH segments open for subsequent
+                        // Range reads. Closing each slice repeatedly restarts TCP/TLS
+                        // and can make high-bitrate video download slower than playback.
                         self.pending_segment = Some(SegmentPlan { session, index: index.unwrap_or(0), rep, header: index.is_none(), transcoder });
                         Some(response)
                     }
@@ -4053,6 +4240,26 @@ mod tests {
     }
 
     #[test]
+    fn fitted_copy_gaps_leave_a_second_of_margin_without_conversion() {
+        for (gap, seconds) in [(0, 5), (4499, 5), (4500, 6), (4920, 6), (5000, 6), (12_001, 14), (20_000, 21), (90_000, 91), (120_000, 121), (120_001, 5), (7_200_000, 5)] {
+            let mut copy = plan(true, 90_000);
+            copy.protocol = Protocol::Dash;
+            copy.fit_copy_gap(gap).unwrap();
+            assert_eq!(copy.segment_seconds(), seconds);
+        }
+        let mut copy = plan(true, 90_000);
+        copy.protocol = Protocol::Dash;
+        copy.fit_copy_gap(90_000).unwrap();
+        // Past the cap, a gap no u32 holds included, the slot it had stays and nothing errs.
+        copy.fit_copy_gap(i64::MAX).unwrap();
+        assert_eq!(copy.segment_seconds(), 91);
+        assert!(copy.video.as_ref().unwrap().copy);
+        // The slot grows; what the player must buffer before it plays does not.
+        let manifest = copy.mpd("fitted", 0.0);
+        assert!(manifest.contains("duration=\"91\"") && manifest.contains("maxSegmentDuration=\"PT182S\"") && manifest.contains("minBufferTime=\"PT5S\""), "{manifest}");
+    }
+
+    #[test]
     fn mpd_matches_the_recorded_shape() {
         // plexscratch's DASH remux of Sintel for Plex Web 4.147.1's request.
         let recorded: Value = serde_json::from_str(include_str!("../../../tests/fixtures/transcode/scratch_dash_copy.json")).unwrap();
@@ -4074,7 +4281,7 @@ mod tests {
             audio.sampling_rate = 44100;
         }
         // Byte for byte the reference's, but for `minBufferTime`, which is ours (`mpd`).
-        assert_eq!(copy.mpd("rexdashdash-cop"), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT5S\""));
+        assert_eq!(copy.mpd("rexdashdash-cop", 0.0), body.replace("minBufferTime=\"PT10S\"", "minBufferTime=\"PT5S\""));
     }
 
     #[test]

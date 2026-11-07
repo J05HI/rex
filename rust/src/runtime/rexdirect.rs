@@ -105,6 +105,8 @@ pub(crate) struct Registration {
     /// A name on rex's LAN under `hostname`, and the address the provider says it points at.
     lan_hostname: Option<String>,
     lan_ip: Option<String>,
+    /// The IPv6 the provider pointed an AAAA at, once it found rex there.
+    ipv6: Option<String>,
     certificate: String,
     private_key: String,
     /// The answer as the provider sent it: what `rex-direct.json` holds.
@@ -138,6 +140,7 @@ fn parse(body: &[u8]) -> Result<Registration, String> {
         ip: field("ip")?,
         lan_hostname,
         lan_ip: answer.get("lanIp").and_then(Value::as_str).filter(|ip| !ip.is_empty()).map(str::to_string),
+        ipv6: answer.get("ipv6").and_then(Value::as_str).filter(|ip| !ip.is_empty()).map(str::to_string),
         certificate: field("certificate")?,
         private_key: field("privateKey")?,
         raw: body.to_vec(),
@@ -220,6 +223,60 @@ fn announced_lan_ipv4(announce: Option<&str>) -> Option<std::net::Ipv4Addr> {
         .find(std::net::Ipv4Addr::is_private)
 }
 
+/// The global IPv6 (2000::/3) this machine reaches the internet from: the source address of a
+/// route to a public IPv6. Connecting a UDP socket sends nothing.
+fn public_ipv6() -> Option<std::net::Ipv6Addr> {
+    let socket = std::net::UdpSocket::bind("[::]:0").ok()?;
+    prefer_stable_source(&socket);
+    socket.connect("[2001:4860:4860::8888]:53").ok()?;
+    match socket.local_addr().ok()?.ip() {
+        std::net::IpAddr::V6(ip) if global_ipv6(ip) => Some(ip),
+        _ => None,
+    }
+}
+
+/// Asks for the machine's stable IPv6 rather than a privacy (temporary) one, which the OS uses for
+/// outgoing connections where privacy extensions are on, replaces about daily, and which a
+/// router's firewall rule for this machine does not match (RFC 5014 on Linux).
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn prefer_stable_source(socket: &std::net::UdpSocket) {
+    set_ipv6_option(socket, libc::IPV6_ADDR_PREFERENCES, libc::IPV6_PREFER_SRC_PUBLIC);
+}
+
+/// macOS's own switch: `IPV6_PREFER_TEMPADDR` (netinet6/in6.h, not in the libc crate) set to 0.
+#[cfg(target_os = "macos")]
+fn prefer_stable_source(socket: &std::net::UdpSocket) {
+    set_ipv6_option(socket, 63, 0);
+}
+
+// ponytail: Windows has no socket option for it, so rex offers its temporary address there; the
+// 6-hourly registration follows it. Read the stable one with GetAdaptersAddresses if that leaves
+// Windows users without an AAAA.
+#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
+fn prefer_stable_source(_socket: &std::net::UdpSocket) {}
+
+/// Best effort: a kernel without the option keeps its default source address.
+#[cfg(unix)]
+fn set_ipv6_option(socket: &std::net::UdpSocket, option: libc::c_int, value: libc::c_int) {
+    use std::os::fd::AsRawFd;
+    // SAFETY: an int option on a socket this function borrows.
+    unsafe {
+        libc::setsockopt(
+            socket.as_raw_fd(),
+            libc::IPPROTO_IPV6,
+            option,
+            (&value as *const libc::c_int).cast(),
+            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+        );
+    }
+}
+
+/// Global unicast, and not documentation, Teredo or 6to4: DMM's `isGlobalIpv6`.
+fn global_ipv6(ip: std::net::Ipv6Addr) -> bool {
+    let [first, second, ..] = ip.segments();
+    first & 0xe000 == 0x2000 && first != 0x2002 && !(first == 0x2001 && (second == 0 || second == 0x0db8))
+}
+
 /// The server's rex-direct registration: what it registers as and announces with.
 pub(crate) struct RexDirect {
     /// `REX_DIRECT_KEY`, for a provider that wants one; DMM's ignores it.
@@ -282,12 +339,21 @@ impl RexDirect {
         *plextv.direct.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(self);
     }
 
-    fn register(&self, token: &str) -> Result<Registration, Later> {
+    /// `offer_ipv6`: send `publicIpv6`. Never before the port opens, where the provider's check
+    /// finds nothing listening and drops the AAAA.
+    fn register(&self, token: &str, offer_ipv6: bool) -> Result<Registration, Later> {
         let mut body = json!({"machineIdentifier": self.machine});
         // For a LAN name: plex.tv turns rex's http LAN connection into a plex.direct name rex
         // has no certificate for. Only RFC 1918, since the provider's record takes it on trust.
         if let Some(ip) = announced_lan_ipv4(self.announce.as_deref()).or_else(super::plextv::lan_ipv4) {
             body["lanIp"] = json!(ip.to_string());
+        }
+        // For an AAAA, which reaches rex on a connection with no public IPv4 (CGNAT): the provider
+        // connects back to it on `port` and points the AAAA there only when rex answers. Empty
+        // without one, so the provider drops an AAAA that no longer reaches rex.
+        if offer_ipv6 {
+            body["publicIpv6"] = json!(public_ipv6().map(|ip| ip.to_string()).unwrap_or_default());
+            body["port"] = json!(self.port);
         }
         let body = body.to_string();
         let mut headers = vec![
@@ -333,8 +399,9 @@ impl RexDirect {
                     name: self.name.clone(),
                 });
         }
-        if previous.is_none_or(|previous| (&previous.hostname, &previous.ip) != (&fresh.hostname, &fresh.ip)) {
-            info!("rex-direct: https://{}:{} -> {}", fresh.hostname, self.port, fresh.ip);
+        if previous.is_none_or(|previous| (&previous.hostname, &previous.ip, &previous.ipv6) != (&fresh.hostname, &fresh.ip, &fresh.ipv6)) {
+            let ipv6 = fresh.ipv6.as_ref().map(|ip| format!(" and {ip}")).unwrap_or_default();
+            info!("rex-direct: https://{}:{} -> {}{ipv6}", fresh.hostname, self.port, fresh.ip);
         }
         if let Some(lan) = fresh.lan_hostname.as_ref().filter(|_| {
             previous.is_none_or(|previous| (&previous.lan_hostname, &previous.lan_ip) != (&fresh.lan_hostname, &fresh.lan_ip))
@@ -346,9 +413,9 @@ impl RexDirect {
     }
 
     /// Register with the claim's server token and serve what comes back.
-    fn attempt(&self, previous: Option<&Registration>, plextv: &PlexTv) -> Result<Registration, Later> {
+    fn attempt(&self, previous: Option<&Registration>, plextv: &PlexTv, offer_ipv6: bool) -> Result<Registration, Later> {
         let token = super::plextv::claim_token(&plextv.claim).ok_or_else(|| Later::Failed("not claimed".to_string()))?;
-        let fresh = self.register(&token)?;
+        let fresh = self.register(&token, offer_ipv6)?;
         self.apply(&fresh, previous, plextv).map_err(Later::Failed)?;
         Ok(fresh)
     }
@@ -363,10 +430,12 @@ impl RexDirect {
 
     /// Once claimed, on the caller's thread (a claimed start's, before the port opens): the
     /// provider's answer, else the one kept, else none. Then a thread registers again every
-    /// 6 h, 10 min after a failure (1 min after one of the first 403s), and when a 202 says.
+    /// 6 h, 10 min after a failure (1 min after one of the first 403s), and when a 202 says. The
+    /// first call names no IPv6 (the port may not be open yet); with one to offer, the thread's
+    /// first call comes a minute on, when the provider's check can find rex there.
     pub(crate) fn start(self, plextv: Arc<PlexTv>) {
         let mut refused = 0;
-        let (mut current, mut next) = match self.attempt(None, &plextv) {
+        let (mut current, mut next) = match self.attempt(None, &plextv, false) {
             Ok(fresh) => (Some(fresh), REFRESH),
             Err(later) => {
                 let after = later.after(&mut refused);
@@ -384,9 +453,12 @@ impl RexDirect {
                 (kept, after)
             }
         };
+        if public_ipv6().is_some() {
+            next = next.min(SOON);
+        }
         let _ = thread::Builder::new().name("rex-direct".to_string()).spawn(move || loop {
             thread::sleep(next);
-            next = match self.attempt(current.as_ref(), &plextv) {
+            next = match self.attempt(current.as_ref(), &plextv, true) {
                 Ok(fresh) => {
                     current = Some(fresh);
                     REFRESH
@@ -404,6 +476,50 @@ impl RexDirect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Meaningful only on a Linux machine with a global IPv6 and privacy addresses on
+    /// (`use_tempaddr=2`), where the kernel's own pick for an outgoing connection is temporary.
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn the_ipv6_offered_is_the_stable_one_not_a_privacy_address() {
+        let Some(ip) = public_ipv6() else { return eprintln!("no global IPv6 here") };
+        let hex: String = ip.octets().iter().map(|byte| format!("{byte:02x}")).collect();
+        let table = std::fs::read_to_string("/proc/net/if_inet6").unwrap();
+        let line = table.lines().find(|line| line.starts_with(&hex)).expect("one of this machine's addresses");
+        let flags = u32::from_str_radix(line.split_whitespace().nth(4).unwrap(), 16).unwrap();
+        assert_eq!(flags & 0x01, 0, "{ip} is a temporary (privacy) address");
+    }
+
+    #[test]
+    fn only_a_global_ipv6_is_offered_for_an_aaaa() {
+        for (ip, want) in [
+            ("2a01:4f8:c012:e7cd::1", true),
+            ("2003:e5:1f00::1", true),
+            ("3fff::1", true),
+            ("::1", false),
+            ("fd00::1", false),
+            ("fe80::1", false),
+            ("ff02::1", false),
+            ("2001:db8::1", false),
+            ("2001:0:4136:e378::1", false),
+            ("2002:c000:204::1", false),
+            ("::ffff:203.0.113.7", false),
+        ] {
+            assert_eq!(global_ipv6(ip.parse().unwrap()), want, "{ip}");
+        }
+    }
+
+    #[test]
+    fn the_answer_carries_the_ipv6_the_provider_found_rex_at() {
+        let answer = |extra: Value| {
+            let mut answer = json!({"hostname": "a1b2.rex-direct.test", "ip": "203.0.113.7", "certificate": "C", "privateKey": "K"});
+            answer.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            parse(answer.to_string().as_bytes()).unwrap()
+        };
+        assert_eq!(answer(json!({"ipv6": "2a01:4f8::1"})).ipv6.as_deref(), Some("2a01:4f8::1"));
+        assert_eq!(answer(json!({})).ipv6, None);
+        assert_eq!(answer(json!({"ipv6": ""})).ipv6, None);
+    }
 
     #[test]
     fn its_name_and_its_wildcard_get_the_rex_direct_certificate() {
@@ -579,7 +695,7 @@ mod tests {
             file: PathBuf::from("rex-direct.json"),
             certificates: Arc::new(Certificates::new(None)),
         };
-        let refusal = direct.register("SERVER-TOKEN").err().expect("a 403 is no answer");
+        let refusal = direct.register("SERVER-TOKEN", true).err().expect("a 403 is no answer");
         assert_eq!(refusal, Later::Refused("HTTP 403 (The Plex account does not own this server)".to_string()));
         // plex.tv lists a just-claimed server late: the next tries come at the short interval...
         let mut refused = 0;
@@ -593,7 +709,7 @@ mod tests {
         assert_eq!(Later::pending(br#"{"retryAfter": 60}"#).after(&mut none), Duration::from_secs(60));
         assert_eq!(none, 0);
         // The second refusal comes through register too: the stub answered both.
-        assert!(matches!(direct.register("SERVER-TOKEN"), Err(Later::Refused(_))));
+        assert!(matches!(direct.register("SERVER-TOKEN", true), Err(Later::Refused(_))));
     }
 
     /// plex.tv listed kids' just-claimed server somewhere inside the old 10-minute retry that found

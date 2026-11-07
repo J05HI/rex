@@ -121,15 +121,19 @@ impl Upstream {
 
     /// The whole body, bounded so a misbehaving upstream cannot exhaust memory.
     pub(super) fn read_body(&mut self, limit: usize) -> Result<Vec<u8>, String> {
+        self.read_body_until(limit, std::time::Instant::now() + BODY_DEADLINE)
+    }
+
+    pub(super) fn read_body_until(&mut self, limit: usize, deadline: std::time::Instant) -> Result<Vec<u8>, String> {
         let mut body = Vec::new();
         let mut chunk = [0_u8; 64 * 1024];
         // Bounded in time too: each read has the socket timeout, but a peer that drips a byte
         // under it held the request's thread for as long as it liked.
-        let deadline = std::time::Instant::now() + BODY_DEADLINE;
         loop {
-            if std::time::Instant::now() > deadline {
-                return Err("upstream body too slow".to_string());
-            }
+            let remaining = deadline.checked_duration_since(std::time::Instant::now()).filter(|time| !time.is_zero()).ok_or("upstream body too slow")?;
+            let socket = match self.reader.get_ref() { Conn::Plain(socket) => socket, Conn::Tls(stream) => &stream.sock };
+            let timeout = socket.read_timeout().map_err(|error| error.to_string())?.unwrap_or(remaining).min(remaining);
+            socket.set_read_timeout(Some(timeout)).map_err(|error| error.to_string())?;
             let count = self.read(&mut chunk).map_err(|error| error.to_string())?;
             if count == 0 {
                 return Ok(body);
@@ -362,10 +366,23 @@ fn format_authority(target: &Target, include_default_port: bool) -> String {
     }
 }
 
+/// The order to try `host`'s addresses in. plex.tv's own hosts IPv4 first: plex.tv lists no
+/// server whose device registration came from an IPv6 (`publicAddress`; rex-v6 box, 2026-11-07),
+/// and a real PMS, its IPv6 support off by default, reaches plex.tv over IPv4. IPv6 stays the
+/// fallback for a machine without IPv4.
+fn connect_order(host: &str, mut addresses: Vec<std::net::SocketAddr>) -> Vec<std::net::SocketAddr> {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    if host == "plex.tv" || host.ends_with(".plex.tv") {
+        addresses.sort_by_key(std::net::SocketAddr::is_ipv6);
+    }
+    addresses
+}
+
 fn connect(target: &Target, timeout: Duration) -> Result<Conn, String> {
     let addresses = (target.host.as_str(), target.port)
         .to_socket_addrs()
         .map_err(|error| format!("resolve {}: {error}", target.host))?;
+    let addresses = connect_order(&target.host, addresses.collect());
     let mut last = format!("no address for {}", target.host);
     for address in addresses {
         if target.public && own_network(address.ip()) {
@@ -865,3 +882,23 @@ mod tests {
         thread.join().expect("stub thread");
     }
 }
+
+#[cfg(test)]
+mod connect_order_tests {
+    use super::connect_order;
+
+    #[test]
+    fn plex_tv_is_reached_over_ipv4_first_and_ipv6_only_as_a_fallback() {
+        let v6: std::net::SocketAddr = "[2606:4700:4405::ac40:97cd]:443".parse().unwrap();
+        let v4: std::net::SocketAddr = "172.64.151.205:443".parse().unwrap();
+        for host in ["servers.plex.tv", "clients.plex.tv", "plex.tv", "Plex.TV."] {
+            assert_eq!(connect_order(host, vec![v6, v4]), vec![v4, v6], "{host}");
+            assert_eq!(connect_order(host, vec![v6]), vec![v6], "{host} with no IPv4");
+        }
+        // Everyone else keeps the resolver's order.
+        for host in ["debridmediamanager.com", "notplex.tv", "plex.tv.example"] {
+            assert_eq!(connect_order(host, vec![v6, v4]), vec![v6, v4], "{host}");
+        }
+    }
+}
+

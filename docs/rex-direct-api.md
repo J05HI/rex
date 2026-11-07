@@ -30,6 +30,9 @@ From the environment only, never the command line:
   `POST /myplex/claim` succeeds rex registers in the background, then makes the claim's device
   PUT with the rex-direct URL in it. No restart either way.
 - **Every 6 hours** after an answer: the dynamic DNS, and how a renewed certificate arrives.
+- **1 minute after a start**, instead of 6 hours, when this machine has a global IPv6: the
+  start's own request, sent before the port opens, names no `publicIpv6` (the provider's check
+  would find nothing listening and drop the AAAA on every restart), so this one does.
 - **10 minutes** after a failure, and **`retryAfter`** seconds after a 202. The first ten 403s
   since rex started or was claimed are asked again after **1 minute**: plex.tv lists a
   just-claimed server late (somewhere inside the 10-minute retry that found it, 2026-11-04), and
@@ -48,7 +51,8 @@ X-Plex-Token: <the claim's server token>
 X-Plex-Client-Identifier: <machineIdentifier>
 Authorization: Bearer <REX_DIRECT_KEY>          (only when REX_DIRECT_KEY is set)
 
-{"machineIdentifier": "<machineIdentifier>", "lanIp": "192.168.1.20"}
+{"machineIdentifier": "<machineIdentifier>", "lanIp": "192.168.1.20",
+ "publicIpv6": "2a01:4f8:c015:baa3::1", "port": 32400}
 ```
 
 `X-Plex-Token` is the server token plex.tv issued at the claim; rex holds no account token.
@@ -59,6 +63,8 @@ value: the identity rex announces to plex.tv on. rex logs neither the token nor 
 |---|---|
 | `machineIdentifier` | Always sent |
 | `lanIp` | rex's address on its LAN, the one it announces as `http://<lanIp>:<port>`: the first RFC 1918 IPv4 among `--announce-url`'s plain `http://` entries (how a setup names it when rex cannot read it itself: Docker without host networking, a VPN), else the bound address, or under `--host 0.0.0.0` the interface its default route leaves from, read at each request, unless that interface is a container network's (a veth: Docker, Podman or LXC without host networking), which nothing outside the container reaches. Sent only when it is RFC 1918 IPv4 (10/8, 172.16/12, 192.168/16); IPv6, a tunnel's (Tailscale's 100.64/10), a public address or loopback leaves the key out. So the provider can give rex a name on its LAN as well; a provider that does not know the key ignores it |
+| `publicIpv6` | The global IPv6 (2000::/3, not 2001:db8::/32, Teredo or 6to4) this machine reaches the internet from, its stable address rather than a privacy one where the OS can say (RFC 5014 on Linux, `IPV6_PREFER_TEMPADDR` on macOS; Windows offers its temporary one); `""` without one. For an AAAA on `hostname`, which reaches rex on a connection with no public IPv4 (CGNAT, DS-Lite). Absent from the request a start sends before the port opens (above); a provider that does not know the key ignores it |
+| `port` | Sent with `publicIpv6`: `REX_DIRECT_PORT`, else `--port`, where the provider checks the IPv6. rex listens on `[::]` beside `0.0.0.0` under the default `--host` |
 
 ## Verifying the caller
 
@@ -83,6 +89,12 @@ public name wherever the caller says. Accept it only when it is RFC 1918 IPv4, s
 caller can do is name an address on a private network; refuse anything else (DMM answers 400
 `Invalid lanIp`, which rex treats as any other failure).
 
+`publicIpv6` is the caller's word too, and a public one, so it needs proof: DMM is reached over
+IPv4 only and cannot read it from the request. Connect back to `http://[<publicIpv6>]:<port>/identity`
+and point an AAAA there only when the same `machineIdentifier` answers (DMM: 5 s timeout, no
+redirects). An empty, unreachable or non-global `publicIpv6` drops the AAAA, so a lost address
+stops drawing clients; a request without the key leaves it alone.
+
 ## Answers
 
 ### 200: the name and its certificate
@@ -99,6 +111,7 @@ caller can do is name an address on a private network; refuse anything else (DMM
 | `ip` | The address the name points at. rex only logs it |
 | `lanHostname` | Optional: a name pointing at the request's `lanIp`, one label under `hostname` (DMM: `lan.<hostname>`). The same rule as `hostname`; a `lanHostname` that breaks it refuses the whole answer. Absent or `null`, rex does as it did before LAN names |
 | `lanIp` | Optional: the address `lanHostname` points at. rex only logs it |
+| `ipv6` | Optional: the `publicIpv6` the provider found rex at and pointed `hostname`'s AAAA at. rex logs it as `-> <ip> and <ipv6>` |
 | `certificate` | The PEM chain for `hostname`: a certificate for that name itself, or a wildcard over its parent; with a `lanHostname`, one that also covers it (DMM: `*.<hostname>`, beside `hostname` itself) |
 | `privateKey` | Its PEM key: PKCS#8, RSA or SEC1 EC (`BEGIN EC PRIVATE KEY`) |
 

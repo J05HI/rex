@@ -70,8 +70,9 @@ searched on disk. The gate is usually one truthiness check in minified code.
 | `tests/` | Conformance and end-to-end suites, plus `catalog_ui.json` and `fixtures/decisions/`, the measured decision corpus |
 | `tests/fixtures/` | Redacted corpora recorded from a real PMS through a real client; `media/` pairs real files' probes with a real PMS's analysis of them |
 | `harness/` | plexlab — the reference PMS and the recorder. See below. |
-| `probes/` | Measurement scripts: the recorders behind checked-in fixtures (`legacy_scan_fixture.py`, `record_session_gate.py`, `record_shared_user.py`, `record_watch_import.py`, `record_blur.py`), `ui_surface.py`, the plex.tv presence probes and `apkcensus.py` |
+| `probes/` | Measurement scripts: the recorders behind checked-in fixtures (`legacy_scan_fixture.py`, `record_session_gate.py`, `record_shared_user.py`, `record_watch_import.py`, `record_blur.py`), `ui_surface.py`, the plex.tv presence probes, `apkcensus.py` and `probe-study/` (docs/ffprobe-study.md's media, variants and phone drivers) |
 | `docs/findings.md` | Everything measured. Read before changing behaviour. |
+| `docs/ffprobe-study.md` | What each field of a source's `media_info` decides in the Plex apps, and what a missing or wrong one breaks |
 | `docs/protocol-traps.md`, `docs/setup.md`, `docs/feed-api.md`, `docs/rex-direct-api.md` | The protocol's edge cases, the operator's guide, the API sources push with, and the one a rex-direct provider answers |
 
 Sidecar fixtures are captured from a real PMS -- the later ones read straight out of its

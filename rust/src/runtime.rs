@@ -693,6 +693,7 @@ pub struct Runtime {
     /// A transcoded segment the router accepted; served once ffmpeg has written it, after
     /// the runtime lock is released (`universal.rs`).
     pending_segment: Option<universal::SegmentPlan>,
+    pending_dash_start: Option<universal::DashStart>,
     /// A Matroska conversion (`protocol=http`) the router accepted; `handle_connection` runs
     /// its FFmpeg and streams it after the runtime lock is released.
     pending_stream: Option<universal::StreamPlan>,
@@ -1041,6 +1042,7 @@ impl Runtime {
             pending_part: None,
             pending_file_checks: None,
             pending_segment: None,
+            pending_dash_start: None,
             pending_stream: None,
             // `redirect-only` promises rex carries no stream, and every conversion reads its source.
             transcoder: if options.part_mode == "redirect-only" {
@@ -9088,6 +9090,12 @@ impl Runtime {
             // once it does not, for every verb, claimed or not (findings, "A conversion
             // session is its own key"). start, ping, stop and /transcode/sessions stay gated.
             || path.starts_with("/video/:/transcode/universal/session/")
+            // PMS also reopens an existing DASH manifest by session alone
+            // (dash_manifest_session.json); this form cannot start a conversion.
+            || (path == "/video/:/transcode/universal/start.mpd"
+                && !query.contains_key("path")
+                && query.contains_key("session")
+                && matches!(request.method.as_str(), "GET" | "HEAD"))
             || (matches!(
                 path,
                 "/crossdomain.xml" | "/clientaccesspolicy.xml" | "/favicon.ico"
@@ -23831,6 +23839,11 @@ pub fn serve(options: RuntimeOptions) -> Result<(), String> {
     }
     let listener = TcpListener::bind((host.as_str(), port))
         .map_err(|e| format!("cannot bind {host}:{port}: {e} (another rex or Plex on this port? --port picks another)"))?;
+    // The default listens on IPv4 only; IPv6 gets a socket of its own beside it, so a connection
+    // with no public IPv4 (CGNAT, DS-Lite) is still reached at rex-direct's AAAA. Never fatal.
+    let listener6 = (host == "0.0.0.0")
+        .then(|| bind_ipv6_only(port).map_err(|error| debug!("no IPv6 listener on [::]:{port}: {error}")).ok())
+        .flatten();
     // The first client, GDM probe and plex.tv registration all see the same release.
     // Unclaimed and --assert-claimed servers refresh too.
     plextv::refresh_version(&plextv.claim);
@@ -23915,6 +23928,16 @@ pub fn serve(options: RuntimeOptions) -> Result<(), String> {
             thread::sleep(std::time::Duration::from_secs(600));
         }
     });
+    if let Some(listener6) = listener6 {
+        let (runtime, tls_config) = (Arc::clone(&runtime), tls_config.clone());
+        let _ = thread::Builder::new().name("accept-ipv6".to_string()).spawn(move || accept(listener6, runtime, tls_config));
+    }
+    accept(listener, runtime, tls_config);
+    Ok(())
+}
+
+/// Serve every connection `listener` accepts, each on a thread of its own.
+fn accept(listener: TcpListener, runtime: SharedRuntime, tls_config: Option<Arc<ServerConfig>>) {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
@@ -23978,7 +24001,45 @@ pub fn serve(options: RuntimeOptions) -> Result<(), String> {
             }
         }
     }
-    Ok(())
+}
+
+/// `[::]:port` for IPv6 alone, so it sits beside the IPv4 listener on the same port (Linux and
+/// macOS make `[::]` dual-stack by default, which the IPv4 socket would refuse).
+#[cfg(unix)]
+fn bind_ipv6_only(port: u16) -> io::Result<TcpListener> {
+    use std::os::fd::FromRawFd;
+    // SAFETY: plain socket calls on a descriptor this function owns until it hands it to std.
+    unsafe {
+        let fd = libc::socket(libc::AF_INET6, libc::SOCK_STREAM, 0);
+        if fd < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let listener = TcpListener::from_raw_fd(fd);
+        libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC);
+        let on: libc::c_int = 1;
+        for (level, option) in [(libc::IPPROTO_IPV6, libc::IPV6_V6ONLY), (libc::SOL_SOCKET, libc::SO_REUSEADDR)] {
+            let size = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
+            if libc::setsockopt(fd, level, option, (&on as *const libc::c_int).cast(), size) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        let mut address: libc::sockaddr_in6 = std::mem::zeroed();
+        address.sin6_family = libc::AF_INET6 as libc::sa_family_t;
+        address.sin6_port = port.to_be();
+        let size = std::mem::size_of::<libc::sockaddr_in6>() as libc::socklen_t;
+        if libc::bind(fd, (&address as *const libc::sockaddr_in6).cast(), size) != 0
+            || libc::listen(fd, 128) != 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(listener)
+    }
+}
+
+/// Windows makes `[::]` IPv6-only by default.
+#[cfg(not(unix))]
+fn bind_ipv6_only(port: u16) -> io::Result<TcpListener> {
+    TcpListener::bind(("::", port))
 }
 
 /// Cycle 52: `/connections`' own bookkeeping -- one row per live socket, in slot order.
@@ -24416,7 +24477,9 @@ fn handle_connection<S: Read + Write + PollRead>(
             .is_some_and(String::is_empty);
         let mut part_plan = None;
         let mut stream_plan: Option<universal::StreamPlan> = None;
+        let mut dash_start: Option<universal::DashStart> = None;
         let mut download = None;
+        let mut segment_read = None;
         let mut response_account = accounts::OWNER;
         let mut response_lan = true;
         let mut response = if invalid_absolute_target || invalid_dot_path || malformed_query {
@@ -24430,6 +24493,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             guard.pending_part = None;
             guard.pending_file_checks = None;
             guard.pending_segment = None;
+            guard.pending_dash_start = None;
             guard.pending_stream = None;
             guard.pending_download = None;
             guard.pending_artifact = None;
@@ -24492,6 +24556,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             part_plan = guard.pending_part.take();
             let file_checks = guard.pending_file_checks.take();
             let segment = guard.pending_segment.take();
+            dash_start = guard.pending_dash_start.take();
             stream_plan = guard.pending_stream.take();
             download = guard.pending_download.take();
             // A source's own artwork (`source://<name>/<path>`, only ever from what it pushed)
@@ -24537,6 +24602,19 @@ fn handle_connection<S: Read + Write + PollRead>(
             // the runtime lock so the other clients' requests go on meanwhile.
             write_or_log(snapshot);
             let mut response = response;
+            if let Some(start) = dash_start.as_mut() {
+                // The index read happens here, outside the runtime lock. A client that left
+                // meanwhile is found out by the manifest write below, which cancels the start.
+                let fitted = start.fit();
+                let mut guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+                response = match fitted {
+                    Ok(()) => start.start(),
+                    Err(error) => {
+                        start.cancel(&mut guard);
+                        Response::error(400, &error)
+                    }
+                };
+            }
             if let Some((jobs, artifact, seek, kind)) = artifact {
                 response = match jobs.resolve(&artifact) {
                     None => Response::error(404, "rex: artifact not found"),
@@ -24571,7 +24649,7 @@ fn handle_connection<S: Read + Write + PollRead>(
             }
             // A transcoded segment waits for ffmpeg here, with the lock released.
             if let Some(plan) = segment {
-                universal::finish_segment(plan, &mut response);
+                segment_read = universal::finish_segment(plan, &mut response, &request);
             }
             response
         };
@@ -24752,7 +24830,20 @@ fn handle_connection<S: Read + Write + PollRead>(
                 false
             }
             _ => {
-                let open = wire::write_enveloped(&mut stream, &response, &envelope, keep)?;
+                let written = match segment_read.take() {
+                    Some(read) if matches!(response.status, 200 | 206) => universal::serve_segment(&mut stream, &response, read, &envelope, keep),
+                    _ => wire::write_enveloped(&mut stream, &response, &envelope, keep),
+                };
+                let open = match written {
+                    Ok(open) => open,
+                    Err(error) => {
+                        if let Some(start) = &dash_start {
+                            let mut guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
+                            start.cancel(&mut guard);
+                        }
+                        return Err(error);
+                    }
+                };
                 // Every response counts towards the bandwidth statistics (`_count_bytes`).
                 let payload = wire::LAST_PAYLOAD.with(|cell| cell.get());
                 // Counting registers the client as a device, so only an admitted request is
@@ -29917,3 +30008,25 @@ mod web_landing_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod ipv6_listener_tests {
+    use super::*;
+
+    #[test]
+    fn the_ipv6_listener_sits_beside_the_ipv4_one_on_the_same_port() {
+        let v4 = TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        let port = v4.local_addr().unwrap().port();
+        let v6 = match bind_ipv6_only(port) {
+            Ok(v6) => v6,
+            // A machine without IPv6 (some CI containers) has nothing to prove here.
+            Err(error) if TcpListener::bind(("::1", 0)).is_err() => return eprintln!("no IPv6 here: {error}"),
+            Err(error) => panic!("[::]:{port} beside 0.0.0.0:{port}: {error}"),
+        };
+        let _ipv6_client = TcpStream::connect(("::1", port)).unwrap();
+        assert!(v6.accept().unwrap().1.is_ipv6());
+        let _ipv4_client = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        assert!(v4.accept().unwrap().1.is_ipv4());
+    }
+}
+

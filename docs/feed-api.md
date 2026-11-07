@@ -19,7 +19,11 @@ nginx, a NAS, object storage, zurg's WebDAV or `python3 -m http.server`
 
 - `Range` is optional. A server that ignores it and answers 200 with the whole file
   still serves seeks: rex skips to the first byte asked for itself (slowly, for a seek
-  deep into a large file: every byte before it is read).
+  deep into a large file: every byte before it is read). One thing needs `Range`: before a
+  DASH remux of a Matroska file rex reads its keyframe index (Cues, usually at the end of
+  the file) to size the segments to the keyframes. Without `Range` it keeps 5 s segments,
+  and a file whose keyframes are further apart than that has its video converted instead
+  of copied; the start log says so (`video index unavailable: the source answered 200 to a range`).
 - Redirects (301/302/303/307/308) are followed. The source's `user`/`password` or
   `bearer` goes only to the source's own origin, never to the host a redirect names,
   so a presigned CDN link works and does not see the credential. Under `--part-mode redirect`
@@ -304,7 +308,7 @@ The `media_info` above is cut down to show its shape. Send ffprobe's whole outpu
 |---|---|---|
 | `id` | yes | The source's stable key for the file. A row's ratingKey belongs to (source, id) for good, so keep it when the file is renamed |
 | `path` | yes | Where the bytes are: `<source url>/<path>`. Its first directory also picks the library (below) |
-| `media_info` | yes, in practice | ffprobe's `-show_format -show_streams` JSON (go-ffprobe's `ProbeData` is the same shape). Absent, `null` or with no `streams`: the item is **held**, because Plex Web will not play an item without streams (findings, "An item without a probe cannot play"). A file keeps the streams of the probe it was first shown with: a later one changes only its `chapters` (an `.m3u8` is the exception, below), so a file whose bytes change is a new `id` |
+| `media_info` | yes, in practice | ffprobe's `-show_format -show_streams` JSON (go-ffprobe's `ProbeData` is the same shape). Absent, `null` or with no `streams`: the item is **held**, because Plex Web will not play an item without streams (findings, "An item without a probe cannot play"). What each field of it decides in the Plex apps, and what a wrong one breaks: `docs/ffprobe-study.md`. A file keeps the streams of the probe it was first shown with: a later one changes only its `chapters` (an `.m3u8` is the exception, below), so a file whose bytes change is a new `id` |
 | `ids` | recommended | `imdb` (`tt…`), `tmdb`, `tvdb`; for a track, its album's `mbid` or `plex` ([Tracks](#tracks)). With `kind`, the title: `imdb` and `tmdb` are the movie's or the **show's** ids, never an episode's, and either one is enough (rex fills in the other from Plex). Without `kind`, only `tmdb` names anything (a TMDB id set by hand at the source): a title of its library's kind, when TMDB has one; `imdb` alone and `tvdb` are kept on the row and name nothing (below) |
 | `kind` | no | `movie`, `episode`, `extra`, `track`, `photo` or `unplaced`: what the source knows the file is. `track` is music ([Tracks](#tracks)), `photo` a picture ([Photos](#photos)). `movie` or `episode` **places** the file (below): it picks the movie or show library, and its `ids` are the title. `extra` makes it a clip of its release's title (below). `unplaced`: the source looked and nothing places the file, so a placement it pushed before is taken back (below). Anything else, or absent: nothing places it, and rex does not guess from its name
 | `extra_type` | with `kind: extra` | The clip's type: `trailer`, `deleted`, `featurette`, `behindthescenes`, `interview`, `scene`, `short`, `opening`, `ending` or `other` (Plex's local-extras types and creditless openings and endings). Anything else, or absent, is `other` |

@@ -65,6 +65,7 @@ STDERR_LINE = r"^\d\d:\d\d:\d\d %-7s %s$"
 results = []
 
 
+
 def check(name, ok, detail=""):
     results.append(bool(ok))
     print("%s  %s%s" % ("PASS" if ok else "FAIL", name, "" if ok else "  -- " + str(detail)[:600]))
@@ -332,8 +333,10 @@ def main():
               "authorization" not in post["headers"] and "x-api-key" not in post["headers"], post["headers"])
         # --announce-url names a plain http RFC 1918 address (LAN), so that is the lanIp, whatever
         # this machine's own interface address is.
+        # No publicIpv6 before the port opens: the provider would find nothing listening there and drop
+        # the AAAA on every restart (rex-v6 box, 2026-11-07). Without the key it leaves the AAAA alone.
         body = {"machineIdentifier": MACHINE, "lanIp": "10.0.0.1"}
-        check("...naming the server's machineIdentifier and --announce-url's LAN address as lanIp (10.0.0.1)",
+        check("...naming the server's machineIdentifier and --announce-url's LAN address as lanIp (10.0.0.1), and no publicIpv6 before the port opens",
               json.loads(post["body"] or b"{}") == body, post["body"])
         check("the rex-direct name gets the provider's certificate", served(instance.port, HOSTNAME) == der(direct_crt))
         check("...and so does another name under its wildcard",
@@ -422,7 +425,8 @@ def main():
         live.append(instance)
         posts = stub.taken("/api/rex-direct/register")
         check("bound to loopback, the request carries no lanIp",
-              len(posts) == 1 and json.loads(posts[0]["body"] or b"{}") == {"machineIdentifier": MACHINE},
+              len(posts) == 1 and json.loads(posts[0]["body"] or b"{}")
+              == {"machineIdentifier": MACHINE},
               posts and posts[0]["body"])
         instance.stop()
 

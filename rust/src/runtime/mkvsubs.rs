@@ -141,6 +141,13 @@ pub(crate) fn index(read: Read, stream: i64) -> Result<Index, String> {
     if !head.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
         return super::mp4subs::index(read, stream);
     }
+    let (segment, info, tracks, cues_bytes) = matroska_tables(read, &head)?;
+    let scale = child(&info, 0, info.len(), TIMESTAMP_SCALE).map(uint).filter(|scale| *scale > 0).unwrap_or(1_000_000);
+    subtitle_index(stream, segment, scale, &tracks, &cues_bytes)
+}
+
+/// Read only the seek tables, never the media clusters.
+fn matroska_tables(read: Read, head: &[u8]) -> Result<(usize, Vec<u8>, Vec<u8>, Vec<u8>), String> {
     let (_, segment, segment_end) = children(&head, 0, head.len())
         .into_iter()
         .find(|entry| entry.0 == SEGMENT)
@@ -160,17 +167,68 @@ pub(crate) fn index(read: Read, stream: i64) -> Result<Index, String> {
     }
     let element = |wanted: u64| -> Result<Vec<u8>, String> {
         let at = seeks.iter().find(|seek| seek.0 == wanted).map(|seek| seek.1).ok_or_else(|| format!("no SeekHead entry {wanted:x}"))?;
-        let header = read(at, 12)?;
-        let (_, data) = vint(&header, 0, true).ok_or("bad element id")?;
-        let (size, data) = vint(&header, data, false).ok_or("bad element size")?;
+        // Reuse the head, or fetch the element's header and opening payload together.
+        let cached = usize::try_from(at).ok().and_then(|start| head.get(start..)).filter(|bytes| bytes.len() >= 12);
+        let fetched;
+        let bytes = match cached {
+            Some(bytes) => bytes,
+            None => { fetched = read(at, 64 * 1024)?; &fetched }
+        };
+        let (_, data) = vint(bytes, 0, true).ok_or("bad element id")?;
+        let (size, data) = vint(bytes, data, false).ok_or("bad element size")?;
         if size > 64 * 1024 * 1024 {
             return Err(format!("element {wanted:x} of {size} bytes"));
         }
-        read(at + data as u64, size as usize)
+        let size = size as usize;
+        let held = bytes.len().saturating_sub(data).min(size);
+        let mut payload = bytes[data..data + held].to_vec();
+        if held < size {
+            payload.extend(read(at + (data + held) as u64, size - held)?);
+        }
+        if payload.len() != size { return Err("truncated Matroska table".into()); }
+        Ok(payload)
     };
     let info = element(INFO)?;
-    let scale = child(&info, 0, info.len(), TIMESTAMP_SCALE).map(uint).filter(|scale| *scale > 0).unwrap_or(1_000_000);
     let tracks = element(TRACKS)?;
+    Ok((segment, info, tracks, element(CUES)?))
+}
+
+/// A conservative upper bound on the spacing of indexed video keyframes, in ms.
+/// Sparse cues make segments longer, rather than claiming a cut the video cannot make.
+pub(crate) fn video_gap(read: Read, stream: i64, duration_ms: i64) -> Result<i64, String> {
+    let head = read(0, 64 * 1024)?;
+    if !head.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
+        return Err("not Matroska".to_string());
+    }
+    let (_, info, tracks, cues) = matroska_tables(read, &head)?;
+    let scale = child(&info, 0, info.len(), TIMESTAMP_SCALE).map(uint).filter(|scale| *scale > 0).unwrap_or(1_000_000);
+    let (_, start, end) = children(&tracks, 0, tracks.len()).into_iter()
+        .filter(|entry| entry.0 == TRACK_ENTRY)
+        .nth(usize::try_from(stream).map_err(|_| "negative stream index")?).ok_or("no video track")?;
+    if child(&tracks, start, end, TRACK_TYPE).map(uint) != Some(1) {
+        return Err("not a video track".to_string());
+    }
+    let number = child(&tracks, start, end, TRACK_NUMBER).map(uint).ok_or("track without a number")?;
+    let mut times = Vec::new();
+    for (_, start, end) in children(&cues, 0, cues.len()).into_iter().filter(|entry| entry.0 == CUE_POINT) {
+        let video = children(&cues, start, end).into_iter().filter(|entry| entry.0 == CUE_TRACK_POSITIONS)
+            .any(|(_, a, e)| child(&cues, a, e, CUE_TRACK).map(uint) == Some(number));
+        if video {
+            let ticks = child(&cues, start, end, CUE_TIME).map(uint).ok_or("cue without a timestamp")?;
+            let ms = i64::try_from(ticks as u128 * scale as u128 / 1_000_000).map_err(|_| "cue timestamp overflow")?;
+            if ms >= duration_ms { continue; }
+            times.push(ms);
+        }
+    }
+    if times.is_empty() { return Err("no video cues".to_string()); }
+    let opening = times.iter().copied().min().unwrap_or(0);
+    times.extend([0, duration_ms]);
+    times.sort_unstable();
+    times.windows(2).map(|pair| pair[1] - pair[0]).max().unwrap_or(0)
+        .checked_add(opening).ok_or_else(|| "video gap overflow".to_string())
+}
+
+fn subtitle_index(stream: i64, segment: usize, scale: u64, tracks: &[u8], cues_bytes: &[u8]) -> Result<Index, String> {
     let (_, start, end) = children(&tracks, 0, tracks.len())
         .into_iter()
         .filter(|entry| entry.0 == TRACK_ENTRY)
@@ -197,7 +255,6 @@ pub(crate) fn index(read: Read, stream: i64) -> Result<Index, String> {
             }
         }
     }
-    let cues_bytes = element(CUES)?;
     let to_ms = |ticks: u64| (ticks as u128 * scale as u128 / 1_000_000) as i64;
     let mut cues = Vec::new();
     for (_, point, point_end) in children(&cues_bytes, 0, cues_bytes.len()).into_iter().filter(|entry| entry.0 == CUE_POINT) {
@@ -389,6 +446,85 @@ mod tests {
     fn read(offset: u64, length: usize) -> Result<Vec<u8>, String> {
         let start = (offset as usize).min(RELEASE.len());
         Ok(RELEASE[start..(start + length).min(RELEASE.len())].to_vec())
+    }
+
+    #[test]
+    fn video_spacing_includes_the_tail_and_ignores_subtitle_cues() {
+        // This one-second release has video cues at zero and 500 ms, and three
+        // subtitle cues. None of those subtitle timestamps can shorten the video gap.
+        assert_eq!(video_gap(&read, 0, 1000).unwrap(), 500);
+        assert_eq!(video_gap(&read, 0, 2000).unwrap(), 1500);
+        assert!(video_gap(&read, 1, 1000).is_err());
+        assert!(video_gap(&read, -1, 1000).is_err());
+        assert!(video_gap(&read, 0, 0).is_err());
+    }
+
+    #[test]
+    fn seek_tables_reuse_the_initial_read_and_fetch_only_missing_bytes() {
+        let expected = matroska_tables(&read, RELEASE).unwrap();
+        let no_read = |_, _| Err("unexpected source request".to_string());
+        assert_eq!(matroska_tables(&no_read, RELEASE).unwrap(), expected);
+        let requests = std::sync::atomic::AtomicUsize::new(0);
+        let counted_read = |offset, length| {
+            requests.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            read(offset, length)
+        };
+        assert_eq!(matroska_tables(&counted_read, &RELEASE[..8192]).unwrap(), expected);
+        assert_eq!(requests.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn seek_tables_larger_than_64k_or_partially_cached_fetch_missing_bytes() {
+        let at = 9255u64;
+        let total_size = 70_000usize;
+        let header = [0x1C, 0x53, 0xBB, 0x6B, 0x21, 0x11, 0x70];
+        let mut expected_payload = Vec::with_capacity(total_size);
+        for i in 0..total_size {
+            expected_payload.push((i % 251) as u8);
+        }
+        let requests = std::sync::Mutex::new(Vec::new());
+        let large_read = |offset: u64, length: usize| -> Result<Vec<u8>, String> {
+            requests.lock().unwrap().push((offset, length));
+            if offset == at {
+                let mut data = header.to_vec();
+                let opening_len = length.saturating_sub(header.len()).min(total_size);
+                data.extend_from_slice(&expected_payload[..opening_len]);
+                Ok(data)
+            } else if offset == at + (header.len() + (64 * 1024 - header.len())) as u64 {
+                let remaining_start = 64 * 1024 - header.len();
+                Ok(expected_payload[remaining_start..].to_vec())
+            } else {
+                read(offset, length)
+            }
+        };
+        let (_, _, _, cues_bytes) = matroska_tables(&large_read, &RELEASE[..8192]).unwrap();
+        assert_eq!(cues_bytes.len(), total_size);
+        assert_eq!(cues_bytes, expected_payload);
+        let reqs = requests.lock().unwrap().clone();
+        assert_eq!(reqs.len(), 2);
+        assert_eq!(reqs[0], (at, 64 * 1024));
+        assert_eq!(reqs[1], (at + 64 * 1024, total_size - (64 * 1024 - header.len())));
+
+        let cues_in_head = 9255;
+        let mut head_with_cues = RELEASE[..cues_in_head].to_vec();
+        head_with_cues.extend_from_slice(&header);
+        head_with_cues.extend_from_slice(&expected_payload[..50]);
+        assert!(head_with_cues.len() >= cues_in_head + 12);
+        requests.lock().unwrap().clear();
+        let cached_partial_read = |offset: u64, length: usize| -> Result<Vec<u8>, String> {
+            requests.lock().unwrap().push((offset, length));
+            if offset == (cues_in_head + header.len() + 50) as u64 {
+                Ok(expected_payload[50..].to_vec())
+            } else {
+                read(offset, length)
+            }
+        };
+        let (_, _, _, cues_cached) = matroska_tables(&cached_partial_read, &head_with_cues).unwrap();
+        assert_eq!(cues_cached.len(), total_size);
+        assert_eq!(cues_cached, expected_payload);
+        let reqs_cached = requests.lock().unwrap().clone();
+        assert_eq!(reqs_cached.len(), 1);
+        assert_eq!(reqs_cached[0], ((cues_in_head + header.len() + 50) as u64, total_size - 50));
     }
 
     #[test]
