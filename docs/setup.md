@@ -80,7 +80,7 @@ one of your own. zurg, for one, does both with nothing but `rex_url` in its `con
 
 Registering and pushing take no token, so a source may name rex by address or host name.
 They answer only this machine, your home network and Tailscale, so forwarding rex's port for
-rex-direct (step 7) does not open them to the internet. A reverse proxy on rex's own machine
+rex-direct (step 7), or letting it in over IPv6, does not open them to the internet. A reverse proxy on rex's own machine
 looks local to rex, so block `/rex/` in it. A router that gives outside visitors its own
 address makes them look local too, which opens the feed to the internet.
 
@@ -407,7 +407,7 @@ single-use claim token); the log still names your titles and addresses, so keep 
   `rex.db-wal` left beside a restored `rex.db` is applied on start and undoes the restore.
 - **Move rex to another machine:** stop the old one for good, unpack rex on the new one with
   the backup in its folder, and start it there: the same server, claimed and shared. Point each
-  source at the new LAN IP (zurg's `rex_url`), and move the port forward; the rex-direct name
+  source at the new LAN IP (zurg's `rex_url`), and move the port forward (or IPv6 firewall rule); the rex-direct name
   stays and follows the new public IP.
 - **Which build:** rex has no version command. The nightly's date is in its download's name and
   is the binary's file date (`ls -l rex`). The Plex version apps show is the
@@ -655,7 +655,7 @@ played right now" in Plex for Android when a quality below the original is picke
 ### Local owner controls
 
 These APIs need the owner's Plex token and nothing else: unlike the feed
-they are not limited to your own networks, so once rex's port is forwarded for rex-direct they
+they are not limited to your own networks, so once rex's port is forwarded for rex-direct (or let in over IPv6) they
 answer from the internet to that token too. A reverse proxy should block `/rex/` from the internet, just as for the feed.
 Use `X-Plex-Token` for authentication and `Content-Type: application/json` for JSON bodies.
 
