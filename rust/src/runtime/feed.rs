@@ -586,7 +586,7 @@ pub(super) fn held_key(source: &str, id: &str) -> String {
 pub(super) fn source_peer(peer: std::net::IpAddr) -> bool {
     let peer = peer.to_canonical();
     peer.is_loopback()
-        || private_address(peer)
+        || local_network(peer)
         || ["100.64.0.0/10", "169.254.0.0/16", "fe80::/10"]
             .into_iter()
             .filter_map(network)
@@ -4286,6 +4286,29 @@ mod tests {
         ] {
             assert_eq!(source_peer(peer.parse().unwrap()), answered, "{peer}");
         }
+    }
+
+    /// A source at home naming rex by a host name with a global IPv6 reaches it over IPv6 since
+    /// rex listens there: on the home network's /64 it is as local as 192.168.x. Only behind a
+    /// home router (a private IPv4): a VPS's /64 can be shared with other customers.
+    #[test]
+    fn a_peer_on_the_home_ipv6_network_is_at_home_and_a_vps_neighbour_is_not() {
+        let own = "2a01:4f8:c015:baa3::1".parse().ok();
+        let home = home_prefix(own, "192.168.1.20".parse().ok());
+        for (peer, at_home) in [
+            ("2a01:4f8:c015:baa3::99", true),
+            ("2a01:4f8:c015:baa3:78b4:6b3a:ca91:9d2e", true),
+            ("2a01:4f8:c015:baa4::1", false),
+            ("2a00:1450:4001::1", false),
+        ] {
+            assert_eq!(same_ipv6_network(peer.parse().unwrap(), home), at_home, "{peer}");
+        }
+        // A VPS: public IPv4, or none at all. Its /64 neighbours stay public.
+        for ipv4 in ["203.0.113.7".parse().ok(), None] {
+            let vps = home_prefix(own, ipv4);
+            assert!(!same_ipv6_network("2a01:4f8:c015:baa3::99".parse().unwrap(), vps), "{ipv4:?}");
+        }
+        assert!(!same_ipv6_network("2a01:4f8:c015:baa3::99".parse().unwrap(), home_prefix(None, "192.168.1.20".parse().ok())));
     }
 
     /// rex-direct forwards rex's port from the internet, and the source API takes no token:

@@ -9120,7 +9120,7 @@ impl Runtime {
         let local = |ip: std::net::IpAddr| {
             let ip = ip.to_canonical();
             ip.is_loopback() || if networks.is_empty() {
-                private_address(ip)
+                local_network(ip)
             } else {
                 networks.iter().any(|&(net, bits)| in_network(ip, net, bits))
             }
@@ -9133,8 +9133,8 @@ impl Runtime {
     /// Who may claim an unclaimed server with no `--token` (and, under `--assert-claimed`, use
     /// it): the gate a never-claimed PMS 1.43.4 keeps (plexscratch, 2026-10-13). The peer and
     /// every `X-Forwarded-For` hop must be loopback or, with `allowedNetworks` empty, a
-    /// private address (10/8, 172.16/12, 192.168/16, fc00::/7 -- not 100.64/10 or
-    /// link-local), or with it set, in it; a forwarded hop cannot vouch for a refused peer.
+    /// private address (10/8, 172.16/12, 192.168/16, fc00::/7, or the home network's IPv6 /64:
+    /// `local_network` -- not 100.64/10 or link-local), or with it set, in it; a forwarded hop cannot vouch for a refused peer.
     /// And `Host` must be localhost or the address the request arrived on: a LAN source
     /// naming another host or a hostname is refused too.
     fn local_request(&self, request: &Request) -> bool {
@@ -9153,7 +9153,7 @@ impl Runtime {
             let ip = ip.to_canonical();
             ip.is_loopback()
                 || if listed.is_empty() {
-                    private_address(ip)
+                    local_network(ip)
                 } else {
                     listed.iter().any(|&(net, bits)| in_network(ip, net, bits))
                 }
@@ -23448,6 +23448,43 @@ fn private_address(ip: std::net::IpAddr) -> bool {
     match ip.to_canonical() {
         std::net::IpAddr::V4(v4) => v4.is_private(),
         std::net::IpAddr::V6(v6) => v6.segments()[0] & 0xfe00 == 0xfc00,
+    }
+}
+
+/// A peer at home: RFC 1918 or unique-local, or an IPv6 on the home network's own /64. rex listens
+/// on IPv6 for rex-direct's AAAA (2026-11-07), so a source or app at home that names rex by a host
+/// name with a global IPv6 reaches it over IPv6 (measured: a feed PUT from the same /64 got 401).
+fn local_network(ip: std::net::IpAddr) -> bool {
+    private_address(ip) || same_ipv6_network(ip, home_ipv6())
+}
+
+/// The same /64, the size of a LAN's IPv6 prefix.
+fn same_ipv6_network(ip: std::net::IpAddr, home: Option<std::net::Ipv6Addr>) -> bool {
+    match (ip.to_canonical(), home) {
+        (std::net::IpAddr::V6(ip), Some(home)) => ip.segments()[..4] == home.segments()[..4],
+        _ => false,
+    }
+}
+
+/// This machine's IPv6 as the home network's, only when it reaches the internet from a private
+/// IPv4, behind a home router: a VPS has a public IPv4, and DigitalOcean and Linode give their
+/// customers addresses from a shared /64, whose neighbours must not count as home.
+fn home_prefix(ipv6: Option<std::net::Ipv6Addr>, ipv4: Option<std::net::IpAddr>) -> Option<std::net::Ipv6Addr> {
+    ipv6.filter(|_| matches!(ipv4, Some(std::net::IpAddr::V4(v4)) if v4.is_private()))
+}
+
+/// `home_prefix` for this machine, read again after a minute: providers hand out a new prefix daily.
+fn home_ipv6() -> Option<std::net::Ipv6Addr> {
+    static HOME: Mutex<Option<(std::time::Instant, Option<std::net::Ipv6Addr>)>> = Mutex::new(None);
+    let mut home = HOME.lock().unwrap_or_else(PoisonError::into_inner);
+    match *home {
+        Some((read, ip)) if read.elapsed() < std::time::Duration::from_secs(60) => ip,
+        _ => {
+            let ipv4 = local_interface_address().and_then(|ip| ip.parse().ok());
+            let ip = home_prefix(rexdirect::public_ipv6(), ipv4);
+            *home = Some((std::time::Instant::now(), ip));
+            ip
+        }
     }
 }
 
