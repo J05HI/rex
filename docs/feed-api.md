@@ -19,7 +19,11 @@ nginx, a NAS, object storage, zurg's WebDAV or `python3 -m http.server`
 
 - `Range` is optional. A server that ignores it and answers 200 with the whole file
   still serves seeks: rex skips to the first byte asked for itself (slowly, for a seek
-  deep into a large file: every byte before it is read).
+  deep into a large file: every byte before it is read). One thing needs `Range`: before a
+  DASH remux of a Matroska file rex reads its keyframe index (Cues, usually at the end of
+  the file) to size the segments to the keyframes. Without `Range` it keeps 5 s segments,
+  and a file whose keyframes are further apart than that has its video converted instead
+  of copied; the start log says so (`video index unavailable: the source answered 200 to a range`).
 - Redirects (301/302/303/307/308) are followed. The source's `user`/`password` or
   `bearer` goes only to the source's own origin, never to the host a redirect names,
   so a presigned CDN link works and does not see the credential. Under `--part-mode redirect`

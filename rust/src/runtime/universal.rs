@@ -592,14 +592,28 @@ impl Plan {
         };
         match super::mkvsubs::video_gap(&read, video.index, self.duration_ms) {
             Ok(gap) => self.fit_copy_gap(gap)?,
+            // A source that ignores Range keeps the default slots, so a long keyframe gap still
+            // converts the video there: said at INFO, since a debug line never reached anyone
+            // (a `python3 -m http.server` source on the test rig, 2026-11-07). An MP4 or a file
+            // with no index is the ordinary case and stays at debug.
+            Err(error) if error.contains("answered 200 to a range") => info!("TRANSCODE video index unavailable: {error}; retaining default slots"),
             Err(error) => debug!("TRANSCODE video index unavailable: {error}; retaining default slots"),
         }
         debug!("TRANSCODE video index fitted in {:.3}s", begun.elapsed().as_secs_f64());
         Ok(())
     }
 
+    /// A fitted slot above this keeps the default slots instead: the first segment waits for two
+    /// slots of media, and a slot this long is an index that stops early (a cut-off Cues element, a
+    /// video track much shorter than the container), not a keyframe gap a player could sit through.
+    const FITTED_SLOT_CAP_MS: i64 = 120_000;
+
     fn fit_copy_gap(&mut self, gap_ms: i64) -> Result<(), String> {
         if gap_ms < 4500 { return Ok(()); }
+        if gap_ms > Self::FITTED_SLOT_CAP_MS {
+            info!("TRANSCODE video index: a {gap_ms} ms gap is past the {} s slot cap; retaining default slots", Self::FITTED_SLOT_CAP_MS / 1000);
+            return Ok(());
+        }
         let seconds = gap_ms.max(0).checked_add(1999).ok_or("rex: video gap overflow")? / 1000;
         self.segment_length = Some(u32::try_from(seconds.max(i64::from(DASH_COPY_SEGMENT))).map_err(|_| "rex: video gap overflow")?);
         Ok(())
@@ -4218,7 +4232,7 @@ mod tests {
 
     #[test]
     fn fitted_copy_gaps_leave_a_second_of_margin_without_conversion() {
-        for (gap, seconds) in [(0, 5), (4499, 5), (4500, 6), (4920, 6), (5000, 6), (12_001, 14), (20_000, 21), (90_000, 91)] {
+        for (gap, seconds) in [(0, 5), (4499, 5), (4500, 6), (4920, 6), (5000, 6), (12_001, 14), (20_000, 21), (90_000, 91), (120_000, 121), (120_001, 5), (7_200_000, 5)] {
             let mut copy = plan(true, 90_000);
             copy.protocol = Protocol::Dash;
             copy.fit_copy_gap(gap).unwrap();
@@ -4227,11 +4241,10 @@ mod tests {
         let mut copy = plan(true, 90_000);
         copy.protocol = Protocol::Dash;
         copy.fit_copy_gap(90_000).unwrap();
-        for gap in [i64::MAX] {
-            assert!(copy.fit_copy_gap(gap).is_err());
-            assert_eq!(copy.segment_seconds(), 91);
-            assert!(copy.video.as_ref().unwrap().copy);
-        }
+        // Past the cap, a gap no u32 holds included, the slot it had stays and nothing errs.
+        copy.fit_copy_gap(i64::MAX).unwrap();
+        assert_eq!(copy.segment_seconds(), 91);
+        assert!(copy.video.as_ref().unwrap().copy);
     }
 
     #[test]
