@@ -404,7 +404,9 @@ fn connect(target: &Target, timeout: Duration) -> Result<Conn, String> {
                     ClientConnection::new(config, name).map_err(|error| error.to_string())?;
                 return Ok(Conn::Tls(Box::new(StreamOwned::new(connection, stream))));
             }
-            Err(error) => last = error.to_string(),
+            // The address dialled, never the path: a bare "connection refused" left a Docker
+            // zurg's unreachable container address unnamed in every failed play (2026-11-07).
+            Err(error) => last = format!("connect {address}: {error}"),
         }
     }
     Err(last)
@@ -838,6 +840,16 @@ mod tests {
             .map(|_| ())
             .expect_err("refused before dialling");
         assert!(error.contains("unsupported url"), "{error}");
+    }
+
+    #[test]
+    fn a_refused_connection_names_the_address_it_dialled() {
+        // A Docker zurg registered its container address; every play logged only "refused".
+        let port = TcpListener::bind(("127.0.0.1", 0)).expect("listener").local_addr().expect("address").port();
+        let url = format!("http://127.0.0.1:{port}/dav/secret-path?token=t");
+        let error = fetch("GET", &url, &[], b"", Duration::from_secs(1)).map(|_| ()).expect_err("closed port");
+        assert!(error.starts_with(&format!("connect 127.0.0.1:{port}: ")), "{error}");
+        assert!(!error.contains("secret-path") && !error.contains("token"), "{error}");
     }
 
     #[test]
