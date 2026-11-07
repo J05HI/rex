@@ -15826,3 +15826,10 @@ and answered over IPv6 with a valid certificate; app.plex.tv played the film at 
 - A cloud box has no RFC 1918 address, so rex announced nothing and plex.tv kept no device row
   (`no address to announce yet: no private network address`); `--announce-url http://<private
   address>:32400` stood in for a home LAN.
+- **A source naming rex by a host name with a global AAAA is refused over IPv6.** Once rex listened
+  on `[::]`, such a source connects over IPv6 and the feed gate (RFC 1918, fc00::/7) answers 401
+  where the connection used to be refused and the client fell back to IPv4. Measured on a Hetzner
+  box: a PUT from `::2` to `::1` in its own /64 got 401. Counting rex's own /64 as home fixed it
+  (200) but was dropped: DigitalOcean and Linode give customers addresses from a shared /64, so
+  their neighbours would count as home for the feed and the unclaimed claim. The guides name rex
+  by its LAN IP, which keeps sources on IPv4; feed-api.md and setup.md say so.

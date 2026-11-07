@@ -45,11 +45,14 @@ only a peer whose address is this machine (127.0.0.0/8, `::1`), a home network (
 fe80::/10), an IPv4-mapped IPv6 address of those included. To any other peer the source
 API does not exist: the request takes the ordinary PMS authentication and unknown-route
 path, with the same status, headers and body as an unrelated missing PMS path. No token,
-including an owner's valid Plex token, opens the source API to a public peer.
+including an owner's valid Plex token, opens the source API to a public peer. rex also listens
+on IPv6, so a host name that resolves to rex's global IPv6 reaches it from a public address and is
+refused: name rex by its LAN IP. A global IPv6 is not taken as home even in rex's own /64, which
+some VPS providers share between customers.
 
 rex reads the connection's own peer address, never `X-Forwarded-For` or `Host`, so a header
 cannot open it. A reverse proxy on the same machine therefore reaches it as a local peer:
-block `/rex/` there. Forwarding rex's port for rex-direct ([setup step 7](setup.md#7-reach-it-from-outside-https-and-the-announce)) puts Plex's API on the
+block `/rex/` there. Forwarding rex's port for rex-direct, or letting it in over IPv6 ([setup step 7](setup.md#7-reach-it-from-outside-https-and-the-announce)), puts Plex's API on the
 internet, which needs a token once rex is claimed, but not the feed.
 
 ## Registering a source
