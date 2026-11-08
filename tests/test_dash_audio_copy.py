@@ -130,8 +130,12 @@ def raw_start(source, port, query, close_header=False):
         resume.set()
 
 
-def packet_hashes(path):
-    """Read every video packet hash in order to detect any change to the copy."""
+def packet_hashes(path, normalize=False):
+    """Compare copies to the source's normalized H.264 packets, HEVC unchanged."""
+    if normalize:
+        result = subprocess.check_output([nt.FFMPEG, "-v", "error", "-i", path, "-map", "0:v:0",
+                                          "-c:v", "copy", "-bsf:v", "h264_redundant_pps", "-f", "framehash", "-"], timeout=30)
+        return ["SHA256:" + line.rsplit(",", 1)[1].strip() for line in result.decode().splitlines() if not line.startswith("#")]
     return [p["data_hash"] for p in packet_entries(path, "data_hash", stream="v:0", extra=("-show_data_hash", "sha256"))]
 
 
@@ -176,6 +180,23 @@ def run(scratch):
         for key, codec, enc, gop in (("1", "h264", "libx264", 300), ("2", "hevc", "libx265", 300),
                                      ("5", "dense", "libx264", 30), ("6", "uneven", "libx264", 250), ("11", "uneven-wide", "libx264", 250))
     ]
+    # A valid SPS inside an avcC whose profile/compatibility/level are zero:
+    # FFmpeg decodes it, but Chrome rejects the MP4 initialization outright.
+    damaged = os.path.join(scratch, "avcc-zero.mkv")
+    original = nt.MEDIA["dense.mkv"]
+    extra = json.loads(subprocess.check_output([nt.FFPROBE, "-v", "error", "-select_streams", "v:0",
+                                               "-show_entries", "stream=extradata", "-show_data", "-of", "json", original]))["streams"][0]["extradata"]
+    private = bytes.fromhex("".join(line.split(":", 1)[1].split("  ", 1)[0] for line in extra.splitlines() if ":" in line))
+    data = bytearray(open(original, "rb").read())
+    at = data.index(private)
+    assert private[0] == 1 and private[1] != 0
+    data[at + 1:at + 4] = b"\0\0\0"
+    with open(damaged, "wb") as f:
+        f.write(data)
+    nt.MEDIA["avcc-zero.mkv"] = damaged
+    damaged_item = file_row("12", "avcc-zero.mkv", nt.probe(damaged)["streams"])
+    damaged_item["duration"] = damaged_item["Media"][0]["duration"] = damaged_item["Media"][0]["Part"][0]["duration"] = 90000
+    items.append(damaged_item)
     items.append(make_media("3", "sparse.mkv", 36000, [
         "-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=36", "-f", "lavfi", "-i", "sine=d=36",
         "-c:v", "libx264", "-preset", "ultrafast", "-g", "1000", "-sc_threshold", "0",
@@ -215,7 +236,7 @@ def run(scratch):
     port, process, log = nt.start_server(catalog, source.server_address[1], True, scratch, token=token)
     try:
         assert nt.get(port, "/library/sections")[0] == 401
-        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense"), ("6", "uneven"), ("11", "uneven-wide"),
+        for key, codec in (("1", "h264"), ("2", "hevc"), ("5", "dense"), ("12", "avcc-zero"), ("6", "uneven"), ("11", "uneven-wide"),
                            ("7", "shift-496"), ("8", "late-video"), ("9", "late-video-long"), ("10", "late-video-short")):
             session = "audio-copy-" + codec
             extra = "append-transcode-target-codec(type=videoProfile&context=streaming&protocol=dash&videoCodec=h264,hevc&audioCodec=aac)"
@@ -318,7 +339,7 @@ def run(scratch):
                 starts = [int(entry.attrib["t"]) / int(template.attrib["timescale"]) for entry in timeline]
             else:
                 length = int(template.attrib["duration"]) / int(template.attrib["timescale"])
-                assert length == (5 if codec in ("dense", "uneven") else 12), length
+                assert length == (5 if codec in ("dense", "uneven", "avcc-zero") else 12), length
                 starts = [index * length for index in range(math.ceil(90 / length))]
             paths = []
             for rep in (0, 1):
@@ -405,8 +426,16 @@ def run(scratch):
             probe = nt.probe(output)
             assert float(probe["format"]["duration"]) >= 89, probe
             assert next(s for s in probe["streams"] if s["codec_type"] == "audio")["codec_name"] == "aac", probe
-            original = packet_hashes(nt.MEDIA[codec + ".mkv"])
-            copied = packet_hashes(output)
+            if codec == "avcc-zero":
+                status, _, header_data = nt.get(port, "/video/:/transcode/universal/session/%s/0/header" % session)
+                assert status == 200, (status, header_data)
+                at_hdr = header_data.index(b"avcC")
+                assert header_data[at_hdr + 5] != 0, "the MP4 initialization header still declares profile zero"
+                data = open(paths[0], "rb").read()
+                at = data.index(b"avcC")
+                assert data[at + 5] != 0, "the MP4 initialization still declares profile zero"
+            original = packet_hashes(nt.MEDIA[codec + ".mkv"], normalize=codec != "hevc")
+            copied = packet_hashes(output, normalize=codec != "hevc")
             assert copied == original, "video packets changed, moved, duplicated or went missing"
             assert decoded_hash(paths[0]) == decoded_hash(nt.MEDIA[codec + ".mkv"]), "decoded video frames changed"
             decoded_hash(paths[1], "a")
@@ -465,7 +494,7 @@ def run(scratch):
                                 assert not tail_resume.is_set(), "tail was released before the opening segment"
                                 tail_resume.set()
                                 source.tail_gate = None
-            assert packet_hashes(paths[0]) == packet_hashes(nt.MEDIA[name + ".mkv"]), "long gap changed video packets"
+            assert packet_hashes(paths[0], normalize=True) == packet_hashes(nt.MEDIA[name + ".mkv"], normalize=True), "long gap changed normalized video packets"
             assert decoded_hash(paths[0]) == decoded_hash(nt.MEDIA[name + ".mkv"]), "long gap changed video frames"
             assert nt.probe(paths[1])["streams"][0]["codec_name"] == "aac"
             decoded_hash(paths[1], "a")

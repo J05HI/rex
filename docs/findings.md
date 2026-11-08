@@ -12871,6 +12871,22 @@ Generated tests cover fractional and shifted cues, B-frames, packet/frame
 preservation, audio and seeks. Official Plex Web and Android validation of
 timeline sessions remains outstanding.
 
+### H.264 parameter sets in MP4 copy output (2026-11-08)
+
+Some H.264 streams have incomplete MP4 codec headers or changing parameter
+sets that cause hardware-decoder failures. rex applies FFmpeg's
+`h264_redundant_pps` filter when copying H.264 into DASH or file MP4. Regression
+tests check the codec header, packet order and decoded frames. Some changing
+reference defaults remain unsupported by the filter and can still fail on
+hardware decoders.
+
+### Unusable remote Matroska indexes (2026-11-08)
+
+A source can return unreadable Cues or Tags while its media remains readable.
+rex retains default DASH slots when it cannot read the index. FFmpeg may then
+need to scan media during a seek, delaying playback; client request retries can
+wait for the same scan. The source file needs a usable index.
+
 ### Reopening an existing DASH manifest by session (2026-10-30)
 
 A player requested the full authenticated `start.mpd` for H.264/DTS and

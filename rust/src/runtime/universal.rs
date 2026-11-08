@@ -1104,7 +1104,14 @@ fn ffmpeg_args_at(plan: &Plan, path: Path, hardware: &Hardware, start: i64, dir:
         push(&mut args, &["-metadata:s:s:0", &format!("language={language}")]);
     }
     match video {
-        Some(video) if video.copy => push(&mut args, &["-c:v", "copy"]),
+        Some(video) if video.copy => {
+            push(&mut args, &["-c:v", "copy"]);
+            // Blu-ray H.264 can change PPS within a stream, or carry an avcC
+            // profile of zero. Normalize its headers for MP4 without encoding.
+            if video.source_codec == "h264" && matches!(plan.protocol, Protocol::Dash | Protocol::File) {
+                push(&mut args, &["-bsf:v", "h264_redundant_pps"]);
+            }
+        }
         Some(video) => {
             if burn.is_none() && canvas.is_none() {
                 push(&mut args, &["-vf", video_filter.as_deref().unwrap_or_default()]);
@@ -4402,6 +4409,30 @@ mod tests {
         assert_eq!(audio_encoder("dca"), None);
         assert_eq!(audio_encoder("opus"), Some("libopus"));
         assert_eq!(audio_encoder("ac3"), Some("ac3"));
+    }
+
+    #[test]
+    fn mp4_video_copy_normalizes_h264_parameter_sets_without_encoding() {
+        let dir = std::path::Path::new("/tmp/x");
+        for protocol in [Protocol::Dash, Protocol::File, Protocol::Hls, Protocol::Http] {
+            for codec in ["h264", "hevc"] {
+                for copied in [true, false] {
+                    let mut p = plan(copied, 30_000);
+                    p.protocol = protocol;
+                    p.video.as_mut().unwrap().source_codec = codec.into();
+                    let args = ffmpeg_args(&p, Path::Software, &Hardware::software(), 0, dir);
+                    assert_eq!(args.windows(2).any(|pair| pair == ["-bsf:v", "h264_redundant_pps"]),
+                        copied && codec == "h264" && matches!(protocol, Protocol::Dash | Protocol::File));
+                    if copied {
+                        assert!(args.windows(2).any(|pair| pair == ["-c:v", "copy"]));
+                    }
+                }
+            }
+        }
+        let mut no_video = plan(true, 30_000);
+        no_video.video = None;
+        let args = ffmpeg_args(&no_video, Path::Software, &Hardware::software(), 0, dir);
+        assert!(!args.iter().any(|arg| arg == "h264_redundant_pps"));
     }
 
     #[test]
