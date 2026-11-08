@@ -147,7 +147,9 @@ added later needs a restart.
 Plex Media Server runs on the same machine? Add `--port 32500` and use `32500` wherever a
 command or setting says `32400`, the claim and step 7's port forward included (see LAN discovery
 below). Your apps then list two servers with the machine's name: rex is the one shared with you
-(step 5), with the fresh account's name beside it.
+(step 5), with the fresh account's name beside it. Once rex is claimed you can rename it: signed in to Plex as
+that account, open rex's **Settings**, **General**, change **Friendly name** and save, then restart rex. The Plex
+apps list it under the new name after the restart.
 
 The first lines of the log say whether it seeded the catalog, name each source it already
 knows (`source <name>: registered, feed at /rex/feed/<name>/`, or `no source yet`) and the state
