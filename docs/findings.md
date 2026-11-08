@@ -12845,6 +12845,14 @@ real remote-source indexes took 220–383 ms and three requests each (their Cues
 exceeded 64 KiB). These were current-source measurements, not guaranteed cold
 cache measurements.
 
+### Refuse disabled video conversion before playback (2026-11-07)
+
+rex ignored `TranscoderCanOnlyRemuxVideo`, approving video encoding that an
+external wrapper refused; Plex Web then retried initialization HTTP 500s.
+The preference now gates decisions, starts and downloads while allowing video
+copy and audio conversion. It reuses the measured 2000/4005 refusal envelope
+with rex's own explanation. A wrapper's restriction must be set in the preference.
+
 ### Uneven fractional keyframes must keep their cue times (2026-11-06)
 
 A fixed duration based on the largest gap can still merge chunks when rounded

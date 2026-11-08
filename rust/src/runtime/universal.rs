@@ -3821,6 +3821,11 @@ impl Runtime {
         })
     }
 
+    pub(super) fn video_conversion_disabled(&self, plan: &Plan) -> bool {
+        self.server_pref("TranscoderCanOnlyRemuxVideo").as_ref().is_some_and(truthy)
+            && plan.video.as_ref().is_some_and(|video| !video.copy)
+    }
+
     /// The converted Media, from the decision's direct-play projection of the source
     /// one. Measured (`scratch_copy_mkv.json`, `scratch_q720_2mbps.json`): Media and Part
     /// describe the OUTPUT (`mpegts`/`hls`, its size and bitrate) and keep only these
@@ -4104,6 +4109,9 @@ impl Runtime {
                 } else {
                     self.transcode_plan(query, &request.headers, &key, &media, &profile, protocol)?
                 };
+                if self.video_conversion_disabled(&plan) {
+                    return Some(Response::error(503, "rex: video conversion is disabled"));
+                }
                 if self.over_conversion_cap(&plan) {
                     return Some(Response::error(503, "rex: the simultaneous conversion limit is reached"));
                 }

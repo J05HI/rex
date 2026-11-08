@@ -467,6 +467,55 @@ def decision(port, key, session, **extra):
     return status, json.loads(body)["MediaContainer"] if status == 200 else {}
 
 
+def video_conversion_policy(port, log):
+    decision(port, "3", "s-policy-approved")
+    get(port, "/:/prefs", [("TranscoderCanOnlyRemuxVideo", "1")], method="PUT")
+    try:
+        for protocol, leaf in (("dash", "start.mpd"), ("hls", "start.m3u8")):
+            session = "s-policy-" + protocol
+            status, answer = decision(port, "3", session, protocol=protocol)
+            check("video disabled: %s decision refuses before playback" % protocol,
+                  status == 200 and answer.get("generalDecisionCode") == 2000
+                  and answer.get("transcodeDecisionCode") == 4005
+                  and answer.get("size") == 0 and "resourceSession" not in answer
+                  and "disabled" in answer.get("transcodeDecisionText", ""), str(answer))
+            status, _, _ = get(port, "/video/:/transcode/universal/" + leaf,
+                               plex_web_query("3", session, protocol=protocol))
+            check("video disabled: %s refused session cannot start" % protocol, status == 400, str(status))
+        status, dl_answer = decision(port, "3", "s-policy-download", directStream="0", protocol="http",
+                                     **{"rex-download": "1", "X-Plex-Client-Profile-Name": "Plex Desktop"})
+        check("video disabled: download decision refuses video conversion",
+              status == 200 and dl_answer.get("generalDecisionCode") == 2000
+              and dl_answer.get("transcodeDecisionCode") == 4005
+              and dl_answer.get("size") == 0 and "resourceSession" not in dl_answer
+              and "disabled" in dl_answer.get("transcodeDecisionText", ""), str(dl_answer))
+        status, _, _ = get(port, "/video/:/transcode/universal/start.m3u8",
+                           [("session", "s-policy-malformed"), ("path", "/library/metadata/invalid")])
+        check("video disabled: malformed start request is rejected", status == 400, str(status))
+        status, _, _ = get(port, "/video/:/transcode/universal/start.m3u8",
+                           plex_web_query("3", "s-policy-approved"))
+        check("video disabled: an earlier successful decision cannot bypass the setting", status == 503, str(status))
+        check("video disabled: rejected requests launch no FFmpeg",
+              "TRANSCODE s-policy-" not in open(log).read())
+        _, answer = decision(port, "5", "s-policy-audio", directStream="1", directStreamAudio="0", protocol="dash")
+        media = answer.get("Metadata", [{}])[0].get("Media", [{}])[0]
+        streams = media.get("Part", [{}])[0].get("Stream", [])
+        check("video disabled: copied video with audio conversion is still allowed",
+              answer.get("generalDecisionCode") == 1001
+              and any(s.get("streamType") == 1 and s.get("decision") == "copy" for s in streams)
+              and any(s.get("streamType") == 2 and s.get("decision") == "transcode" for s in streams))
+        status, _, _ = get(port, "/video/:/transcode/universal/start.mpd",
+                           plex_web_query("5", "s-policy-audio", directStream="1", directStreamAudio="0", protocol="dash"))
+        header_status, _, header = get(port, "/video/:/transcode/universal/session/s-policy-audio/1/header")
+        check("video disabled: audio conversion starts and serves its DASH header",
+              status == 200 and header_status == 200 and b"moov" in header)
+        get(port, "/video/:/transcode/universal/stop", [("session", "s-policy-audio")])
+    finally:
+        get(port, "/:/prefs", [("TranscoderCanOnlyRemuxVideo", "0")], method="PUT")
+    _, answer = decision(port, "3", "s-policy-enabled")
+    check("video enabled: video conversion is available again", answer.get("generalDecisionCode") == 1001)
+
+
 def walk(port, scratch, label, key, expect_video, expect_audio, size, duration=DURATION, muxer="mpegts", **extra):
     session = "s-" + label
     mkv = muxer == "mkv"
@@ -1418,6 +1467,7 @@ def run(scratch):
             get(port, "/video/:/transcode/universal/stop", [("session", session)])
         status, _, body = get(port, "/transcode/sessions")
         check("every session is gone after stop", json.loads(body)["MediaContainer"].get("size") == 0, "")
+        video_conversion_policy(port, log)
         # "Maximum simultaneous CPU transcodes": past the cap a second video encode is refused,
         # a remux is not counted, and the slot comes back when the first conversion stops.
         get(port, "/:/prefs", [("_CPU-TranscodeCountLimit", "1")], method="PUT")

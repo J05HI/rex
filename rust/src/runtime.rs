@@ -11774,11 +11774,12 @@ impl Runtime {
             }
             _ => None,
         };
+        let video_disabled = converting.as_ref().is_some_and(|plan| self.video_conversion_disabled(plan));
+        let capped = converting.as_ref().is_some_and(|plan| self.over_conversion_cap(plan));
+        let converting = converting.filter(|_| !video_disabled && !capped);
         if query.contains_key(downloads::DOWNLOAD_MARK) {
             self.download_plan = converting.clone();
         }
-        let capped = converting.as_ref().is_some_and(|plan| self.over_conversion_cap(plan));
-        let converting = converting.filter(|_| !capped);
         if let Some(refusal) = refusal.clone().filter(|_| converting.is_none()) {
             fields.insert("directPlayDecisionCode".to_string(), json!(3000));
             fields.insert("directPlayDecisionText".to_string(), json!(refusal));
@@ -11799,6 +11800,8 @@ impl Runtime {
             );
             let convert = if blocked {
                 "File is unplayable. DoVi (Profile 5) color space is not supported.".to_string()
+            } else if video_disabled {
+                "Cannot convert this item. Video transcoding is disabled on this server.".to_string()
             } else if capped {
                 // Not measured: what a real PMS answers past its transcode limit was never
                 // recorded, so this is the encoder-less refusal's shape with rex's own text.
