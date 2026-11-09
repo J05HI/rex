@@ -166,7 +166,7 @@ jobs:
           # Each child receives a stable, disjoint REX_TEST_PORTS range below
           # 32768; every pool skips the native smoke's fixed 32620.
           .github/ci/in-image.sh 'python3 tests/parallel_suites.py --workers 4 \
-            test_startup_wait test_test_ports test_parallel_suites test_cli test_server_command \
+            test_startup_wait test_test_ports test_parallel_suites test_cli test_closed_output test_server_command \
             test_native_runtime_smoke test_pms_identity test_sqlite_store test_build_catalog test_tls test_part_bytes \
             test_sources test_feed test_feed_versions test_feed_editions test_feed_season_art \
             test_feed_blank_tiles test_feed_source_names test_feed_source_decides test_feed_placement test_feed_rejected test_feed_display test_artwork_blur test_feed_subtitles test_feed_collections test_feed_playlists test_feed_extras test_feed_unplaced test_feed_kind_change test_feed_source_named_move test_feed_no_trash test_match_show_children test_feed_episode_ids test_feed_retry_placed test_feed_named_on_claim test_metadata_language test_delete_last_episode test_feed_versions_1017 test_feed_parts test_zurg_contract test_plextv test_rex_direct test_track_prefs test_accounts test_livetv_shared test_watch_import test_tag_collections test_collection_hub_pins test_collection_logos \
