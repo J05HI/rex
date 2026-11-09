@@ -780,7 +780,7 @@ restarts (a reboot, or the last login session ending); until then start rex unde
 | Variable | Default | |
 |---|---|---|
 | `REX_TRANSCODER` | found, as above | the FFmpeg binary, or `off` |
-| `REX_TRANSCODE_HW` | `auto` | `vaapi`, `cuda` or `none` (`auto` tries VA-API, then NVENC) |
+| `REX_TRANSCODE_HW` | `auto` | `vaapi`, `cuda`, `mediacodec` or `none` (`auto` tries VA-API, then NVENC, then Android's MediaCodec) |
 | `REX_TRANSCODE_DEVICE` | `/dev/dri/renderD128` | the VA-API device |
 | `REX_TRANSCODE_DIR` | `$TMPDIR/rex-transcode-<port>` | segments; cleared at start |
 
@@ -837,9 +837,10 @@ release.
 | Linux arm64 | the same, which on most ARM boards means the processor |
 | macOS | none: the processor always (no VideoToolbox path) |
 | Windows | NVENC (NVIDIA), else the processor (no Quick Sync or AMF path) |
+| Android arm64, x86_64 | MediaCodec, encoding only (the zurg+rex app ships an FFmpeg built for it) |
 
 
-On Linux an FFmpeg dies with rex and a restart sweeps up any left over. On macOS and
+On Linux and Android an FFmpeg dies with rex and a restart sweeps up any left over. On macOS and
 Windows a stopped rex still stops its FFmpegs, but if rex crashes they run on until their
 conversion ends.
 
