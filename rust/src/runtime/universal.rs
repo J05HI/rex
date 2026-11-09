@@ -2918,7 +2918,9 @@ pub(super) fn spawn_tied(command: Command) -> std::io::Result<Child> {
         let (sender, receiver) = mpsc::channel::<Job>();
         thread::spawn(move || {
             for (mut command, reply) in receiver {
-                #[cfg(target_os = "linux")]
+                // Android's Bionic has the same prctl: an app's rex killed by the system must
+                // not leave its conversions running.
+                #[cfg(any(target_os = "linux", target_os = "android"))]
                 unsafe {
                     use std::os::unix::process::CommandExt;
                     command.pre_exec(|| {
