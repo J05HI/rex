@@ -106,6 +106,10 @@ pub(crate) enum Accel {
     None,
     Vaapi(String),
     Cuda,
+    /// Android's MediaCodec through the NDK (`h264_mediacodec -ndk_codec 1`), encode only: CPU
+    /// frames go in as they are. A Pixel 6 encoded 1080p at 173 fps this way, and kept a forced
+    /// keyframe exactly on every segment boundary (2026-11-09); its decoders are not used.
+    MediaCodec,
 }
 
 impl Accel {
@@ -114,6 +118,7 @@ impl Accel {
             Accel::None => "none",
             Accel::Vaapi(_) => "vaapi",
             Accel::Cuda => "cuda",
+            Accel::MediaCodec => "mediacodec",
         }
     }
 }
@@ -805,11 +810,12 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
         _ => None,
     };
     let cuda = hardware.accel == Accel::Cuda && matches!(path, Path::Full | Path::EncodeOnly);
+    let mediacodec = hardware.accel == Accel::MediaCodec && path == Path::EncodeOnly;
     if path == Path::DecodeOnly {
         match &hardware.accel {
             Accel::Vaapi(device) => push(&mut args, &["-init_hw_device", &format!("vaapi=va:{device}"), "-hwaccel", "vaapi", "-hwaccel_device", "va", "-hwaccel_output_format", "vaapi"]),
             Accel::Cuda => push(&mut args, &["-init_hw_device", "cuda=cu:0", "-hwaccel", "cuda", "-hwaccel_device", "cu", "-hwaccel_output_format", "cuda"]),
-            Accel::None => {}
+            Accel::MediaCodec | Accel::None => {}
         }
     }
     if converting {
@@ -1023,6 +1029,9 @@ pub(crate) fn ffmpeg_args(plan: &Plan, path: Path, hardware: &Hardware, start: i
             let gop = ((video.frame_rate.max(1.0)) * length as f64).round() as i64;
             if device.is_some() && path != Path::Software {
                 push(&mut args, &["-c:v", "h264_vaapi", "-rc_mode", "VBR", "-b:v", &rate, "-maxrate", &rate, "-bufsize", &buffer, "-profile:v", "high"]);
+            } else if mediacodec {
+                // No maxrate or bufsize: the encoder takes a mode and a rate and nothing else.
+                push(&mut args, &["-c:v", "h264_mediacodec", "-ndk_codec", "1", "-bitrate_mode", "vbr", "-b:v", &rate, "-profile:v", "high"]);
             } else if cuda && path != Path::Software {
                 push(&mut args, &["-c:v", "h264_nvenc", "-preset", "p4", "-tune", "ll", "-rc", "vbr", "-b:v", &rate, "-maxrate", &rate, "-bufsize", &buffer, "-profile:v", "high"]);
             } else {
@@ -1747,7 +1756,7 @@ impl Transcoder {
 
     /// `REX_TRANSCODER` (an FFmpeg binary, `off`, or unset to look for one: `find_ffmpeg`), `REX_TRANSCODE_DIR` (default: the system temp
     /// directory's `rex-transcode-<port>`, one per server, since a start clears it),
-    /// `REX_TRANSCODE_HW` (`auto`, `vaapi`, `cuda`, `none`) and `REX_TRANSCODE_DEVICE`
+    /// `REX_TRANSCODE_HW` (`auto`, `vaapi`, `cuda`, `mediacodec`, `none`) and `REX_TRANSCODE_DEVICE`
     /// (default `/dev/dri/renderD128`).
     pub fn from_env(port: u16) -> Option<Arc<Self>> {
         let configured = std::env::var("REX_TRANSCODER").ok().filter(|path| !path.is_empty());
@@ -1918,11 +1927,22 @@ impl Transcoder {
         if matches!(wanted.as_str(), "auto" | "cuda" | "nvenc") {
             candidates.push(Accel::Cuda);
         }
+        // An FFmpeg built without it refuses the encoder name at once, so asking costs nothing
+        // where there is no MediaCodec.
+        if matches!(wanted.as_str(), "auto" | "mediacodec") && self.quiet(&strings(&[
+            "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x240:r=10", "-frames:v", "5", "-vf", "format=yuv420p",
+            "-c:v", "h264_mediacodec", "-ndk_codec", "1", "-f", "null", "-",
+        ])) {
+            candidates.push(Accel::MediaCodec);
+        }
         for accel in candidates {
+            if accel == Accel::MediaCodec {
+                return Hardware { accel, decode: HashSet::new(), encode: true, ..Hardware::software() };
+            }
             let (init, upload, encoder, hwaccel, out_format) = match &accel {
                 Accel::Vaapi(device) => (format!("vaapi=hw:{device}"), "format=nv12,hwupload", "h264_vaapi", "vaapi", "vaapi"),
                 Accel::Cuda => ("cuda=hw:0".to_string(), "format=nv12,hwupload_cuda", "h264_nvenc", "cuda", "cuda"),
-                Accel::None => continue,
+                Accel::MediaCodec | Accel::None => continue,
             };
             let mut encode = strings(&["-v", "error", "-init_hw_device"]);
             encode.push(init.clone());
@@ -4712,6 +4732,22 @@ mod tests {
         assert!(!args.contains("tonemap"));
         assert!(!Hardware::software().can_normalize_loudness());
         assert!(!Hardware::software().can_boost_dialog());
+    }
+
+    // Android's encoder takes CPU frames: no device, no upload, its decoders never asked, and
+    // the keyframe on every segment boundary it was measured to keep (Pixel 6, 2026-11-09).
+    #[test]
+    fn mediacodec_encodes_cpu_frames_and_falls_back_to_software() {
+        let hw = Hardware { accel: Accel::MediaCodec, encode: true, ..Hardware::software() };
+        let p = plan(false, 10_000);
+        assert_eq!(ladder(&p, &hw), vec![Path::EncodeOnly, Path::Software]);
+        let args = ffmpeg_args(&p, Path::EncodeOnly, &hw, 0, std::path::Path::new("/tmp/x")).join(" ");
+        assert!(args.contains("-c:v h264_mediacodec -ndk_codec 1 -bitrate_mode vbr"), "{args}");
+        assert!(args.contains("format=yuv420p") && args.contains("-force_key_frames"), "{args}");
+        assert!(!args.contains("-init_hw_device") && !args.contains("-hwaccel") && !args.contains("hwupload"), "{args}");
+        let software = ffmpeg_args(&p, Path::Software, &hw, 0, std::path::Path::new("/tmp/x")).join(" ");
+        assert!(software.contains("-c:v libx264") && !software.contains("mediacodec"), "{software}");
+        assert_eq!(Accel::MediaCodec.name(), "mediacodec");
     }
 
     #[test]
