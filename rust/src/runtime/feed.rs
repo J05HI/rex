@@ -1077,7 +1077,7 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
             // library of its own now holds while the row's other releases stay (`version_strays`).
             if let (Some((key, _)), false, true) = (&existing, retry, item.media_info.is_some()) {
                 let leaves = guard.catalog.get(key).is_some_and(|row| {
-                    (version_leaves(row, &item, &library.kind) || guard.version_strays(row, &item, &library)) && !guard.matched_by_hand(row)
+                    (version_leaves(row, &source.name, &item, &library.kind) || guard.version_strays(row, &item, &library)) && !guard.matched_by_hand(row)
                 });
                 if leaves && guard.drop_version(key, &source.name, &item.id) {
                     guard.dirty = true;
@@ -1113,11 +1113,14 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
                     });
                     // Placed somewhere else than before, it is placed again, providers or none. A
                     // push with no placement leaves it where the last one put it (absent is
-                    // unknown), unless a TMDB id set by hand names it again.
-                    let replaced = item.placed.is_some() && row.is_some_and(|row| version_placed(row, 0) != item.placed.as_ref());
+                    // unknown), unless a TMDB id set by hand names it again. On a show its source
+                    // names itself that the row is not under is somewhere else too, whatever its
+                    // numbers: it moves there, and the show it leaves keeps its title.
+                    let elsewhere = row.is_some_and(|row| on_another_show(row, &source.name, &item, &library.kind));
+                    let replaced = elsewhere || item.placed.is_some() && row.is_some_and(|row| version_placed(row, 0) != item.placed.as_ref());
                     let by_hand = row.is_some_and(|row| guard.matched_by_hand(row));
                     let several = row.is_some_and(|row| versions(row).len() > 1);
-                    let refresh_title = !by_hand && row.is_some_and(|row| {
+                    let refresh_title = !by_hand && !elsewhere && row.is_some_and(|row| {
                         let title = row.get("grandparentRatingKey").map(string_value)
                             .and_then(|key| guard.catalog.get(&key)).unwrap_or(row);
                         !several && (version_release(row, 0) != Some(item.name.as_str())
@@ -3564,7 +3567,10 @@ impl Runtime {
         let named = |row: Option<&Value>| {
             row.and_then(|row| row.get("guid")).and_then(Value::as_str).is_some_and(|guid| !guid.starts_with("local://"))
         };
-        if !meta.contains_key("_identity") && !moved && (named(Some(&old)) || named(parent("grandparentRatingKey"))) {
+        // A show its source names itself is a placement, though it names nothing at Plex's agent:
+        // One Pace's episodes stayed under One Piece, which Plex named (2026-11-09).
+        let source_named = super::scan::source_named(arrival.extra.get("_ids").and_then(Value::as_object), arrival.extra.get("_placed"), &library.kind);
+        if !meta.contains_key("_identity") && !source_named && !moved && (named(Some(&old)) || named(parent("grandparentRatingKey"))) {
             return false;
         }
         let brought = Value::Object(meta.clone());
@@ -4657,7 +4663,7 @@ fn probe_kept(row: &Value, source: &str, item: &Item, probe: &str, library: &str
             && own.map_or_else(|| row.pointer(&format!("/Media/{index}/_probe")), |part| part.get("_probe")).and_then(Value::as_str) == Some(probe)
     });
     let titled = matches!(row.get("type").and_then(Value::as_str), Some("episode" | "movie"));
-    (same, item.extra.is_some() && titled || version_leaves(row, item, library) || part_leaves(row, source, item))
+    (same, item.extra.is_some() && titled || version_leaves(row, source, item, library) || part_leaves(row, source, item))
 }
 
 /// Whether `item`, a version of `row` holding several, leaves it to be placed on its own: its
@@ -4675,16 +4681,33 @@ fn probe_kept(row: &Value, source: &str, item: &Item, probe: &str, library: &str
 /// it is the source's placement that moves it (numbers are an episode's): a push with no `kind`
 /// keeps what the row is, whichever library its file's folder picks. A row of one version is
 /// identified again on its key instead (`upsert`'s `reidentify`).
-fn version_leaves(row: &Value, item: &Item, library: &str) -> bool {
+fn version_leaves(row: &Value, source: &str, item: &Item, library: &str) -> bool {
     let here = row.get("parentIndex").and_then(Value::as_i64).zip(row.get("index").and_then(Value::as_i64));
     let numbers = super::scan::placed_numbers(item.placed.as_ref());
     let elsewhere = match (row.get("type").and_then(Value::as_str), library) {
         (Some("movie"), "show") => numbers.is_some(),
         (Some("episode"), "movie") => item.kind() == Some("movie"),
-        (Some("episode"), _) => numbers.is_some_and(|numbers| here != Some(numbers)),
+        (Some("episode"), _) => numbers.is_some_and(|numbers| here != Some(numbers)) || on_another_show(row, source, item, library),
         _ => false,
     };
     elsewhere && versions(row).len() > 1
+}
+
+/// Whether `item` places its file on a show its source names itself (`scan::source_named`) that
+/// `row`, an episode, is not under. zurg placed One Pace's files by One Piece's ids until DMM numbered
+/// One Pace as its own show, then pushed them again with `kind: episode`, no ids and one `release`
+/// (2026-11-09): the rows stayed under One Piece, or the show they sat in was retitled "One Pace"
+/// beside the one made for the rest. A show of another name its release already sat in, under the
+/// same `release`, is the same show renamed (`refresh_source_title`, as a channel renamed is).
+fn on_another_show(row: &Value, source: &str, item: &Item, library: &str) -> bool {
+    if row.get("type").and_then(Value::as_str) != Some("episode") || !super::scan::source_named(Some(&item.ids), item.placed.as_ref(), library) {
+        return false;
+    }
+    let show = format!("title:{}", crate::hierarchy::fold_title(&item.name).to_lowercase());
+    let identity = row.get("_identity").and_then(Value::as_str).unwrap_or_default();
+    let index = item_at(row, source, &item.id).map_or(0, |(index, _)| index);
+    let renamed = identity.starts_with("title:") && version_group(row, index).as_deref() == Some(item.release.as_str());
+    identity != show && !renamed
 }
 
 /// Whether `item`, a Part of a Media of several on `row`, leaves it to be placed on its own: its
