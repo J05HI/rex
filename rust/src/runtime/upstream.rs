@@ -25,23 +25,61 @@ const MAX_HEADERS: usize = 200;
 /// How long a whole body read by `read_body` may take, whatever each read's timeout.
 const BODY_DEADLINE: Duration = Duration::from_secs(120);
 
-/// The roots urllib uses on the Linux hosts rex runs on. Loaded once.
+/// Where the trusted roots are, in the order they are tried; the first that yields any wins.
+/// `SSL_CERT_FILE` first (OpenSSL's variable, which an Android app exports its trust store to),
+/// then the bundles urllib uses on the Linux hosts rex runs on, then Android's own store: a
+/// directory of one PEM file per root. Android has no `/etc/ssl`, so on a Pixel 6 (Android 16,
+/// 2026-11-09) rex reached no HTTPS host at all, plex.tv's release list included.
+fn root_sources() -> Vec<Vec<PathBuf>> {
+    let mut sources: Vec<Vec<PathBuf>> = std::env::var_os("SSL_CERT_FILE")
+        .filter(|path| !path.is_empty())
+        .map(|path| vec![PathBuf::from(path)])
+        .into_iter()
+        .collect();
+    sources.extend(["/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem"].map(|path| vec![PathBuf::from(path)]));
+    // The APEX copy is the one Android 14 and later update; the system copy is older Androids'.
+    for directory in ["/apex/com.android.conscrypt/cacerts", "/system/etc/security/cacerts"] {
+        sources.push(pem_files(Path::new(directory)));
+    }
+    sources
+}
+
+/// The files of a store kept one root per file, in name order.
+fn pem_files(directory: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = fs::read_dir(directory)
+        .map(|entries| entries.flatten().map(|entry| entry.path()).collect())
+        .unwrap_or_default();
+    files.sort();
+    files
+}
+
+/// The roots of the first source that has any.
+fn load_roots(sources: &[Vec<PathBuf>]) -> RootCertStore {
+    let mut roots = RootCertStore::empty();
+    for files in sources {
+        for file in files {
+            let Ok(pem) = fs::read(file) else {
+                continue;
+            };
+            for cert in certs(&mut pem.as_slice()).flatten() {
+                let _ = roots.add(cert);
+            }
+        }
+        if !roots.is_empty() {
+            break;
+        }
+    }
+    roots
+}
+
+/// The client configuration every HTTPS request uses. Loaded once.
 fn client_config() -> Option<Arc<ClientConfig>> {
     static CONFIG: OnceLock<Option<Arc<ClientConfig>>> = OnceLock::new();
     CONFIG
         .get_or_init(|| {
-            let mut roots = RootCertStore::empty();
-            for bundle in ["/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem"] {
-                let Ok(pem) = fs::read(bundle) else {
-                    continue;
-                };
-                for cert in certs(&mut pem.as_slice()).flatten() {
-                    let _ = roots.add(cert);
-                }
-                if !roots.is_empty() {
-                    break;
-                }
-            }
+            // Windows adds its own store below when these yield nothing.
+            #[cfg_attr(not(windows), allow(unused_mut))]
+            let mut roots = load_roots(&root_sources());
             #[cfg(windows)]
             if roots.is_empty() {
                 if let Ok(certificates) = crate::platform::system_root_certificates() {
@@ -828,6 +866,17 @@ mod tests {
         );
         release.send(()).expect("release stub");
         thread.join().expect("stub thread");
+    }
+
+    // A file of Android's own store, pulled off a Pixel 6 (Android 16, 2026-11-09): the PEM block
+    // followed by the certificate as text, which is how every file there is written.
+    #[test]
+    fn androids_store_of_one_root_per_file_is_read() {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/android_cacerts");
+        let files = pem_files(&directory);
+        assert_eq!(files.len(), 1, "{files:?}");
+        let missing = vec![PathBuf::from("/nonexistent/ca-certificates.crt")];
+        assert_eq!(load_roots(&[missing, files]).len(), 1);
     }
 
     #[cfg(windows)]
