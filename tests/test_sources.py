@@ -220,6 +220,36 @@ def gated():
         shutil.rmtree(work, ignore_errors=True)
 
 
+def unreachable():
+    """A registration is checked with one TCP connect to its url's address. A zurg in Docker
+    Desktop registered its container address, which rex on the host cannot reach, and every
+    play then failed with a bare "connection refused" naming nothing (2026-11-07). The source
+    still registers: it may come up later."""
+    work = tempfile.mkdtemp(prefix="rex-sources-unreachable-")
+    catalog(work)
+    port, process, log = start(work, {})
+    closed, listening = free_port(), serve(Bytes().handler())
+    try:
+        status, raw = register(port, "far", {"url": "http://127.0.0.1:%d/dav" % closed, "bearer": BYTES_TOKEN})
+        answer = loads(raw)
+        check("a source rex cannot reach registers, its answer naming the address it tried",
+              status == 200 and answer.get("name") == "far"
+              and str(answer.get("unreachable", "")).startswith("connect 127.0.0.1:%d: " % closed), (status, raw))
+        check("and is kept", ("far", "http://127.0.0.1:%d/dav" % closed) in registered(port), registered(port))
+        logged = open(os.path.join(work, "server.log"), errors="replace").read()
+        check("the log says it cannot be reached and nothing from it will play",
+              ("SOURCES far: cannot reach http://127.0.0.1:%d/dav from this machine (connect 127.0.0.1:%d: " % (closed, closed))
+              in logged and "; nothing from it will play" in logged and BYTES_TOKEN not in logged,
+              [line for line in logged.splitlines() if "SOURCES" in line])
+        status, raw = register(port, "far", {"url": "http://127.0.0.1:%d/dav" % closed, "bearer": BYTES_TOKEN})
+        check("the same registration again is checked again", "unreachable" in loads(raw), raw)
+        status, raw = register(port, "near", {"url": "http://127.0.0.1:%d/dav" % listening})
+        check("a source rex reaches answers no unreachable", status == 200 and "unreachable" not in loads(raw), raw)
+    finally:
+        stop(process, log)
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def part_key(port, key):
     status, raw = call(port, "/library/metadata/%s" % key)
     row = (json.loads(raw)["MediaContainer"].get("Metadata") or [{}])[0] if status == 200 else {}
@@ -590,6 +620,7 @@ def main():
         stop(process, log)
         shutil.rmtree(work, ignore_errors=True)
     gated()
+    unreachable()
     part_redirect()
     part_redirect_only()
     unregistered_rows()

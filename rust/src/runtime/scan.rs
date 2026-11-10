@@ -187,6 +187,17 @@ pub(super) fn identified_by(
     Some((if kind == "movie" { "movie" } else { "show" }, tmdb, imdb))
 }
 
+/// Whether its source placed a file on a show it names itself: an episode on its numbers with no id
+/// naming the show (`identified_by`), titled by the item's `name` and dressed by its `display`, as
+/// rex-youtube places a channel's videos and zurg One Pace's. That placement names the show as ids
+/// would, though Plex's agent is asked nothing for it.
+pub(super) fn source_named(ids: Option<&Map<String, Value>>, placed: Option<&Value>, library: &str) -> bool {
+    library == "show"
+        && placed.and_then(|placed| placed.get("kind")).and_then(Value::as_str) == Some("episode")
+        && placed_numbers(placed).is_some()
+        && identified_by(ids, placed, library).is_none()
+}
+
 /// Identification, off the lock, once per release: the title its source placed it as, or the
 /// TMDB id a person set by hand at the source (`identified_by`, `identify::placed`), then for each
 /// new file Plex's description of it (`metadata::describe`): the title's match, and for an episode

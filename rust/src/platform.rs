@@ -133,7 +133,7 @@ pub(crate) fn resource_sample() -> ResourceSample {
             );
         }
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     linux_resources(&mut sample);
     #[cfg(target_os = "macos")]
     mac_resources(&mut sample);
@@ -142,7 +142,8 @@ pub(crate) fn resource_sample() -> ResourceSample {
     sample
 }
 
-#[cfg(target_os = "linux")]
+// Android's procfs is Linux's; an app is refused /proc/stat but reads /proc/meminfo.
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn linux_resources(sample: &mut ResourceSample) {
     use std::io::Read;
     // /proc/stat can be large on many-core hosts; only its first (aggregate) line
@@ -166,7 +167,7 @@ fn linux_resources(sample: &mut ResourceSample) {
     }
 }
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(any(target_os = "linux", target_os = "android", test))]
 fn linux_cpu(text: &str) -> Option<(u64, u64)> {
     let mut fields = text.lines().next()?.split_whitespace();
     if fields.next()? != "cpu" {
@@ -186,7 +187,7 @@ fn linux_cpu(text: &str) -> Option<(u64, u64)> {
     Some((total.checked_sub(idle)?, total))
 }
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(any(target_os = "linux", target_os = "android", test))]
 fn linux_memory(text: &str) -> Option<(u64, u64)> {
     let field = |name| {
         let mut fields = text.lines().find(|line| line.starts_with(name))?.split_whitespace();
