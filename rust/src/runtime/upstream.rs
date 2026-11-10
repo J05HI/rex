@@ -872,7 +872,10 @@ mod tests {
     // followed by the certificate as text, which is how every file there is written.
     #[test]
     fn androids_store_of_one_root_per_file_is_read() {
-        let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/android_cacerts");
+        // Windows CI runs a binary built on dmm, where the build path does not exist.
+        let built = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let crate_dir = if built.exists() { built } else { PathBuf::from(".") };
+        let directory = crate_dir.join("tests/fixtures/android_cacerts");
         let files = pem_files(&directory);
         assert_eq!(files.len(), 1, "{files:?}");
         let missing = vec![PathBuf::from("/nonexistent/ca-certificates.crt")];
