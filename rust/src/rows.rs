@@ -749,11 +749,14 @@ fn held(row: &Value) -> usize {
 
 /// The heap under `value` as `compact` leaves it, at exactly its size. A map is serde_json's
 /// `preserve_order` one: indexmap's entries (a hash, the key, the value) and hashbrown's index
-/// of them (a `usize` and a control byte a bucket, and one group's width more).
+/// of them (a `usize` and a control byte a bucket, and one group's width more). In `usize`s, not
+/// 8 bytes: a 32-bit ARM build counted 15% over (armeabi-v7a Fire TV, 2026-11-10).
 fn heap(value: &Value) -> usize {
     const VALUE: usize = std::mem::size_of::<Value>();
     const ENTRY: usize = std::mem::size_of::<(u64, String, Value)>();
-    const GROUP: usize = if cfg!(any(target_arch = "x86", target_arch = "x86_64")) { 16 } else { 8 };
+    const BUCKET: usize = std::mem::size_of::<usize>() + 1;
+    // hashbrown's SSE2 group on x86, NEON's on aarch64, else its generic one, a word wide.
+    const GROUP: usize = if cfg!(any(target_arch = "x86", target_arch = "x86_64")) { 16 } else { std::mem::size_of::<usize>() };
     match value {
         Value::String(text) => text.capacity(),
         Value::Array(values) => values.capacity() * VALUE + values.iter().map(heap).sum::<usize>(),
@@ -765,7 +768,7 @@ fn heap(value: &Value) -> usize {
                 8..=14 => 16,
                 len => (len * 8 / 7).next_power_of_two(),
             };
-            object.len() * ENTRY + buckets * 9 + GROUP + object.iter().map(|(key, value)| key.capacity() + heap(value)).sum::<usize>()
+            object.len() * ENTRY + buckets * BUCKET + GROUP + object.iter().map(|(key, value)| key.capacity() + heap(value)).sum::<usize>()
         }
         _ => 0,
     }
@@ -1169,7 +1172,8 @@ mod budget_tests {
             let counted = rows.cache.borrow().bytes - counted;
             eprintln!("row {key}: text {} bytes, counted {counted}, holds {truth} ({:.2}x its text)", text.len(), truth as f64 / text.len() as f64);
             assert!(counted.abs_diff(truth) * 10 <= truth, "row {key}: counted {counted} bytes, holds {truth}");
-            assert!(truth * 2 > text.len() * 3, "row {key}: {truth} bytes held for {} of text", text.len());
+            // 1.49x for the 34-stream film on 32-bit ARM, whose pointers and words are half as wide.
+            assert!(truth * 4 > text.len() * 5, "row {key}: {truth} bytes held for {} of text", text.len());
         }
         let _ = std::fs::remove_dir_all(directory);
     }
