@@ -25,23 +25,61 @@ const MAX_HEADERS: usize = 200;
 /// How long a whole body read by `read_body` may take, whatever each read's timeout.
 const BODY_DEADLINE: Duration = Duration::from_secs(120);
 
-/// The roots urllib uses on the Linux hosts rex runs on. Loaded once.
+/// Where the trusted roots are, in the order they are tried; the first that yields any wins.
+/// `SSL_CERT_FILE` first (OpenSSL's variable, which an Android app exports its trust store to),
+/// then the bundles urllib uses on the Linux hosts rex runs on, then Android's own store: a
+/// directory of one PEM file per root. Android has no `/etc/ssl`, so on a Pixel 6 (Android 16,
+/// 2026-11-09) rex reached no HTTPS host at all, plex.tv's release list included.
+fn root_sources() -> Vec<Vec<PathBuf>> {
+    let mut sources: Vec<Vec<PathBuf>> = std::env::var_os("SSL_CERT_FILE")
+        .filter(|path| !path.is_empty())
+        .map(|path| vec![PathBuf::from(path)])
+        .into_iter()
+        .collect();
+    sources.extend(["/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem"].map(|path| vec![PathBuf::from(path)]));
+    // The APEX copy is the one Android 14 and later update; the system copy is older Androids'.
+    for directory in ["/apex/com.android.conscrypt/cacerts", "/system/etc/security/cacerts"] {
+        sources.push(pem_files(Path::new(directory)));
+    }
+    sources
+}
+
+/// The files of a store kept one root per file, in name order.
+fn pem_files(directory: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = fs::read_dir(directory)
+        .map(|entries| entries.flatten().map(|entry| entry.path()).collect())
+        .unwrap_or_default();
+    files.sort();
+    files
+}
+
+/// The roots of the first source that has any.
+fn load_roots(sources: &[Vec<PathBuf>]) -> RootCertStore {
+    let mut roots = RootCertStore::empty();
+    for files in sources {
+        for file in files {
+            let Ok(pem) = fs::read(file) else {
+                continue;
+            };
+            for cert in certs(&mut pem.as_slice()).flatten() {
+                let _ = roots.add(cert);
+            }
+        }
+        if !roots.is_empty() {
+            break;
+        }
+    }
+    roots
+}
+
+/// The client configuration every HTTPS request uses. Loaded once.
 fn client_config() -> Option<Arc<ClientConfig>> {
     static CONFIG: OnceLock<Option<Arc<ClientConfig>>> = OnceLock::new();
     CONFIG
         .get_or_init(|| {
-            let mut roots = RootCertStore::empty();
-            for bundle in ["/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem"] {
-                let Ok(pem) = fs::read(bundle) else {
-                    continue;
-                };
-                for cert in certs(&mut pem.as_slice()).flatten() {
-                    let _ = roots.add(cert);
-                }
-                if !roots.is_empty() {
-                    break;
-                }
-            }
+            // Windows adds its own store below when these yield nothing.
+            #[cfg_attr(not(windows), allow(unused_mut))]
+            let mut roots = load_roots(&root_sources());
             #[cfg(windows)]
             if roots.is_empty() {
                 if let Ok(certificates) = crate::platform::system_root_certificates() {
@@ -404,10 +442,20 @@ fn connect(target: &Target, timeout: Duration) -> Result<Conn, String> {
                     ClientConnection::new(config, name).map_err(|error| error.to_string())?;
                 return Ok(Conn::Tls(Box::new(StreamOwned::new(connection, stream))));
             }
-            Err(error) => last = error.to_string(),
+            // The address dialled, never the path: a bare "connection refused" left a Docker
+            // zurg's unreachable container address unnamed in every failed play (2026-11-07).
+            Err(error) => last = format!("connect {address}: {error}"),
         }
     }
     Err(last)
+}
+
+/// Whether a TCP connection to `url`'s host and port opens from here, resolved and dialled as
+/// a read of it is; no request is sent, so no credential and no path.
+pub(super) fn dial(url: &str, timeout: Duration) -> Result<(), String> {
+    let mut target = parse_url(url).ok_or_else(|| format!("unsupported url {url:?}"))?;
+    target.tls = false;
+    connect(&target, timeout).map(drop)
 }
 
 fn exchange(
@@ -820,6 +868,20 @@ mod tests {
         thread.join().expect("stub thread");
     }
 
+    // A file of Android's own store, pulled off a Pixel 6 (Android 16, 2026-11-09): the PEM block
+    // followed by the certificate as text, which is how every file there is written.
+    #[test]
+    fn androids_store_of_one_root_per_file_is_read() {
+        // Windows CI runs a binary built on dmm, where the build path does not exist.
+        let built = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let crate_dir = if built.exists() { built } else { PathBuf::from(".") };
+        let directory = crate_dir.join("tests/fixtures/android_cacerts");
+        let files = pem_files(&directory);
+        assert_eq!(files.len(), 1, "{files:?}");
+        let missing = vec![PathBuf::from("/nonexistent/ca-certificates.crt")];
+        assert_eq!(load_roots(&[missing, files]).len(), 1);
+    }
+
     #[cfg(windows)]
     #[test]
     fn windows_root_store_configures_tls() {
@@ -838,6 +900,26 @@ mod tests {
             .map(|_| ())
             .expect_err("refused before dialling");
         assert!(error.contains("unsupported url"), "{error}");
+    }
+
+    #[test]
+    fn a_refused_connection_names_the_address_it_dialled() {
+        // A Docker zurg registered its container address; every play logged only "refused".
+        let port = TcpListener::bind(("127.0.0.1", 0)).expect("listener").local_addr().expect("address").port();
+        let url = format!("http://127.0.0.1:{port}/dav/secret-path?token=t");
+        let error = fetch("GET", &url, &[], b"", Duration::from_secs(1)).map(|_| ()).expect_err("closed port");
+        assert!(error.starts_with(&format!("connect 127.0.0.1:{port}: ")), "{error}");
+        assert!(!error.contains("secret-path") && !error.contains("token"), "{error}");
+    }
+
+    #[test]
+    fn a_registration_check_is_a_tcp_connect_to_the_urls_address() {
+        let port = TcpListener::bind(("127.0.0.1", 0)).expect("listener").local_addr().expect("address").port();
+        let error = dial(&format!("http://127.0.0.1:{port}/dav"), Duration::from_secs(1)).expect_err("closed port");
+        assert!(error.starts_with(&format!("connect 127.0.0.1:{port}: ")), "{error}");
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listener");
+        let open = format!("https://127.0.0.1:{}/dav", listener.local_addr().expect("address").port());
+        assert_eq!(dial(&open, Duration::from_secs(1)), Ok(()), "a TCP connect, no TLS handshake");
     }
 
     #[test]

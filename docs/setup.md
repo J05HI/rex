@@ -8,7 +8,7 @@ A rex server is four things: the binary, a **catalog** (its identity and two emp
 libraries, made on its first start), the **sources** that register with it, push the
 library and serve its bytes, and, if it is to appear in your Plex apps, a **claim** on a
 Plex account (a fresh one, shared with yours: step 5) and, for use outside your LAN, an
-HTTPS address. rex starts once (step 4), and nothing after that needs a restart. The steps below go through it in order.
+HTTPS address. rex starts once (step 4), with the flags the later steps need, so nothing after that needs a restart; a flag or key added later does, and so does step 7's IPv6 firewall rule added after rex started. The steps below go through it in order.
 
 ### What you need
 
@@ -18,7 +18,7 @@ HTTPS address. rex starts once (step 4), and nothing after that needs a restart.
 | 1 GB of RAM | with 4,062 movies and 656 shows (34,678 episodes) rex used under 500 MB while it started and about 730 MB while the library was browsed; converting video takes more |
 | rex nightly 2026.10.25 or newer | download it ([step 1](#1-get-it)), run the [Docker image](#docker) on Linux, or build it with Rust 1.89 or newer (rustup) |
 | One or more sources | anything that serves the files over HTTP and pushes them to rex's feed: [rex-stremio](https://github.com/debridmediamanager/rex-stremio) for Stremio addons, [zurg](https://zurg.debridmediamanager.com/) nightly 2026.10.27 or newer for a debrid account or Usenet (zurg v1.0.0 has no rex feed), or your own |
-| An HTTPS address | only for use outside your LAN: rex-direct, on by default once claimed (step 7), or a certificate for a hostname you control (a `tailscale cert`, Let's Encrypt) |
+| An HTTPS address | for use outside your LAN, and for app.plex.tv even at home: rex-direct, on by default once claimed (step 7), or a certificate for a hostname you control (a `tailscale cert`, Let's Encrypt) |
 | FFmpeg | optional, for [transcoding](#transcoding) |
 
 ### 1. Get it
@@ -80,7 +80,7 @@ one of your own. zurg, for one, does both with nothing but `rex_url` in its `con
 
 Registering and pushing take no token, so a source may name rex by address or host name.
 They answer only this machine, your home network and Tailscale, so forwarding rex's port for
-rex-direct (step 7) does not open them to the internet. A reverse proxy on rex's own machine
+rex-direct (step 7), or letting it in over IPv6, does not open them to the internet. A reverse proxy on rex's own machine
 looks local to rex, so block `/rex/` in it. A router that gives outside visitors its own
 address makes them look local too, which opens the feed to the internet.
 
@@ -144,12 +144,21 @@ restores them.
 else at home. With an HTTPS address of your own (step 7), its flags go here too: a flag or key
 added later needs a restart.
 
-Plex Media Server runs on the same machine? Add `--port 32500` and use `32500` wherever this
-guide says `32400`, the claim and step 7's port forward included (see LAN discovery below).
+Plex Media Server runs on the same machine? Add `--port 32500` and use `32500` wherever a
+command or setting says `32400`, the claim and step 7's port forward included (see LAN discovery
+below). Your apps then list two servers with the machine's name: rex is the one shared with you
+(step 5), with the fresh account's name beside it. Once rex is claimed you can rename it: signed in to Plex as
+that account, open rex's **Settings**, **General**, change **Friendly name** and save, then restart rex. The Plex
+apps list it under the new name after the restart.
 
 The first lines of the log say whether it seeded the catalog, name each source it already
 knows (`source <name>: registered, feed at /rex/feed/<name>/`, or `no source yet`) and the state
 file.
+
+rex logs to the terminal it runs in. Run as a service (step 8), its log is
+`journalctl --user -u rex -f` under systemd, `tail -f rex.log` in rex's folder under the
+LaunchAgent, `Get-Content rex.log -Wait` in rex's folder under the [Windows](#windows) task and
+`docker compose logs -f rex` in [Docker](#docker). Started by hand, it is only in that terminal.
 
 Titles, summaries, posters and episode names come from Plex's own metadata once rex is claimed
 (step 5). Which film or episode a file is comes from its source (step 6); rex reads nothing off a
@@ -233,9 +242,15 @@ directory that is to be a library of its own gets `rex_shows`/`rex_movies` under
 rex's LAN IP works from the same machine, another one and a container alike. A source registers
 with rex once it has the address (zurg once you restart it and its library has loaded), pushes
 everything it holds, then each change as it happens. Watch it arrive in rex's log
-(`SOURCES <name> registered at ...`, then `FEED <name> upsert: ...` lines) and with the
-`/rex/sources` and `/rex/feed/<name>/items` calls above. zurg registers as `zurg`, or as its
-`rex_source`.
+(`SOURCES <name> registered at <its address>` when that address is new or changed, then
+`FEED <name> upsert: ...` lines) and with the `/rex/sources` and `/rex/feed/<name>/items` calls
+above. zurg registers as `zurg`, or as its `rex_source`.
+
+rex reads every file from the address the source registers, so that address must work from the
+rex machine. A source in a container registers the container's own address, which rex reaches
+only from the same Linux host: run a source natively on Windows and macOS rather than in Docker
+Desktop, and on Linux with rex on another machine give its container host networking.
+[Troubleshooting](#troubleshooting) checks the address.
 
 **An item appears only once its source has probed it with ffprobe**, because rex lists each
 file with its streams. Items never probed are held, not shown. A source sends ffprobe's
@@ -279,7 +294,8 @@ way rex terminates TLS itself, on the same port as plain HTTP.
   no port forward. The first time, Chrome asks whether app.plex.tv may access devices on your
   local network: allow it, or app.plex.tv falls back to the public name, which needs the port
   forward. If your router forwards another outside port to rex, set
-  `REX_DIRECT_PORT=<that port>`.
+  `REX_DIRECT_PORT=<that port>`. IPv6 has no port mapping, so over IPv6 (below) the outside
+  port must be rex's own.
   `REX_DIRECT_URL=off` turns rex-direct off.
 - **Your own hostname**: `--tls-cert host.crt --tls-key host.key`. The key can be PKCS#8,
   RSA or EC (`BEGIN EC PRIVATE KEY`, which `tailscale cert` and many ACME clients write). A
@@ -288,8 +304,9 @@ way rex terminates TLS itself, on the same port as plain HTTP.
 Check rex-direct from both sides with the addresses from the `rex-direct: https://...` log lines:
 `curl -s https://lan.<name>:32400/identity` (curl refuses a bad certificate) should answer on a
 machine at home, and `https://<name>:<port>/identity` should open in a phone's browser on
-mobile data with no certificate warning. If the phone fails, the port is not forwarded, the connection is behind CGNAT
-(with IPv6, see below), or the certificate is still being issued.
+mobile data with no certificate warning. If the phone fails, the port is not forwarded (or not let in over IPv6), the connection is
+behind CGNAT without IPv6, rex is reached over IPv6 only and the phone's network has none (below),
+or the certificate is still being issued.
 
 Do not put a Cloudflare tunnel in front. Every byte would pass through your host and then
 Cloudflare. Cloudflare also drops the `Range` of a file's first read. rex then serves the
@@ -298,16 +315,23 @@ whole file and every play start pulls all of it from your source.
 No public IPv4 at home (CGNAT, DS-Lite) but IPv6: rex-direct also points its public name at
 rex's IPv6 address, once DMM has connected to rex there and found the same server (rex nightly
 2026.11.08 or newer; in Docker, host networking). IPv6 needs no port forward, but your router's
-firewall must let TCP 32400 in to the rex machine over IPv6. The log line then reads
-`rex-direct: https://<name>:32400 -> <ip> and <IPv6>`; without `and <IPv6>`, DMM could not reach
-rex over IPv6. Viewers need IPv6 too, which most mobile networks have; from a network with IPv4
-only, the name does not reach rex.
+firewall must let TCP 32400 in to the rex machine over IPv6. rex offers its IPv6 a minute after it
+starts (or is claimed) and then every 6 hours, so add the rule first, or restart rex after adding
+it. A minute or so later a log line reads `rex-direct: https://<name>:32400 -> <ip> and <IPv6>`; if none
+with `and <IPv6>` appears within a few minutes, DMM could not reach rex over IPv6. On Windows rex
+offers Windows' temporary IPv6 address, which Windows replaces about daily; turn temporary
+addresses off (`netsh interface ipv6 set privacy state=disabled` in an administrator PowerShell)
+and restart rex so it offers the stable one. The `<ip>` is your provider's shared IPv4 and does
+not reach rex: viewers need IPv6 too, which most mobile networks have, and from a network with
+IPv4 only the name does not reach rex.
 
-No public IP at home at all, or viewers without IPv6: rex has no relay and none is planned. Use `tailscale serve` for
+No public IP at home at all, or viewers on networks without IPv6: rex has no relay and none is
+planned. Use `tailscale serve` for
 devices on your tailnet, or a small VPS that holds the public IP: frp's `frps` on it (with
 `proxyBindAddr = "127.0.0.1"`) and Caddy terminating HTTPS with `respond /rex/* 403`, `frpc`
 on the rex machine forwarding rex's LAN IP and port, `--announce-url https://<the VPS's name>:443`
-and `REX_DIRECT_URL=off`. The notes guide has the files. Avoid hosted tunnels with bandwidth or data caps (Tailscale
+and `REX_DIRECT_URL=off` (the VPS then carries every stream, in place of rex-direct over IPv6; app.plex.tv at home goes
+through it too, while other Plex apps at home still connect directly). The notes guide has the files. Avoid hosted tunnels with bandwidth or data caps (Tailscale
 Funnel, ngrok): a film exhausts them, and Funnel also exposes `/rex/`.
 
 With your own hostname, add it to step 4's command with its certificate (rex adds its LAN
@@ -407,7 +431,7 @@ single-use claim token); the log still names your titles and addresses, so keep 
   `rex.db-wal` left beside a restored `rex.db` is applied on start and undoes the restore.
 - **Move rex to another machine:** stop the old one for good, unpack rex on the new one with
   the backup in its folder, and start it there: the same server, claimed and shared. Point each
-  source at the new LAN IP (zurg's `rex_url`), and move the port forward; the rex-direct name
+  source at the new LAN IP (zurg's `rex_url`), and move the port forward, or the IPv6 firewall rule before rex starts there; the rex-direct name
   stays and follows the new public IP.
 - **Which build:** rex has no version command. The nightly's date is in its download's name and
   is the binary's file date (`ls -l rex`). The Plex version apps show is the
@@ -460,6 +484,11 @@ and `curl.exe` for `curl`. Four things differ:
   It runs while you are logged in. `Stop-Process -Name rex` stops it (`Stop-ScheduledTask` would end only `run.cmd`),
   and `Stop-Process -Name rex; Start-Sleep 1; Start-ScheduledTask rex` restarts it. Stop it before unpacking a
   newer build, as Windows will not replace a running `rex.exe`.
+
+  Started rex by hand in PowerShell instead? Its log is then only in that window, with no `rex.log`,
+  and no task starts it after a reboot. rex keeps `rex.db` and its claim in the folder it starts in,
+  so a rex started from another folder is a new, unclaimed server. Stop it with Ctrl+C, then start
+  it again from rex's folder with the same flags, or better, set up the task above.
 - `claim_state.json`, `rex-direct.json` (the certificate's private key) and `rex.db`, which holds
   the sources' credentials, are protected only by the folder they sit in, so keep the rex folder inside your user profile.
 - LAN discovery cannot share its ports with a Plex Media Server on the same Windows machine.
@@ -491,7 +520,7 @@ services:
 The address you give each source (step 6) and the claim (step 5) are unchanged with host networking. A
 `command:` adds flags, such as step 7's own hostname; its certificates go in `/config` too:
 `--tls-cert /config/host.crt --tls-key /config/host.key`. Without host networking, publish
-`32400:32400`, add `command: --announce-url http://<rex's LAN IP>:32400` (inside its container
+`32400:32400` (rex-direct over IPv6, step 7, needs host networking), add `command: --announce-url http://<rex's LAN IP>:32400` (inside its container
 rex knows only the container's address), rename the server in Plex's Settings (it is named
 after the container's ID), and claim from the Docker host with `curl -X POST "http://localhost:32400/myplex/claim?token=claim-xxxxxxxxxxxx"`:
 a claim addressed to the host's LAN IP reaches rex at the container's own address, and rex
@@ -505,12 +534,18 @@ NVIDIA card needs the NVIDIA container toolkit and `gpus: all` instead; untested
 | Symptom | Cause |
 |---|---|
 | A push answers 404 `no such source: PUT /rex/sources/... first` | The source has not registered: start it again, or update it (zurg: What you need) |
-| Every part read answers 502 | No source is registered (`curl -s http://<rex's LAN IP>:32400/rex/sources`), or rex cannot reach the one that is |
+| Every play fails on every device, often as "This server is not powerful enough to convert video", and rex's log shows `upstream failed` or `502` right after Play (with an FFmpeg, `TRANSCODE ... exited` on a refused or timed-out connection) | rex cannot reach the source at the address it registered, and an FFmpeg does not fix that. `curl -s http://<rex's LAN IP>:32400/rex/sources` shows each source's `url`; run `curl -I` on it on the rex machine. Any HTTP answer, 401 included, is fine; `Failed to connect` means rex cannot reach it. A `172.` address is a container's (step 6). Newer builds say so: `SOURCES <name>: cannot reach <url> from this machine` |
+| The log shows `upstream failed: no source <name> configured` | rex has no registration from that source, or none at all: restart the source so it registers again |
+| The log shows `part ... is unavailable upstream` | The source answered 404 for that file: it does not have it now |
 | A push answers `rejected: no movie or show library holds ...`, or `no music library` or `no photo library` | No library of that item's kind is left (one was deleted in Plex), or, for music and pictures, none was made: add one with Add Library (step 3), or have the source declare one |
 | A source pushed but the library stays empty | Items are held until their source probes them (step 6) |
 | A directory a source declared (`directories`; zurg's `rex_shows`, `rex_movies`, `rex_music`, `rex_photos`) has no library | The source did not send it (`curl -s http://<rex's LAN IP>:32400/rex/sources` lists each source's `directories`), the source or rex skipped a mistyped entry (its log says why), or a library there was deleted in Plex, which keeps it deleted (the log says `stays deleted`): add it again with Add Library (step 3) |
-| A part read answers 502, or 401/403 | rex cannot reach the source's `url` (502), or the source refused its credential (its own status): the log line `PART ... upstream` says which |
-| The server is not in the Plex apps | Not claimed (step 5), or, outside your home, no HTTPS address reachable from the internet (step 7) |
+| A part read answers 401 or 403 (`PART ... upstream 401`) | The source refused its own credential: restart it so it registers the current one |
+| Only some files fail with "This server is not powerful enough to convert video", often only in a web browser | The app cannot play them as they are: install an [FFmpeg](#transcoding). rex logs `transcoder off` at start while it has none |
+| A Dolby Vision file is refused with `DoVi (Profile 5) color space is not supported` | rex has no FFmpeg, or one that is not [jellyfin-ffmpeg](#which-ffmpeg), or Settings, Transcoder, Enable HDR tone mapping is off |
+| rex exits with `cannot bind ...:32400 (another rex or Plex on this port? --port picks another)` | Another program holds the port: a Plex Media Server on this machine (give rex `--port 32500`, step 4) or another rex, such as one started by hand |
+| The server is not in the Plex apps | Not claimed (step 5), or, outside your home, no HTTPS address reachable from the internet (step 7). Over IPv6, the viewer's network needs IPv6 too |
+| No `rex-direct: ... and <IPv6>` line a few minutes after start, behind CGNAT with IPv6 | DMM could not reach rex at its IPv6 on port 32400: the router's firewall does not let 32400 in over IPv6 (rex offers its IPv6 a minute after it starts: restart it after adding the rule), rex runs in Docker without host networking, `REX_DIRECT_PORT` names another port, or Windows offered its temporary address (turn those off, step 7) |
 | A device at home cannot connect, and rex's `heartbeat ... ->` line shows no LAN address or the wrong one | rex announces the private address of the network it reaches the internet through; behind a VPN or a Tailscale exit node that is not your home network. In Docker without host networking that is the container's own network, so rex announces none and logs `no LAN address to announce` once. Add `--announce-url http://<rex's LAN IP>:32400` |
 | At home app.plex.tv does not reach rex, and `https://lan.<name>:32400/identity` does not answer | Some routers and DNS filters block a public name that points at a home address (DNS rebind protection): allow `rex-direct.debridmediamanager.com` there, as Plex users allow `plex.direct` |
 | The log says `waiting for a claim` | The server is not claimed: claim it (step 5) and it announces at once |
@@ -650,12 +685,13 @@ provider's link as `redirect` does and plays nothing else: no conversions, and n
 source that sends the file itself rather than a link (Usenet files, which zurg always sends
 itself). An app that cannot play a file as it is shows an error instead: "This server is not
 powerful enough to convert video" in Plex Web (every Real-Debrid file there), "This item can't be
-played right now" in Plex for Android when a quality below the original is picked.
+played right now" in Plex for Android when a quality below the original is picked. When every play
+fails in every app, see [Troubleshooting](#troubleshooting).
 
 ### Local owner controls
 
 These APIs need the owner's Plex token and nothing else: unlike the feed
-they are not limited to your own networks, so once rex's port is forwarded for rex-direct they
+they are not limited to your own networks, so once rex's port is forwarded for rex-direct (or let in over IPv6) they
 answer from the internet to that token too. A reverse proxy should block `/rex/` from the internet, just as for the feed.
 Use `X-Plex-Token` for authentication and `Content-Type: application/json` for JSON bodies.
 
@@ -744,7 +780,7 @@ restarts (a reboot, or the last login session ending); until then start rex unde
 | Variable | Default | |
 |---|---|---|
 | `REX_TRANSCODER` | found, as above | the FFmpeg binary, or `off` |
-| `REX_TRANSCODE_HW` | `auto` | `vaapi`, `cuda` or `none` (`auto` tries VA-API, then NVENC) |
+| `REX_TRANSCODE_HW` | `auto` | `vaapi`, `cuda`, `mediacodec` or `none` (`auto` tries VA-API, then NVENC, then Android's MediaCodec) |
 | `REX_TRANSCODE_DEVICE` | `/dev/dri/renderD128` | the VA-API device |
 | `REX_TRANSCODE_DIR` | `$TMPDIR/rex-transcode-<port>` | segments; cleared at start |
 
@@ -801,9 +837,10 @@ release.
 | Linux arm64 | the same, which on most ARM boards means the processor |
 | macOS | none: the processor always (no VideoToolbox path) |
 | Windows | NVENC (NVIDIA), else the processor (no Quick Sync or AMF path) |
+| Android arm64, x86_64 | MediaCodec, encoding only (the zurg+rex app ships an FFmpeg built for it) |
 
 
-On Linux an FFmpeg dies with rex and a restart sweeps up any left over. On macOS and
+On Linux and Android an FFmpeg dies with rex and a restart sweeps up any left over. On macOS and
 Windows a stopped rex still stops its FFmpegs, but if rex crashes they run on until their
 conversion ends.
 

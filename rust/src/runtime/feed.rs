@@ -586,7 +586,7 @@ pub(super) fn held_key(source: &str, id: &str) -> String {
 pub(super) fn source_peer(peer: std::net::IpAddr) -> bool {
     let peer = peer.to_canonical();
     peer.is_loopback()
-        || private_address(peer)
+        || local_network(peer)
         || ["100.64.0.0/10", "169.254.0.0/16", "fe80::/10"]
             .into_iter()
             .filter_map(network)
@@ -717,6 +717,14 @@ fn sources(shared: &SharedRuntime, request: &Request, name: &str) -> Response {
             }
             if !source.ignored.is_empty() {
                 public["ignored"] = json!(source.ignored);
+            }
+            // Checked on every registration, before the lock: a Docker zurg registered its
+            // container address, and every play failed with nothing naming it (2026-11-07). The
+            // registration stands, since a source may come up later.
+            let url = public["url"].as_str().unwrap_or_default().to_string();
+            if let Err(error) = super::upstream::dial(&url, std::time::Duration::from_secs(3)) {
+                warning!("SOURCES {name}: cannot reach {url} from this machine ({error}); nothing from it will play");
+                public["unreachable"] = json!(error);
             }
             let mut guard = lock(shared);
             let changed = guard.sources.iter().find(|known| known.name == name).map(|known| &known.record) != Some(&source.record);
@@ -1069,7 +1077,7 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
             // library of its own now holds while the row's other releases stay (`version_strays`).
             if let (Some((key, _)), false, true) = (&existing, retry, item.media_info.is_some()) {
                 let leaves = guard.catalog.get(key).is_some_and(|row| {
-                    (version_leaves(row, &item, &library.kind) || guard.version_strays(row, &item, &library)) && !guard.matched_by_hand(row)
+                    (version_leaves(row, &source.name, &item, &library.kind) || guard.version_strays(row, &item, &library)) && !guard.matched_by_hand(row)
                 });
                 if leaves && guard.drop_version(key, &source.name, &item.id) {
                     guard.dirty = true;
@@ -1105,11 +1113,14 @@ fn upsert(shared: &SharedRuntime, source: &Source, values: &[Value], mut seen: O
                     });
                     // Placed somewhere else than before, it is placed again, providers or none. A
                     // push with no placement leaves it where the last one put it (absent is
-                    // unknown), unless a TMDB id set by hand names it again.
-                    let replaced = item.placed.is_some() && row.is_some_and(|row| version_placed(row, 0) != item.placed.as_ref());
+                    // unknown), unless a TMDB id set by hand names it again. On a show its source
+                    // names itself that the row is not under is somewhere else too, whatever its
+                    // numbers: it moves there, and the show it leaves keeps its title.
+                    let elsewhere = row.is_some_and(|row| on_another_show(row, &source.name, &item, &library.kind));
+                    let replaced = elsewhere || item.placed.is_some() && row.is_some_and(|row| version_placed(row, 0) != item.placed.as_ref());
                     let by_hand = row.is_some_and(|row| guard.matched_by_hand(row));
                     let several = row.is_some_and(|row| versions(row).len() > 1);
-                    let refresh_title = !by_hand && row.is_some_and(|row| {
+                    let refresh_title = !by_hand && !elsewhere && row.is_some_and(|row| {
                         let title = row.get("grandparentRatingKey").map(string_value)
                             .and_then(|key| guard.catalog.get(&key)).unwrap_or(row);
                         !several && (version_release(row, 0) != Some(item.name.as_str())
@@ -3556,7 +3567,10 @@ impl Runtime {
         let named = |row: Option<&Value>| {
             row.and_then(|row| row.get("guid")).and_then(Value::as_str).is_some_and(|guid| !guid.starts_with("local://"))
         };
-        if !meta.contains_key("_identity") && !moved && (named(Some(&old)) || named(parent("grandparentRatingKey"))) {
+        // A show its source names itself is a placement, though it names nothing at Plex's agent:
+        // One Pace's episodes stayed under One Piece, which Plex named (2026-11-09).
+        let source_named = super::scan::source_named(arrival.extra.get("_ids").and_then(Value::as_object), arrival.extra.get("_placed"), &library.kind);
+        if !meta.contains_key("_identity") && !source_named && !moved && (named(Some(&old)) || named(parent("grandparentRatingKey"))) {
             return false;
         }
         let brought = Value::Object(meta.clone());
@@ -4288,6 +4302,29 @@ mod tests {
         }
     }
 
+    /// A source at home naming rex by a host name with a global IPv6 reaches it over IPv6 since
+    /// rex listens there: on the home network's /64 it is as local as 192.168.x. Only behind a
+    /// home router (a private IPv4): a VPS's /64 can be shared with other customers.
+    #[test]
+    fn a_peer_on_the_home_ipv6_network_is_at_home_and_a_vps_neighbour_is_not() {
+        let own = "2a01:4f8:c015:baa3::1".parse().ok();
+        let home = home_prefix(own, "192.168.1.20".parse().ok());
+        for (peer, at_home) in [
+            ("2a01:4f8:c015:baa3::99", true),
+            ("2a01:4f8:c015:baa3:78b4:6b3a:ca91:9d2e", true),
+            ("2a01:4f8:c015:baa4::1", false),
+            ("2a00:1450:4001::1", false),
+        ] {
+            assert_eq!(same_ipv6_network(peer.parse().unwrap(), home), at_home, "{peer}");
+        }
+        // A VPS: public IPv4, or none at all. Its /64 neighbours stay public.
+        for ipv4 in ["203.0.113.7".parse().ok(), None] {
+            let vps = home_prefix(own, ipv4);
+            assert!(!same_ipv6_network("2a01:4f8:c015:baa3::99".parse().unwrap(), vps), "{ipv4:?}");
+        }
+        assert!(!same_ipv6_network("2a01:4f8:c015:baa3::99".parse().unwrap(), home_prefix(None, "192.168.1.20".parse().ok())));
+    }
+
     /// rex-direct forwards rex's port from the internet, and the source API takes no token:
     /// a public peer gets the same authentication/unknown-route answer as any PMS path.
     /// Headers naming a local client cannot expose the source API.
@@ -4626,7 +4663,7 @@ fn probe_kept(row: &Value, source: &str, item: &Item, probe: &str, library: &str
             && own.map_or_else(|| row.pointer(&format!("/Media/{index}/_probe")), |part| part.get("_probe")).and_then(Value::as_str) == Some(probe)
     });
     let titled = matches!(row.get("type").and_then(Value::as_str), Some("episode" | "movie"));
-    (same, item.extra.is_some() && titled || version_leaves(row, item, library) || part_leaves(row, source, item))
+    (same, item.extra.is_some() && titled || version_leaves(row, source, item, library) || part_leaves(row, source, item))
 }
 
 /// Whether `item`, a version of `row` holding several, leaves it to be placed on its own: its
@@ -4644,16 +4681,33 @@ fn probe_kept(row: &Value, source: &str, item: &Item, probe: &str, library: &str
 /// it is the source's placement that moves it (numbers are an episode's): a push with no `kind`
 /// keeps what the row is, whichever library its file's folder picks. A row of one version is
 /// identified again on its key instead (`upsert`'s `reidentify`).
-fn version_leaves(row: &Value, item: &Item, library: &str) -> bool {
+fn version_leaves(row: &Value, source: &str, item: &Item, library: &str) -> bool {
     let here = row.get("parentIndex").and_then(Value::as_i64).zip(row.get("index").and_then(Value::as_i64));
     let numbers = super::scan::placed_numbers(item.placed.as_ref());
     let elsewhere = match (row.get("type").and_then(Value::as_str), library) {
         (Some("movie"), "show") => numbers.is_some(),
         (Some("episode"), "movie") => item.kind() == Some("movie"),
-        (Some("episode"), _) => numbers.is_some_and(|numbers| here != Some(numbers)),
+        (Some("episode"), _) => numbers.is_some_and(|numbers| here != Some(numbers)) || on_another_show(row, source, item, library),
         _ => false,
     };
     elsewhere && versions(row).len() > 1
+}
+
+/// Whether `item` places its file on a show its source names itself (`scan::source_named`) that
+/// `row`, an episode, is not under. zurg placed One Pace's files by One Piece's ids until DMM numbered
+/// One Pace as its own show, then pushed them again with `kind: episode`, no ids and one `release`
+/// (2026-11-09): the rows stayed under One Piece, or the show they sat in was retitled "One Pace"
+/// beside the one made for the rest. A show of another name its release already sat in, under the
+/// same `release`, is the same show renamed (`refresh_source_title`, as a channel renamed is).
+fn on_another_show(row: &Value, source: &str, item: &Item, library: &str) -> bool {
+    if row.get("type").and_then(Value::as_str) != Some("episode") || !super::scan::source_named(Some(&item.ids), item.placed.as_ref(), library) {
+        return false;
+    }
+    let show = format!("title:{}", crate::hierarchy::fold_title(&item.name).to_lowercase());
+    let identity = row.get("_identity").and_then(Value::as_str).unwrap_or_default();
+    let index = item_at(row, source, &item.id).map_or(0, |(index, _)| index);
+    let renamed = identity.starts_with("title:") && version_group(row, index).as_deref() == Some(item.release.as_str());
+    identity != show && !renamed
 }
 
 /// Whether `item`, a Part of a Media of several on `row`, leaves it to be placed on its own: its

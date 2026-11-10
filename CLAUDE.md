@@ -581,6 +581,8 @@ python3 tests/test_plextv.py                # claim, announce, account import an
 python3 tests/test_session_reaper.py        # Now Playing's 180 s + 30 s-tick reaper; ~3.5 min of wall clock
 python3 tests/test_paused_limit.py          # MinutesAllowedPaused ends a paused session through its timeline; ~70 s
 python3 tests/test_webhooks.py              # a claimed server posts the owner's plex.tv webhooks: play, pause, resume, scrobble, stop
+python3 tests/test_closed_output.py         # SIGTERM still stops rex when nothing reads its log any more (Android's
+                                            # Process.destroy() closes the pipe as it signals)
 python3 tests/test_cli.py                   # main()'s argparse: --help anywhere, refusals, --flag=value, prefixes, --web-root
                                             # default, a missing catalog seeded on start
 python3 tests/test_server_log.py            # every route's log line and level, Download Logs, filters=log, SSE/websocket channels
@@ -685,6 +687,8 @@ python3 tests/test_feed_episode_ids.py      # a pushed `tmdb_episode` is Plex's 
 python3 tests/test_feed_kind_change.py      # a version placed in a library of the other kind leaves its row of several, pushed whole or by
                                             # its digest (asked for whole); a person's match, unnumbered episodes and a rex with no show library
                                             # keep the row (a Discord user's Primal S03, two releases once a film)
+python3 tests/test_feed_source_named_move.py # a file placed by ids moves, on its key, to a show its source names itself (`kind: episode`, no
+                                            # ids): the show it leaves keeps its title and goes once empty; a person's state and match kept (One Pace)
 python3 tests/test_feed_retry_placed.py     # an episode its source placed that Plex's agent had not named is named by the ten-minute retry, without a push (Animaniacs), one of several releases placed alike too (Re:ZERO S1E79)
 python3 tests/test_feed_named_on_claim.py   # what a source placed before rex could ask Plex's agent is named the moment it is claimed, and once
                                             # the agent is back on the next push, its show included (a sponsor's 7,035 releases)

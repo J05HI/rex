@@ -54,10 +54,12 @@ pub(super) const UNTYPED_MARK: &str = "X-Rex-Untyped";
 
 /// `Range` -> (status, Content-Range, first, last) over a body of `total` bytes, or
 /// None when the header is not a Range (cycles 16, 35, 44).
+/// In u64, not usize: a part is a file of any size, and on a 32-bit build usize wrapped a
+/// 10 GiB part's size to 2 GiB, refusing every read past it with a 416.
 pub(super) fn range_window(
-    total: usize,
+    total: u64,
     header: Option<&str>,
-) -> Option<(u16, Option<String>, usize, usize)> {
+) -> Option<(u16, Option<String>, u64, u64)> {
     let header = header?;
     let (_, spec) = header.split_once('=')?;
     if spec.is_empty() || spec == "-" {
@@ -105,7 +107,7 @@ pub(super) fn range_window(
         if length >= total_i {
             return Some(whole);
         }
-        let first = (total_i - length) as usize;
+        let first = (total_i - length) as u64;
         return Some((
             206,
             Some(format!("bytes {first}-{}/{total}", total - 1)),
@@ -137,8 +139,8 @@ pub(super) fn range_window(
     Some((
         206,
         Some(format!("bytes {first}-{last}/{total}")),
-        first as usize,
-        last as usize,
+        first as u64,
+        last as u64,
     ))
 }
 
@@ -658,12 +660,12 @@ pub(super) fn envelope(
     let framework_head = wire.method == "HEAD"
         && extra.iter().any(|(name, _)| name.eq_ignore_ascii_case("set-cookie"));
     if status == 200 && !body.is_empty() && !part && !already_ranged && !framework_head {
-        if let Some((code, range, first, last)) = range_window(body.len(), wire.range.as_deref()) {
+        if let Some((code, range, first, last)) = range_window(body.len() as u64, wire.range.as_deref()) {
             if code == 416 {
                 status = 416;
             } else {
                 body = body
-                    .get(first..=last.min(body.len().saturating_sub(1)))
+                    .get(first as usize..=(last as usize).min(body.len().saturating_sub(1)))
                     .map(<[u8]>::to_vec)
                     .unwrap_or_default();
                 status = code;

@@ -156,13 +156,12 @@ pub(crate) fn log(level: Level, message: &str) {
     let seconds = now.as_secs() as i64;
     let millis = now.subsec_millis();
     let tm = local(seconds);
-    eprintln!(
-        "{:02}:{:02}:{:02} {:<7} {}",
-        tm.tm_hour,
-        tm.tm_min,
-        tm.tm_sec,
-        level.name(),
-        message
+    // Not `eprintln!`, which panics when stderr is gone: Android's `Process.destroy()` closes
+    // the log pipe as it sends SIGTERM, and the panic killed the thread saving and stopping rex,
+    // which then never exited (zurg+rex on a Pixel 6, 2026-11-09).
+    let _ = std::io::Write::write_fmt(
+        &mut std::io::stderr(),
+        format_args!("{:02}:{:02}:{:02} {:<7} {}\n", tm.tm_hour, tm.tm_min, tm.tm_sec, level.name(), message),
     );
     if !CAPTURING.load(Ordering::SeqCst) {
         return;

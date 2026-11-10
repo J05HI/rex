@@ -41,15 +41,20 @@ Any source on your own networks. The feed and the sources API read no token and 
 behind the Plex gate, claimed or not, with or without `--token`, so a source may name rex by
 address or host name (`http://rex:32400` from a container, a Tailscale name). They answer
 only a peer whose address is this machine (127.0.0.0/8, `::1`), a home network (10/8,
-172.16/12, 192.168/16, IPv6 fc00::/7), Tailscale (100.64/10) or link-local (169.254/16,
+172.16/12, 192.168/16, IPv6 fc00::/7, and the home network's IPv6 /64, below), Tailscale
+(100.64/10) or link-local (169.254/16,
 fe80::/10), an IPv4-mapped IPv6 address of those included. To any other peer the source
 API does not exist: the request takes the ordinary PMS authentication and unknown-route
 path, with the same status, headers and body as an unrelated missing PMS path. No token,
-including an owner's valid Plex token, opens the source API to a public peer.
+including an owner's valid Plex token, opens the source API to a public peer. rex also listens
+on IPv6, so a source naming rex by a host name with a global IPv6 reaches it from its own global
+IPv6. That counts as home when it is in rex's own /64 and rex reaches the internet from a private
+IPv4, as behind a home router. On a VPS (a public IPv4) it does not: some providers give
+customers addresses from a shared /64, so there name rex by an address on a private network.
 
 rex reads the connection's own peer address, never `X-Forwarded-For` or `Host`, so a header
 cannot open it. A reverse proxy on the same machine therefore reaches it as a local peer:
-block `/rex/` there. Forwarding rex's port for rex-direct ([setup step 7](setup.md#7-reach-it-from-outside-https-and-the-announce)) puts Plex's API on the
+block `/rex/` there. Forwarding rex's port for rex-direct, or letting it in over IPv6 ([setup step 7](setup.md#7-reach-it-from-outside-https-and-the-announce)), puts Plex's API on the
 internet, which needs a token once rex is claimed, but not the feed.
 
 ## Registering a source
@@ -63,7 +68,7 @@ internet, which needs a token once rex is claimed, but not the feed.
 
 | Field | Meaning |
 |---|---|
-| `url` | Required, `http` or `https`. A part's bytes are `GET <url>/<path>` with the client's `Range` forwarded; each path segment is percent-encoded. No `user:password@` in it: the url is answered back, so credentials go in their own fields |
+| `url` | Required, `http` or `https`. A part's bytes are `GET <url>/<path>` with the client's `Range` forwarded; each path segment is percent-encoded. rex fetches from this address itself, so it must be reachable from rex's machine: a source in a container or behind NAT gives an address rex can reach, not its own interface's. No `user:password@` in it: the url is answered back, so credentials go in their own fields |
 | `user`, `password` | Basic auth for `url` (optional) |
 | `bearer` | `Authorization: Bearer` for `url` instead (optional) |
 | `mount` | Optional, a label: the folder Plex apps show its files under in Get Info (`<mount>/<path>`, default `/<path>`) and its libraries under (default rex's own, `/mnt/rex`). Playback of what a source pushes never uses it |
@@ -79,6 +84,9 @@ starts a push session; zurg does. Answers `200` with the source as `GET` shows i
 that is not a JSON object; a refused registration changes nothing. The answer's `features`
 lists what this rex takes beyond the items below, so a source can tell before it relies on one:
 `probe_digest` ([Probe digests](#probe-digests)). A rex without `features` takes none.
+Each registration also opens one TCP connection to the url's host and port (3 s, no request
+sent); when that fails the `200` carries `unreachable`, the connection error naming the address
+tried, and rex logs `cannot reach` with it, but the source is registered all the same.
 
 A malformed `directories` entry never refuses the source: one typo in a config would stop its
 whole feed. The entry is left out, the rest register, and the `200` answers each one left out
@@ -353,7 +361,9 @@ What the fields do:
   elsewhere moves it there on the same ratingKey, watch state kept; a version of a row holding
   several releases leaves that row and is placed on its own, whether placed on other numbers or in
   a library of the other kind (a film's file as a numbered episode, or the reverse), on a new
-  ratingKey with no watch state unless it folds onto a row that has one. A push without a placement
+  ratingKey with no watch state unless it folds onto a row that has one. An episode placed on a show
+  its source names itself ([Display](#display)) that it is not under is placed elsewhere too, whatever
+  its numbers. A push without a placement
   leaves it where the last one put it. A push with `kind: "unplaced"` takes the placement back:
   the file leaves the title it was placed as (its version, where the row holds several releases;
   else the row) and is shown unmatched, as a first push of it would be. zurg sends it when DMM
@@ -382,7 +392,9 @@ What the fields do:
   the correction on the existing show, season and episode keys. No title is identified by
   that name. A metadata-derived title is never handed back to the source, even when it
   equals the previous source name. A person's locked title, persisted title edit (including
-  an unlocked edit), or Fix Match wins.
+  an unlocked edit), or Fix Match wins. Only the same `release` renames: an episode its source
+  places on a show it names itself under another `release`, or one a show's ids named before,
+  moves to the show of its new name instead ([Display](#display)).
 - **Late ids.** A push whose placement or hand-set TMDB id names what the row was not identified
   as re-identifies it on the same ratingKey, keeping its watch state (an episode moves to the
   show its new identity names, on the numbers it was placed on, else the ones it had). So does
@@ -595,6 +607,14 @@ rejects the item, naming the field.
   show is titled when it is made (the show's title on a later push changes nothing).
 - **Placement is separate.** `display` names nothing and numbers nothing: an episode is placed
   by `kind`, `season` and `episode`, and unplaced ones are numbered in file order as before.
+- **A show the source names itself.** An episode pushed with `kind: "episode"`, its `season` and
+  `episode` and no ids is on the show titled with its `name`, one show for every file of that name
+  (rex-youtube sends a channel so; zurg sends One Pace, a fan re-edit of One Piece, so since
+  2026-11-09, `release` `onepace`). A file shown under another show -- one its ids named, as zurg
+  placed One Pace's files under One Piece before, or one of another name and `release` -- moves to
+  it on its ratingKey, with its watch state and every field a person locked, as any placement moves
+  a row; the show it leaves keeps its title and identification, and goes with its season once it
+  holds nothing, as a real PMS's goes once its last episode is deleted. A person's Fix Match keeps the row where they matched it.
 
 ## Subtitles
 

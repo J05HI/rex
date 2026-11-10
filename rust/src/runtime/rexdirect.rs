@@ -225,7 +225,7 @@ fn announced_lan_ipv4(announce: Option<&str>) -> Option<std::net::Ipv4Addr> {
 
 /// The global IPv6 (2000::/3) this machine reaches the internet from: the source address of a
 /// route to a public IPv6. Connecting a UDP socket sends nothing.
-fn public_ipv6() -> Option<std::net::Ipv6Addr> {
+pub(super) fn public_ipv6() -> Option<std::net::Ipv6Addr> {
     let socket = std::net::UdpSocket::bind("[::]:0").ok()?;
     prefer_stable_source(&socket);
     socket.connect("[2001:4860:4860::8888]:53").ok()?;
