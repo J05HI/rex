@@ -28474,7 +28474,7 @@ enum RangeResult {
 /// the oracle's `_range_window`). A grammar of its own here read `bytes=+5-9` as the whole
 /// file and `bytes=--5` as a range, where containers answered both as measured.
 fn parse_range(header: Option<&str>, size: u64) -> RangeResult {
-    let Some((status, content_range, first, last)) = wire::range_window(size as usize, header) else {
+    let Some((status, content_range, first, last)) = wire::range_window(size, header) else {
         return RangeResult::Whole;
     };
     if status == 416 {
@@ -28488,8 +28488,8 @@ fn parse_range(header: Option<&str>, size: u64) -> RangeResult {
         .and_then(|text| text.split_once('/'))
         .and_then(|(span, _)| span.split_once('-'))
         .and_then(|(start, end)| Some((start.parse::<u64>().ok()?, end.parse::<u64>().ok()?)));
-    let (advertised_start, advertised_end) = advertised.unwrap_or((first as u64, last as u64));
-    RangeResult::Partial(RangeWindow { start: first as u64, end: last as u64, advertised_start, advertised_end })
+    let (advertised_start, advertised_end) = advertised.unwrap_or((first, last));
+    RangeResult::Partial(RangeWindow { start: first, end: last, advertised_start, advertised_end })
 }
 fn part_content_type(part: &Value) -> String {
     let file = part.get("file").and_then(Value::as_str).unwrap_or("");
@@ -29946,6 +29946,33 @@ mod allowed_network_tests {
         assert!(member("8.8.8.8", "0.0.0.0/0"));
         assert!(network("not-an-address").is_none());
         assert!(network("10.0.0.0/33").is_none());
+    }
+}
+
+#[cfg(test)]
+mod part_range_tests {
+    use super::*;
+
+    /// A remux is often past 4 GiB. On a 32-bit build (armeabi-v7a, the Fire TV Stick 4K Max,
+    /// 2026-11-10) the size went through usize, wrapped to 2 GiB, and a seek to 5 GB was a 416.
+    #[test]
+    fn a_part_past_4_gib_ranges_by_its_real_size() {
+        let size = 10 * 1024 * 1024 * 1024_u64;
+        match parse_range(Some("bytes=5000000000-"), size) {
+            RangeResult::Partial(window) => {
+                assert_eq!((window.start, window.end), (5_000_000_000, size - 1));
+                assert_eq!((window.advertised_start, window.advertised_end), (5_000_000_000, size - 1));
+            }
+            other => panic!("expected a partial read, got {other:?}"),
+        }
+        match parse_range(Some("bytes=-1000"), size) {
+            RangeResult::Partial(window) => assert_eq!((window.start, window.end), (size - 1000, size - 1)),
+            other => panic!("expected the last 1000 bytes, got {other:?}"),
+        }
+        assert_eq!(
+            wire::range_window(size, Some("bytes=0-")).and_then(|(_, range, _, _)| range).as_deref(),
+            Some("bytes 0-10737418239/10737418240")
+        );
     }
 }
 

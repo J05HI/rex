@@ -3133,15 +3133,15 @@ pub(crate) fn finish_segment(plan: SegmentPlan, response: &mut Response, request
     } else {
         plan.transcoder.segment(&plan.session, plan.index, plan.rep).and_then(|(init, file)| {
             let total = file.metadata().map_err(|_| 500u16)?.len() + init.len() as u64;
-            let (status, range, first, last) = super::wire::range_window(total as usize, request.headers.get("range").map(String::as_str))
-                .unwrap_or((200, None, 0, total.saturating_sub(1) as usize));
+            let (status, range, first, last) = super::wire::range_window(total, request.headers.get("range").map(String::as_str))
+                .unwrap_or((200, None, 0, total.saturating_sub(1)));
             if status == 416 {
                 *response = Response::error(416, "rex: range not satisfiable");
             } else {
                 response.status = status;
             }
             if let Some(range) = range { response.headers.push(("Content-Range".into(), range)); }
-            Ok((status != 416).then_some(SegmentRead { init, file, first: first as u64, length: last.saturating_sub(first) as u64 + u64::from(total > 0) }))
+            Ok((status != 416).then_some(SegmentRead { init, file, first, length: last.saturating_sub(first) + u64::from(total > 0) }))
         })
     };
     match result {
