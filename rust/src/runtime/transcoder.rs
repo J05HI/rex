@@ -357,7 +357,7 @@ impl PhotoFit {
     /// about to fetch (the agent's art, its name changing with the picture), or else the bytes it
     /// already read. Neither carries the viewer, so every viewer shares one kept picture, and a
     /// poster pick behind the same request url is a new picture. `dir` is where the disk cache would live.
-    pub(super) fn new(query: &HashMap<String, String>, picture: &[u8], ffmpeg: std::path::PathBuf, dir: std::path::PathBuf) -> Option<Self> {
+    pub(super) fn new(query: &HashMap<String, String>, picture: &[u8], content_type: &str, ffmpeg: std::path::PathBuf, dir: std::path::PathBuf) -> Option<Self> {
         let dimension = |name: &str| query.get(name).and_then(|value| value.trim().parse::<i64>().ok()).map(|value| value.clamp(1, 2000));
         let (width, height) = (dimension("width")?, dimension("height")?);
         let flag = |name: &str| query.get(name).is_some_and(|value| photo_bool(value) && value.trim_start_matches(['+', '0']) == "1");
@@ -369,7 +369,8 @@ impl PhotoFit {
         };
         let mut digest = Sha1::new();
         digest.update(picture);
-        digest.update(format!(" {width}x{height} {cover} {upscale} {format:?}").as_bytes());
+        // The type the route labelled it: with no `format=` it decides the answer's (PNG stays PNG).
+        digest.update(format!(" {width}x{height} {cover} {upscale} {format:?} {content_type}").as_bytes());
         let key = digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         let enabled = artwork_cache_budget().is_some();
         Some(Self { key, width, height, cover, upscale, format, ffmpeg, dir: enabled.then(|| dir.join("artwork-cache")) })
@@ -513,13 +514,15 @@ mod image_cache_tests {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect::<HashMap<_, _>>();
-        let mut fit = PhotoFit::new(&query, b"https://metadata-static.plex.tv/a.jpg", "ffmpeg".into(), dir.clone()).unwrap();
+        let mut fit = PhotoFit::new(&query, b"https://metadata-static.plex.tv/a.jpg", "image/jpeg", "ffmpeg".into(), dir.clone()).unwrap();
         fit.dir = Some(dir.clone());
         // The key is the picture the route resolved, so a poster pick behind the same request url
         // (which every viewer asks with their own token) is a new key, and one picture is one key.
-        let key_of = |picture: &[u8]| PhotoFit::new(&query, picture, "ffmpeg".into(), dir.clone()).unwrap().key;
+        let key_of = |picture: &[u8]| PhotoFit::new(&query, picture, "image/jpeg", "ffmpeg".into(), dir.clone()).unwrap().key;
         assert_eq!(key_of(b"https://metadata-static.plex.tv/a.jpg"), fit.key);
         assert_ne!(key_of(b"https://metadata-static.plex.tv/b.jpg"), fit.key);
+        // Nor do the same bytes under another type, which decides the answer's own.
+        assert_ne!(PhotoFit::new(&query, b"https://metadata-static.plex.tv/a.jpg", "image/png", "ffmpeg".into(), dir.clone()).unwrap().key, fit.key);
         // A source's own artwork never answers a public request for the same url.
         assert_ne!(key_of(&remote_picture("https://source/a.jpg", true)), key_of(&remote_picture("https://source/a.jpg", false)));
         let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().remove(&fit.key);
@@ -567,7 +570,7 @@ mod image_cache_tests {
         let fit = |pairs: &[(&str, &str)]| {
             let mut query = pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>();
             query.insert("url".to_string(), "/library/metadata/1/thumb/1".to_string());
-            let fit = PhotoFit::new(&query, &poster, ffmpeg.clone(), std::env::temp_dir()).unwrap();
+            let fit = PhotoFit::new(&query, &poster, "image/jpeg", ffmpeg.clone(), std::env::temp_dir()).unwrap();
             let mut response = Response::bytes(200, "image/jpeg");
             response.body = poster.clone();
             fit.apply(&mut response);
@@ -597,7 +600,7 @@ mod image_cache_tests {
         let query = [("width", "240"), ("height", "360"), ("minSize", "1"), ("url", "/library/metadata/2/thumb/2")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>();
         let mut response = Response::bytes(200, "image/jpeg");
         response.body = compact.clone();
-        PhotoFit::new(&query, &compact, ffmpeg.clone(), std::env::temp_dir()).unwrap().apply(&mut response);
+        PhotoFit::new(&query, &compact, "image/jpeg", ffmpeg.clone(), std::env::temp_dir()).unwrap().apply(&mut response);
         assert_eq!(super::super::blur::decode(&response.body).unwrap().0, 240);
         // `format=png` is answered as PNG, as a real PMS answers it.
         let png = fit(&[("width", "100"), ("height", "150"), ("format", "png")]);

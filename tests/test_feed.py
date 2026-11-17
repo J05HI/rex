@@ -98,6 +98,8 @@ class Bytes:
 
     def __init__(self):
         self.files = set()
+        # A file served as another type than a video's, by path (a source's own artwork).
+        self.types = {}
         self.seen = []
         self.auth = "Bearer " + BYTES_TOKEN
 
@@ -110,7 +112,7 @@ class Bytes:
 
             def reply(self, status, body=b"", extra=()):
                 self.send_response(status)
-                self.send_header("Content-Type", "video/x-matroska")
+                self.send_header("Content-Type", source.types.get(urllib.parse.unquote(self.path), "video/x-matroska"))
                 self.send_header("Content-Length", str(len(body)))
                 for name, value in extra:
                     self.send_header(name, value)

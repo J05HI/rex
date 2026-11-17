@@ -17,6 +17,7 @@ import tempfile
 import urllib.parse
 
 import test_feed_probe_changed
+from server_command import test_ffmpeg
 from test_feed import BODY, MOUNT, Bytes, Server, catalog, check, results, serve
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +44,9 @@ def main():
     bytes_port = serve(source.handler())
     work = tempfile.mkdtemp(prefix="rex-display-")
     catalog(work)
-    server = Server(work, bytes_port)
+    # An FFmpeg turns on the photo transcoder's fitted cache, which a source's picture must not leak from.
+    ffmpeg = test_ffmpeg()
+    server = Server(work, bytes_port, keys={"REX_TRANSCODER": ffmpeg} if ffmpeg else None)
     first, second = FIXTURE["items"]
     try:
         status, body = server.feed("POST", "items", {"items": [pushed(first), pushed(second)]})
@@ -140,6 +143,7 @@ def main():
         home = json.loads(json.dumps(HOME).replace("{SOURCE}", base).replace("{MOUNT}", MOUNT))
         thumb = "/dav/_thumbs/img-0412-b921b2.jpg"
         source.files.update([thumb, "/dav/_thumbs/birthday-1ce30e.jpg"])
+        source.types.update({thumb: "image/jpeg"})
         status, body = server.feed("POST", "items", {"items": [home]})
         check("a home video dressed by its source's own pictures is taken",
               status == 200 and (body or {}).get("created") == 1, (status, body))
@@ -152,8 +156,11 @@ def main():
         asked = [seen for seen in source.seen if seen[1] == thumb]
         check("fetched from the source with the source's login",
               bool(asked) and all(seen[2] == source.auth for seen in asked), asked)
+        # Fitted through the row first, so the fitted cache holds the source's picture for this box.
+        status, picture = server.request("/photo/:/transcode?width=320&height=180&url=" + urllib.parse.quote(episode["thumb"], safe=""))
+        check("its still, fitted, is the source's picture", status == 200 and picture == BODY, (status, len(picture or b"")))
         # The same url named by a client is the photo transcoder's, public only: never the source's,
-        # even with its picture already fetched.
+        # even with its picture already fetched and fitted for the same box.
         status, picture = server.request("/photo/:/transcode?width=320&height=180&url=" + urllib.parse.quote(base + "/_thumbs/img-0412-b921b2.jpg", safe=""))
         check("a client naming the source's picture url is not served it", picture != BODY, (status, len(picture or b"")))
         status, picture = server.request("/photo/:/transcode?url=" + urllib.parse.quote("source://zurg/_thumbs/img-0412-b921b2.jpg", safe=""))

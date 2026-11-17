@@ -24630,7 +24630,7 @@ fn handle_connection<S: Read + Write + PollRead>(
                 let remote = image.as_ref().map(|(url, from_source)| transcoder::remote_picture(url, from_source.is_some()));
                 let picture = remote.as_deref().unwrap_or(&response.body);
                 guard.transcoder.as_ref().and_then(|transcoder| {
-                    transcoder::PhotoFit::new(&query, picture, transcoder.ffmpeg().to_path_buf(), plextv::claim_path(&guard.catalog_path).with_file_name(""))
+                    transcoder::PhotoFit::new(&query, picture, &response.content_type, transcoder.ffmpeg().to_path_buf(), plextv::claim_path(&guard.catalog_path).with_file_name(""))
                 })
             } else {
                 None
