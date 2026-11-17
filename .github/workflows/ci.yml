@@ -219,6 +219,7 @@ jobs:
             export REX_TEST_FFMPEG="$d/ffmpeg" REX_THUMBNAIL_TEST_FFMPEG="$d/ffmpeg" REX_TEST_FONT=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
             cargo test --release --locked --manifest-path rust/Cargo.toml runtime::markers::tests -- --ignored
             cargo test --release --locked --manifest-path rust/Cargo.toml thumbnails::tests::ffmpeg_images_and_roku_index -- --ignored
+            cargo test --release --locked --manifest-path rust/Cargo.toml transcoder::image_cache_tests::fits_a_poster_to_the_box -- --ignored
             cargo test --release --locked --manifest-path rust/Cargo.toml runtime::analysis::tests::generated_jpeg_restore_checks_hash_containment_corruption_and_removal -- --ignored
             cargo test --release --locked --manifest-path rust/Cargo.toml converted_download_is_atomic_at_the_requested_destination -- --ignored
             cargo test --release --locked --manifest-path rust/Cargo.toml platform::tests::real_process_resource_smoke -- --ignored

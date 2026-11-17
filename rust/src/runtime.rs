@@ -24625,6 +24625,13 @@ fn handle_connection<S: Read + Write + PollRead>(
                 }
             });
             let ultrablur = guard.pending_ultrablur.take();
+            let photo_fit = if request_path == "/photo/:/transcode" && response.status == 200 {
+                guard.transcoder.as_ref().and_then(|transcoder| {
+                    transcoder::PhotoFit::new(&query, transcoder.ffmpeg().to_path_buf(), plextv::claim_path(&guard.catalog_path).with_file_name(""))
+                })
+            } else {
+                None
+            };
             let claim = guard.pending_claim.take();
             let artifact = guard.pending_artifact.take().map(|(artifact, seek, kind)| (Arc::clone(&guard.analysis_jobs), artifact, seek, kind));
             if std::mem::take(&mut guard.pending_auto_collections) {
@@ -24685,6 +24692,14 @@ fn handle_connection<S: Read + Write + PollRead>(
             if let Some(plan) = PROJECTION_PLAN.with(|plan| plan.borrow_mut().take()) {
                 project_planned(&runtime, &request, &mut response, plan);
             }
+            // A kept answer for the same picture and box is the whole answer: nothing is fetched.
+            let fitted = photo_fit.as_ref().and_then(transcoder::PhotoFit::cached);
+            let served_kept = fitted.is_some();
+            let image = if served_kept { None } else { image };
+            if let Some((body, content_type)) = fitted {
+                response.body = body;
+                response.content_type = content_type;
+            }
             let mut response = match (image, claim) {
                 (_, Some(token)) => plextv::finish_claim(&runtime, &token, &request.target),
                 (Some((url, from_source)), _) if response.status == 200 && response.body.is_empty() && response.doc.is_none() => {
@@ -24692,6 +24707,9 @@ fn handle_connection<S: Read + Write + PollRead>(
                 }
                 _ => response,
             };
+            if let Some(fit) = photo_fit.filter(|_| !served_kept) {
+                fit.apply(&mut response);
+            }
             if let Some(fallback) = ultrablur {
                 response = blur::colors_response(response, fallback);
             }

@@ -307,13 +307,179 @@ pub(super) fn fetch_remote_image(url: &str, from_source: Option<&[(&'static str,
 const IMAGE_CACHE_BYTES: usize = 64 << 20;
 
 fn remember_image(map: &mut HashMap<String, (Vec<u8>, String)>, url: &str, hit: (Vec<u8>, String)) {
+    remember_within(map, url, hit, 512, IMAGE_CACHE_BYTES);
+}
+
+fn remember_within(map: &mut HashMap<String, (Vec<u8>, String)>, key: &str, hit: (Vec<u8>, String), entries: usize, bytes: usize) {
     let held: usize = map.values().map(|(body, _)| body.len()).sum();
-    if map.len() > 512 || held + hit.0.len() > IMAGE_CACHE_BYTES {
+    if map.len() > entries || held + hit.0.len() > bytes {
         map.clear();
     }
-    if hit.0.len() <= IMAGE_CACHE_BYTES {
-        map.insert(url.to_string(), hit);
+    if hit.0.len() <= bytes {
+        map.insert(key.to_string(), hit);
     }
+}
+
+/// A fitted poster is tens of kilobytes, so the same budget holds thousands of them.
+const FITTED_CACHE_ENTRIES: usize = 8192;
+
+static FITTED: OnceLock<Mutex<HashMap<String, (Vec<u8>, String)>>> = OnceLock::new();
+
+/// The disk cache's file name carries the answer's type, so a kept picture reads back as it was served.
+const DISK_TYPES: [(&str, &str); 4] = [("image/jpeg", "jpg"), ("image/png", "png"), ("image/webp", "webp"), ("image/gif", "gif")];
+
+/// `/photo/:/transcode`'s answer scaled to the `width`x`height` the client asked for, as a real
+/// PMS scales it: `minSize=1` covers the box, otherwise the picture fits inside it, and nothing
+/// grows unless `upscale=1`; `format=png` or `format=jpeg` names the answer's type, as a real
+/// PMS honours it (PNG otherwise stays PNG for its alpha, anything else is JPEG). Plex's agent
+/// artwork is the original (a poster 1920x2880, ~800 KB) where a grid asks for 240x360, so
+/// unscaled a page of posters is tens of megabytes. The answer is kept by the picture's url and
+/// the box, in memory and, under `REX_ARTWORK_CACHE_MB`, on disk, so a hit fetches nothing.
+pub(super) struct PhotoFit {
+    key: String,
+    width: i64,
+    height: i64,
+    cover: bool,
+    upscale: bool,
+    format: Option<&'static str>,
+    ffmpeg: std::path::PathBuf,
+    dir: Option<std::path::PathBuf>,
+}
+
+impl PhotoFit {
+    /// `None` without both dimensions or a `url`; `dir` is where the disk cache would live.
+    pub(super) fn new(query: &HashMap<String, String>, ffmpeg: std::path::PathBuf, dir: std::path::PathBuf) -> Option<Self> {
+        let dimension = |name: &str| query.get(name).and_then(|value| value.trim().parse::<i64>().ok()).map(|value| value.clamp(1, 2000));
+        let (width, height) = (dimension("width")?, dimension("height")?);
+        let flag = |name: &str| query.get(name).is_some_and(|value| photo_bool(value) && value.trim_start_matches(['+', '0']) == "1");
+        let (cover, upscale) = (flag("minSize"), flag("upscale"));
+        let format = match query.get("format").map(|value| value.to_ascii_lowercase()).as_deref() {
+            Some("png") => Some("image/png"),
+            Some("jpeg" | "jpg") => Some("image/jpeg"),
+            _ => None,
+        };
+        // The picture is named by its url, whose artwork paths are versioned; the token is not part of it.
+        let url = logging::redact_tokens(&percent_decode(query.get("url")?));
+        let digest = Sha1::digest(format!("{url} {width}x{height} {cover} {upscale} {format:?}").as_bytes());
+        let key = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        let enabled = artwork_cache_budget().is_some();
+        Some(Self { key, width, height, cover, upscale, format, ffmpeg, dir: enabled.then(|| dir.join("artwork-cache")) })
+    }
+
+    /// A kept answer, from memory or disk.
+    pub(super) fn cached(&self) -> Option<(Vec<u8>, String)> {
+        let memory = FITTED.get_or_init(Default::default);
+        if let Some(hit) = memory.lock().ok().and_then(|map| map.get(&self.key).cloned()) {
+            return Some(hit);
+        }
+        let dir = self.dir.as_ref()?;
+        let (path, content_type) = DISK_TYPES
+            .into_iter()
+            .map(|(content_type, ext)| (dir.join(format!("{}.{ext}", self.key)), content_type))
+            .find(|(path, _)| path.is_file())?;
+        let body = std::fs::read(&path).ok()?;
+        // Read is use: the oldest-read file is the first pruned.
+        let _ = std::fs::File::options().write(true).open(&path).and_then(|file| file.set_modified(std::time::SystemTime::now()));
+        let hit = (body, content_type.to_string());
+        if let Ok(mut map) = memory.lock() {
+            remember_within(&mut map, &self.key, hit.clone(), FITTED_CACHE_ENTRIES, IMAGE_CACHE_BYTES);
+        }
+        Some(hit)
+    }
+
+    /// Scale the answer the route fetched; any failure leaves it as it was.
+    pub(super) fn apply(&self, response: &mut Response) {
+        if response.status != 200 || response.body.is_empty() || !response.content_type.starts_with("image/") {
+            return;
+        }
+        let target = self.format.unwrap_or(if response.content_type == "image/png" { "image/png" } else { "image/jpeg" });
+        let (width, height) = (self.width, self.height);
+        let (w, h) = if self.upscale { (width.to_string(), height.to_string()) } else { (format!("min({width}\\,iw)"), format!("min({height}\\,ih)")) };
+        let filter = format!("scale=w={w}:h={h}:force_original_aspect_ratio={}", if self.cover { "increase" } else { "decrease" });
+        let Some(body) = scale_image(&self.ffmpeg, &response.body, &filter, target == "image/png") else {
+            static WARNED: std::sync::Once = std::sync::Once::new();
+            WARNED.call_once(|| warning!("photo transcode: {} could not scale a picture; originals are served", self.ffmpeg.display()));
+            // In memory only, so the picture is not tried again each request, nor kept unscaled past a restart.
+            if let Ok(mut map) = FITTED.get_or_init(Default::default).lock() {
+                remember_within(&mut map, &self.key, (response.body.clone(), response.content_type.clone()), FITTED_CACHE_ENTRIES, IMAGE_CACHE_BYTES);
+            }
+            return;
+        };
+        // A picture already as small as the box goes out as it came, unless another type was asked for.
+        let converted = target != response.content_type;
+        if !body.is_empty() && (body.len() < response.body.len() || (converted && self.format.is_some())) {
+            response.body = body;
+            response.content_type = target.to_string();
+        }
+        self.remember((response.body.clone(), response.content_type.clone()));
+    }
+
+    fn remember(&self, hit: (Vec<u8>, String)) {
+        // On disk only as a type `cached` reads back; any other stays in memory.
+        let ext = DISK_TYPES.iter().find(|(content_type, _)| *content_type == hit.1).map(|(_, ext)| ext);
+        if let (Some(dir), Some(ext)) = (&self.dir, ext) {
+            static WRITES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+            let write = WRITES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            // Two requests for one picture must not share a partial file.
+            let partial = dir.join(format!("{}.{ext}.{}-{write}.partial", self.key, std::process::id()));
+            if std::fs::create_dir_all(dir).is_ok() && std::fs::write(&partial, &hit.0).is_ok() {
+                let _ = std::fs::rename(&partial, dir.join(format!("{}.{ext}", self.key)));
+            }
+            if let Some(budget) = artwork_cache_budget().filter(|_| write % 128 == 0) {
+                prune_artwork_cache(dir, budget);
+            }
+        }
+        if let Ok(mut map) = FITTED.get_or_init(Default::default).lock() {
+            remember_within(&mut map, &self.key, hit, FITTED_CACHE_ENTRIES, IMAGE_CACHE_BYTES);
+        }
+    }
+}
+
+/// `REX_ARTWORK_CACHE_MB`: the disk cache's budget in megabytes; unset or 0 keeps it off.
+fn artwork_cache_budget() -> Option<u64> {
+    static BUDGET: OnceLock<Option<u64>> = OnceLock::new();
+    *BUDGET.get_or_init(|| std::env::var("REX_ARTWORK_CACHE_MB").ok()?.trim().parse::<u64>().ok().filter(|mb| *mb > 0).map(|mb| mb << 20))
+}
+
+/// The least recently read files go until the cache is under 90% of `budget` bytes.
+fn prune_artwork_cache(dir: &std::path::Path, budget: u64) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut files = entries
+        .flatten()
+        .filter_map(|entry| {
+            let meta = entry.metadata().ok()?;
+            Some((meta.modified().ok()?, meta.len(), entry.path()))
+        })
+        .collect::<Vec<_>>();
+    let mut held: u64 = files.iter().map(|(_, len, _)| len).sum();
+    files.sort();
+    for (_, len, path) in files {
+        if held <= budget / 10 * 9 {
+            break;
+        }
+        if std::fs::remove_file(&path).is_ok() {
+            held -= len;
+        }
+    }
+}
+
+/// One picture through ffmpeg on pipes: `filter` applied, written back as JPEG or PNG.
+fn scale_image(ffmpeg: &std::path::Path, image: &[u8], filter: &str, png: bool) -> Option<Vec<u8>> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut args = vec!["-hide_banner", "-loglevel", "error", "-i", "pipe:0", "-frames:v", "1", "-vf", filter, "-f", "image2pipe"];
+    args.extend(if png { ["-c:v", "png", "-pix_fmt", "rgba"] } else { ["-c:v", "mjpeg", "-pix_fmt", "yuvj420p"] });
+    args.extend(["-q:v", "3", "pipe:1"]);
+    let mut child = Command::new(ffmpeg).args(&args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+    let mut stdin = child.stdin.take()?;
+    let input = image.to_vec();
+    // Written from its own thread: ffmpeg may start answering before it has read everything.
+    let writer = std::thread::spawn(move || stdin.write_all(&input));
+    let output = child.wait_with_output().ok()?;
+    let _ = writer.join();
+    output.status.success().then_some(output.stdout)
 }
 
 #[cfg(test)]
@@ -330,5 +496,87 @@ mod image_cache_tests {
         }
         remember_image(&mut map, "huge", image(IMAGE_CACHE_BYTES + 1));
         assert!(!map.contains_key("huge"));
+    }
+
+    #[test]
+    fn the_artwork_cache_reads_back_from_disk_and_prunes_the_least_recently_read() {
+        let dir = std::env::temp_dir().join(format!("rex-artwork-cache-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let query = [("width", "240"), ("height", "360"), ("url", "/library/metadata/7/thumb/7?X-Plex-Token=abc")]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect::<HashMap<_, _>>();
+        let mut fit = PhotoFit::new(&query, "ffmpeg".into(), dir.clone()).unwrap();
+        fit.dir = Some(dir.clone());
+        let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().remove(&fit.key);
+        // A kept JPEG comes back from disk, after a restart (memory forgotten), with its type.
+        fit.remember((b"jpeg bytes".to_vec(), "image/jpeg".to_string()));
+        forget(&fit);
+        assert_eq!(fit.cached(), Some((b"jpeg bytes".to_vec(), "image/jpeg".to_string())));
+        // An original WebP comes back as WebP, never as image/jpeg; an unknown type stays in memory.
+        std::fs::remove_dir_all(&dir).unwrap();
+        fit.remember((b"webp bytes".to_vec(), "image/webp".to_string()));
+        forget(&fit);
+        assert_eq!(fit.cached(), Some((b"webp bytes".to_vec(), "image/webp".to_string())));
+        std::fs::remove_dir_all(&dir).unwrap();
+        fit.remember((b"bmp bytes".to_vec(), "image/bmp".to_string()));
+        forget(&fit);
+        assert_eq!(fit.cached(), None);
+        // Pruning removes the least recently read file first, down to 90% of the budget.
+        std::fs::create_dir_all(&dir).unwrap();
+        let now = std::time::SystemTime::now();
+        for (name, age) in [("old.jpg", 30), ("mid.jpg", 20), ("new.jpg", 10)] {
+            std::fs::write(dir.join(name), vec![0u8; 100]).unwrap();
+            let file = std::fs::File::options().write(true).open(dir.join(name)).unwrap();
+            file.set_modified(now - std::time::Duration::from_secs(age)).unwrap();
+        }
+        prune_artwork_cache(&dir, 250);
+        let mut left = std::fs::read_dir(&dir).unwrap().map(|entry| entry.unwrap().file_name().into_string().unwrap()).collect::<Vec<_>>();
+        left.sort();
+        assert_eq!(left, ["mid.jpg", "new.jpg"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Run where FFmpeg is installed:
+    /// cargo test fits_a_poster_to_the_box -- --ignored
+    /// REX_THUMBNAIL_TEST_FFMPEG may name an absolute FFmpeg executable.
+    #[test]
+    #[ignore = "requires real FFmpeg"]
+    fn fits_a_poster_to_the_box() {
+        use std::process::Command;
+        let ffmpeg = std::path::PathBuf::from(std::env::var_os("REX_THUMBNAIL_TEST_FFMPEG").unwrap_or_else(|| "ffmpeg".into()));
+        let poster = Command::new(&ffmpeg)
+            .args(["-v", "error", "-f", "lavfi", "-i", "testsrc2=s=1920x2880", "-frames:v", "1", "-f", "image2pipe", "-c:v", "mjpeg", "-q:v", "2", "pipe:1"])
+            .output()
+            .unwrap()
+            .stdout;
+        let fit = |pairs: &[(&str, &str)]| {
+            let mut query = pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>();
+            query.insert("url".to_string(), "/library/metadata/1/thumb/1".to_string());
+            let fit = PhotoFit::new(&query, ffmpeg.clone(), std::env::temp_dir()).unwrap();
+            let mut response = Response::bytes(200, "image/jpeg");
+            response.body = poster.clone();
+            fit.apply(&mut response);
+            assert_eq!(fit.cached().unwrap(), (response.body.clone(), response.content_type.clone()));
+            response
+        };
+        let ask = |pairs: &[(&str, &str)]| {
+            let response = fit(pairs);
+            let (width, height, _) = super::super::blur::decode(&response.body).unwrap();
+            (width, height, response.body.len())
+        };
+        // Plex Web's grid: covers 240x360, which a 2:3 poster fills exactly.
+        let (width, height, size) = ask(&[("width", "240"), ("height", "360"), ("minSize", "1"), ("upscale", "1")]);
+        assert_eq!((width, height), (240, 360));
+        assert!(size * 10 < poster.len(), "{size} of {}", poster.len());
+        // Fit inside a wide box: the height decides.
+        assert_eq!(ask(&[("width", "1000"), ("height", "300")]).0, 200);
+        // Fit inside a box the picture already fits in: it does not grow.
+        let (width, height, _) = ask(&[("width", "2000"), ("height", "2000"), ("minSize", "1")]);
+        assert_eq!((width, height), (1920, 2880));
+        // `format=png` is answered as PNG, as a real PMS answers it.
+        let png = fit(&[("width", "100"), ("height", "150"), ("format", "png")]);
+        assert_eq!(png.content_type, "image/png");
+        assert!(png.body.starts_with(b"\x89PNG"));
     }
 }
