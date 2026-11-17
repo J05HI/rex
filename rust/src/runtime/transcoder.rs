@@ -255,7 +255,7 @@ pub(super) fn fetch_remote_image(url: &str, from_source: Option<&[(&'static str,
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     // Kept apart: a client naming a source's artwork url (`/photo/:/transcode?url=`) must not
     // be served what the source's own fetch cached, which `fetch_public` would have refused.
-    let key = if from_source.is_some() { format!("source {url}") } else { url.to_string() };
+    let key = String::from_utf8_lossy(&remote_picture(url, from_source)).into_owned();
     let cached = cache.lock().ok().and_then(|map| map.get(&key).cloned());
     info!(
         "ARTWORK {} {}",
@@ -325,10 +325,13 @@ const FITTED_CACHE_ENTRIES: usize = 8192;
 
 static FITTED: OnceLock<Mutex<HashMap<String, (Vec<u8>, String)>>> = OnceLock::new();
 
-/// A remote picture as the fitted cache names it: a source's own artwork, fetched with its login,
-/// apart from the same url fetched public, as `fetch_remote_image` keeps them.
-pub(super) fn remote_picture(url: &str, from_source: bool) -> Vec<u8> {
-    format!("{}{url}", if from_source { "source " } else { "" }).into_bytes()
+/// A remote picture as the caches name it: a source's own artwork by the login it is fetched with,
+/// apart from the same url fetched public or with another source's login (two sources can share a host).
+pub(super) fn remote_picture(url: &str, from_source: Option<&[(&'static str, String)]>) -> Vec<u8> {
+    match from_source {
+        Some(headers) => format!("source {headers:?} {url}").into_bytes(),
+        None => url.as_bytes().to_vec(),
+    }
 }
 
 /// The disk cache's file name carries the answer's type, so a kept picture reads back as it was served.
@@ -524,7 +527,11 @@ mod image_cache_tests {
         // Nor do the same bytes under another type, which decides the answer's own.
         assert_ne!(PhotoFit::new(&query, b"https://metadata-static.plex.tv/a.jpg", "image/png", "ffmpeg".into(), dir.clone()).unwrap().key, fit.key);
         // A source's own artwork never answers a public request for the same url.
-        assert_ne!(key_of(&remote_picture("https://source/a.jpg", true)), key_of(&remote_picture("https://source/a.jpg", false)));
+        let login = |user: &str| vec![("Authorization", format!("Basic {user}"))];
+        let (one, two) = (login("one"), login("two"));
+        assert_ne!(key_of(&remote_picture("https://source/a.jpg", Some(&one))), key_of(&remote_picture("https://source/a.jpg", None)));
+        // Nor does one source's, from another source on the same host.
+        assert_ne!(key_of(&remote_picture("https://source/a.jpg", Some(&one))), key_of(&remote_picture("https://source/a.jpg", Some(&two))));
         let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().remove(&fit.key);
         // A kept JPEG comes back from disk, after a restart (memory forgotten), with its type.
         fit.remember((b"jpeg bytes".to_vec(), "image/jpeg".to_string()));

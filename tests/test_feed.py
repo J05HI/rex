@@ -100,6 +100,8 @@ class Bytes:
         self.files = set()
         # A file served as another type than a video's, by path (a source's own artwork).
         self.types = {}
+        # A whole file served as other bytes than the video's, by path (a source's own picture).
+        self.bodies = {}
         self.seen = []
         self.auth = "Bearer " + BYTES_TOKEN
 
@@ -134,7 +136,7 @@ class Bytes:
                     first, last = int(first), min(int(last) if last else len(BODY) - 1, len(BODY) - 1)
                     return self.reply(206, BODY[first:last + 1],
                                       [("Content-Range", "bytes %d-%d/%d" % (first, last, len(BODY)))])
-                self.reply(200, BODY)
+                self.reply(200, source.bodies.get(path, BODY))
 
             do_HEAD = do_GET
         return Handler
