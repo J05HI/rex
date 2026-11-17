@@ -16194,6 +16194,13 @@ recorded request for stand-ins of the same sizes and formats: 68 checks, 12 pass
 on #25's head (8529c55b), which capped every box at 2000 (4096x4096 was 1333x2000), wrote 4:2:0 at a
 fixed qscale and labelled a PNG `image/png`.
 
+Live, a throwaway rex (2fff9e00, jellyfin-ffmpeg 8.1.3) asked Plex Web's grid request for the real
+files: the poster by its metadata-static url was 240x360 in 17,843 bytes (plexlab: 18,273), asked
+again with no fetch; by TMDB's url 240x360 in 21,265 bytes from `w342` (plexlab: 21,996 from
+`original`); the clearLogo into 400x200 a 400x112 RGBA PNG labelled `image/jpeg`, as plexlab's.
+424d85ac answered the poster's 1920x2880 original (632,028 bytes), TMDB's `w342` file (342x513) and
+the logo's 790x222 original labelled `image/png`; #25's head 240x360 at 4:2:0 (20,882 bytes).
+
 **Measured and not emulated.** WebP and GIF output (no recorded client asks for either, and rex for
 Android's FFmpeg has no WebP encoder: such a request is answered as without `format=`), `blur=` (Plex
 Web asks it for backgrounds), plexlab's 500s (the picture as it is; a 1-pixel side is fitted), a GIF
