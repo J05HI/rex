@@ -24626,8 +24626,10 @@ fn handle_connection<S: Read + Write + PollRead>(
             });
             let ultrablur = guard.pending_ultrablur.take();
             let photo_fit = if request_path == "/photo/:/transcode" && response.status == 200 {
+                // The picture the route resolved: the remote url it is about to fetch, or the bytes it read.
+                let picture = image.as_ref().map_or(response.body.as_slice(), |(url, _)| url.as_bytes());
                 guard.transcoder.as_ref().and_then(|transcoder| {
-                    transcoder::PhotoFit::new(&query, transcoder.ffmpeg().to_path_buf(), plextv::claim_path(&guard.catalog_path).with_file_name(""))
+                    transcoder::PhotoFit::new(&query, picture, transcoder.ffmpeg().to_path_buf(), plextv::claim_path(&guard.catalog_path).with_file_name(""))
                 })
             } else {
                 None

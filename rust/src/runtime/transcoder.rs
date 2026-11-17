@@ -333,8 +333,8 @@ const DISK_TYPES: [(&str, &str); 4] = [("image/jpeg", "jpg"), ("image/png", "png
 /// grows unless `upscale=1`; `format=png` or `format=jpeg` names the answer's type, as a real
 /// PMS honours it (PNG otherwise stays PNG for its alpha, anything else is JPEG). Plex's agent
 /// artwork is the original (a poster 1920x2880, ~800 KB) where a grid asks for 240x360, so
-/// unscaled a page of posters is tens of megabytes. The answer is kept by the picture's url and
-/// the box, in memory and, under `REX_ARTWORK_CACHE_MB`, on disk, so a hit fetches nothing.
+/// unscaled a page of posters is tens of megabytes. The answer is kept by the picture the route
+/// resolved and the box, in memory and, under `REX_ARTWORK_CACHE_MB`, on disk, so a hit fetches nothing.
 pub(super) struct PhotoFit {
     key: String,
     width: i64,
@@ -344,14 +344,14 @@ pub(super) struct PhotoFit {
     format: Option<&'static str>,
     ffmpeg: std::path::PathBuf,
     dir: Option<std::path::PathBuf>,
-    /// Only a picture that cannot change under its url is kept: versioned artwork, a bundled
-    /// resource, or an outside url. `/library/metadata/7/thumb` follows a poster pick, so it is fitted but never kept.
-    keep: bool,
 }
 
 impl PhotoFit {
-    /// `None` without both dimensions or a `url`; `dir` is where the disk cache would live.
-    pub(super) fn new(query: &HashMap<String, String>, ffmpeg: std::path::PathBuf, dir: std::path::PathBuf) -> Option<Self> {
+    /// `None` without both dimensions. `picture` is what the route resolved: the remote url it is
+    /// about to fetch (the agent's art, its name changing with the picture), or else the bytes it
+    /// already read. Neither carries the viewer, so every viewer shares one kept picture, and a
+    /// poster pick behind the same request url is a new picture. `dir` is where the disk cache would live.
+    pub(super) fn new(query: &HashMap<String, String>, picture: &[u8], ffmpeg: std::path::PathBuf, dir: std::path::PathBuf) -> Option<Self> {
         let dimension = |name: &str| query.get(name).and_then(|value| value.trim().parse::<i64>().ok()).map(|value| value.clamp(1, 2000));
         let (width, height) = (dimension("width")?, dimension("height")?);
         let flag = |name: &str| query.get(name).is_some_and(|value| photo_bool(value) && value.trim_start_matches(['+', '0']) == "1");
@@ -361,28 +361,16 @@ impl PhotoFit {
             Some("jpeg" | "jpg") => Some("image/jpeg"),
             _ => None,
         };
-        let raw = percent_decode(query.get("url")?);
-        let outside = matches!(url_scheme(&raw).as_deref(), Some("http" | "https"));
-        let path = raw.split('?').next().unwrap_or_default();
-        let segments = path.split('/').filter(|segment| !segment.is_empty()).collect::<Vec<_>>();
-        let keep = outside
-            || path.starts_with("/:/resources/")
-            || matches!(segments.as_slice(), ["library", "metadata", _, _, stamp] if stamp.bytes().all(|b| b.is_ascii_digit()));
-        // The viewer's X-Plex-Token differs per viewer and grants nothing here (the route already
-        // answered), so every viewer shares one picture; any other credential stays part of its identity.
-        static VIEWER_TOKEN: OnceLock<Regex> = OnceLock::new();
-        let url = VIEWER_TOKEN.get_or_init(|| Regex::new(r"(?i)\bx-plex-token=[^&]*").unwrap()).replace_all(&raw, "");
-        let digest = Sha1::digest(format!("{url} {width}x{height} {cover} {upscale} {format:?}").as_bytes());
-        let key = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        let mut digest = Sha1::new();
+        digest.update(picture);
+        digest.update(format!(" {width}x{height} {cover} {upscale} {format:?}").as_bytes());
+        let key = digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         let enabled = artwork_cache_budget().is_some();
-        Some(Self { key, width, height, cover, upscale, format, ffmpeg, dir: enabled.then(|| dir.join("artwork-cache")), keep })
+        Some(Self { key, width, height, cover, upscale, format, ffmpeg, dir: enabled.then(|| dir.join("artwork-cache")) })
     }
 
     /// A kept answer, from memory or disk.
     pub(super) fn cached(&self) -> Option<(Vec<u8>, String)> {
-        if !self.keep {
-            return None;
-        }
         let memory = FITTED.get_or_init(Default::default);
         if let Some(hit) = memory.lock().ok().and_then(|map| map.get(&self.key).cloned()) {
             return Some(hit);
@@ -415,14 +403,12 @@ impl PhotoFit {
             static WARNED: std::sync::Once = std::sync::Once::new();
             WARNED.call_once(|| warning!("photo transcode: {} could not scale a picture; originals are served", self.ffmpeg.display()));
             // In memory only, so the picture is not tried again each request, nor kept unscaled past a restart.
-            if let Some(mut map) = self.keep.then(|| FITTED.get_or_init(Default::default).lock().ok()).flatten() {
+            if let Ok(mut map) = FITTED.get_or_init(Default::default).lock() {
                 remember_within(&mut map, &self.key, (response.body.clone(), response.content_type.clone()), FITTED_CACHE_ENTRIES, IMAGE_CACHE_BYTES);
             }
             return;
         };
-        // A picture already as small as the box goes out as it came, unless it was asked to grow or change type.
-        let converted = target != response.content_type;
-        if !body.is_empty() && (body.len() < response.body.len() || self.upscale || (converted && self.format.is_some())) {
+        if !body.is_empty() {
             response.body = body;
             response.content_type = target.to_string();
         }
@@ -430,9 +416,6 @@ impl PhotoFit {
     }
 
     fn remember(&self, hit: (Vec<u8>, String)) {
-        if !self.keep {
-            return;
-        }
         // On disk only as a type `cached` reads back; any other stays in memory.
         let ext = DISK_TYPES.iter().find(|(content_type, _)| *content_type == hit.1).map(|(_, ext)| ext);
         if let (Some(dir), Some(ext)) = (&self.dir, ext) {
@@ -524,15 +507,13 @@ mod image_cache_tests {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect::<HashMap<_, _>>();
-        let mut fit = PhotoFit::new(&query, "ffmpeg".into(), dir.clone()).unwrap();
+        let mut fit = PhotoFit::new(&query, b"https://metadata-static.plex.tv/a.jpg", "ffmpeg".into(), dir.clone()).unwrap();
         fit.dir = Some(dir.clone());
-        // Only what cannot change under its url is kept; the viewer's X-Plex-Token is not part of the key, any other token is.
-        let fit_of = |url: &str| PhotoFit::new(&[("width".to_string(), "1".to_string()), ("height".to_string(), "1".to_string()), ("url".to_string(), url.to_string())].into_iter().collect(), "ffmpeg".into(), dir.clone()).unwrap();
-        assert!(!fit_of("/library/metadata/7/thumb").keep);
-        assert!(fit_of("/:/resources/movie.png").keep && fit_of("https://example.com/a.jpg").keep);
-        assert_eq!(fit_of("/library/metadata/7/thumb/7?X-Plex-Token=a").key, fit_of("/library/metadata/7/thumb/7?X-Plex-Token=b").key);
-        assert_eq!(fit_of("http://127.0.0.1:32400/library/metadata/7/thumb/7?X-Plex-Token=a").key, fit_of("http://127.0.0.1:32400/library/metadata/7/thumb/7?X-Plex-Token=b").key);
-        assert_ne!(fit_of("https://example.com/a.jpg?token=a").key, fit_of("https://example.com/a.jpg?token=b").key);
+        // The key is the picture the route resolved, so a poster pick behind the same request url
+        // (which every viewer asks with their own token) is a new key, and one picture is one key.
+        let key_of = |picture: &[u8]| PhotoFit::new(&query, picture, "ffmpeg".into(), dir.clone()).unwrap().key;
+        assert_eq!(key_of(b"https://metadata-static.plex.tv/a.jpg"), fit.key);
+        assert_ne!(key_of(b"https://metadata-static.plex.tv/b.jpg"), fit.key);
         let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().remove(&fit.key);
         // A kept JPEG comes back from disk, after a restart (memory forgotten), with its type.
         fit.remember((b"jpeg bytes".to_vec(), "image/jpeg".to_string()));
@@ -578,7 +559,7 @@ mod image_cache_tests {
         let fit = |pairs: &[(&str, &str)]| {
             let mut query = pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>();
             query.insert("url".to_string(), "/library/metadata/1/thumb/1".to_string());
-            let fit = PhotoFit::new(&query, ffmpeg.clone(), std::env::temp_dir()).unwrap();
+            let fit = PhotoFit::new(&query, &poster, ffmpeg.clone(), std::env::temp_dir()).unwrap();
             let mut response = Response::bytes(200, "image/jpeg");
             response.body = poster.clone();
             fit.apply(&mut response);
@@ -599,6 +580,17 @@ mod image_cache_tests {
         // Fit inside a box the picture already fits in: it does not grow.
         let (width, height, _) = ask(&[("width", "2000"), ("height", "2000"), ("minSize", "1")]);
         assert_eq!((width, height), (1920, 2880));
+        // A compact picture is still scaled to the box, even where its encoding grows.
+        let compact = Command::new(&ffmpeg)
+            .args(["-v", "error", "-f", "lavfi", "-i", "color=gray:s=300x450", "-frames:v", "1", "-f", "image2pipe", "-c:v", "mjpeg", "-q:v", "31", "pipe:1"])
+            .output()
+            .unwrap()
+            .stdout;
+        let query = [("width", "240"), ("height", "360"), ("minSize", "1"), ("url", "/library/metadata/2/thumb/2")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>();
+        let mut response = Response::bytes(200, "image/jpeg");
+        response.body = compact.clone();
+        PhotoFit::new(&query, &compact, ffmpeg.clone(), std::env::temp_dir()).unwrap().apply(&mut response);
+        assert_eq!(super::super::blur::decode(&response.body).unwrap().0, 240);
         // `format=png` is answered as PNG, as a real PMS answers it.
         let png = fit(&[("width", "100"), ("height", "150"), ("format", "png")]);
         assert_eq!(png.content_type, "image/png");

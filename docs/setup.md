@@ -666,8 +666,8 @@ size with the transcoder's FFmpeg, so a 240x360 tile is ~20 KB rather than the ~
 Scaled pictures are kept in memory; `REX_ARTWORK_CACHE_MB=<megabytes>` keeps them on disk too, in
 `artwork-cache/` beside `rex.db`, the least recently read removed past that budget, so a restart
 fetches nothing again. The budget is soft: it is checked every 128 writes, so the folder can pass it
-by up to 128 pictures in between. Artwork named without a version (`/library/metadata/7/thumb`)
-is scaled but never kept, since a new poster pick changes what it shows. Without FFmpeg (or with `REX_TRANSCODER=off`) the original is served.
+by up to 128 pictures in between. A picture is kept by what it resolves to, so a new poster
+pick is a new picture even behind the same url. Without FFmpeg (or with `REX_TRANSCODER=off`) the original is served.
 
 ### Apps downloading straight from the source
 
