@@ -1759,7 +1759,8 @@ the fetched bytes through unchanged. The client gates those filters on a VERSION
 comparison (`imageFilters: "0.9.9.13"` in its feature table) and rex advertises
 1.42.2, so it does send them -- background art renders sharp and fully opaque where
 it should be blurred and dimmed. Recorded as a limitation, not a gap to be papered
-over.
+over. (Since 2026-11-17 an FFmpeg fits the picture and honours `format=png`; the filters still are
+not emulated: "The photo transcoder, measured".)
 
 #### An unknown SINGLE-segment path is a 200, not a 404
 

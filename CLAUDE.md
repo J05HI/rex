@@ -897,7 +897,8 @@ rigs run on.
   anything. One exception, Ben's (2026-10-31): artwork is decoded in pure Rust for the
   BlurHash and UltraBlur colours a real PMS answers (`runtime/blur.rs`), with `zune-jpeg`,
   `png` and `image-webp`, default features off -- the three formats Plex's artwork comes in,
-  no C and no FFmpeg. Nothing else joins them for it.
+  no C and no FFmpeg. Nothing else joins them for it. The photo transcoder reads a picture's size
+  and EXIF orientation with the same `zune-jpeg` and `image-webp` before FFmpeg fits it.
 - Atomic commits, semantic single-line messages (`fix: emit totalSize on paged
   children`), authored as `Ben Adrian Sarmiento <me@bensarmiento.com>`.
 - Never commit a token, a provider download link, zurg's credentials, a Plex token, or

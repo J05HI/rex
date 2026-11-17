@@ -1666,6 +1666,12 @@ currently advertised by rex. A version label is not proof of complete PMS equiva
   (`0`, `1`, `01`, `+1` only); `opacity` and `quality` take any integer; `blur` takes any
   integer and 500s a negative one; anything that does not parse as a whole number is a 400. The
   `width`/`height` 500s for a scale that degenerates are the image pipeline's, not a rule.
+- **`/photo/:/transcode` fits; it does not pass the picture through.** Inside the box by default,
+  covering it with `minSize=1`, never past the picture's size without `upscale=1`, upright by its
+  EXIF orientation; a 4:4:4 JPEG at `quality=` (75; read by its low seven bits, 128 is 75 again),
+  a PNG kept a PNG with its alpha and still labelled `image/jpeg`; `format=png` is the one
+  `image/png`. A 240x360 grid tile of a 632 KB agent poster is 18 KB (findings, "The photo
+  transcoder, measured", 2026-11-17).
 - **Every tag element inside a `/status/sessions` row is plainly ALPHABETICAL**, `Role`
   (`filter, id, role, tag, tagKey, thumb`) included -- there is no `actor` attribute on one.
   **`Player` is the one element there with an order of its own**: its string-valued attributes

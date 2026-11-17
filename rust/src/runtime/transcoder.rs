@@ -4,7 +4,8 @@
 //! validated first, then five more parameters, then the `url=`. A relative url is FETCHED
 //! through the server's own route table and the answer follows that fetch -- anything but a
 //! 200 is a 404, a 200 that is not an image is the 500, and an image is the direct path's
-//! own bytes -- so the transcoder never serves a picture the direct path refuses.
+//! own bytes -- so the transcoder never serves a picture the direct path refuses. Those bytes are
+//! then fitted to the asked size (`PhotoFit`, with an FFmpeg) as plexlab answers it (2026-11-17).
 
 use super::*;
 use regex::Regex;
@@ -466,8 +467,8 @@ impl PhotoFit {
         let (demuxer, width, height, orientation) = picture_header(picture)?;
         let (width, height) = if orientation >= 5 { (height, width) } else { (width, height) };
         let (to_width, to_height) = fitted_size((width, height), (self.width, self.height), self.cover, self.upscale)?;
-        // EXIF orientation applied here rather than by FFmpeg, which does it only from 2023's
-        // builds on (Ubuntu 22.04's 4.4 left exif6 sideways; jellyfin's 8.1.3 and 9.0 turn it).
+        // EXIF orientation applied here rather than by FFmpeg: Ubuntu 22.04's FFmpeg 4.4 left the
+        // orientation-6 picture sideways, jellyfin's 8.1.3 and FFmpeg 9.0 turned it themselves.
         let turn = ["", "", "hflip,", "hflip,vflip,", "vflip,", "transpose=0,", "transpose=1,", "transpose=3,", "transpose=2,"];
         let filter = format!("{}scale={to_width}:{to_height}", turn.get(orientation).copied().unwrap_or(""));
         let png = self.png.unwrap_or(demuxer == "png_pipe");
@@ -599,6 +600,8 @@ fn prune_artwork_cache(dir: &std::path::Path, budget: u64) {
 
 /// At most two pictures in FFmpeg at once, each within `SCALE_TIME`: a grid asks for dozens at
 /// once, and a small host (a phone running rex for Android) must not start dozens of decoders.
+/// ponytail: a picture killed at `SCALE_TIME` is tried again on every request, holding a slot
+/// for 15 s each time; remember such a key for a while if one is ever seen.
 const SCALE_SLOTS: usize = 2;
 const SCALE_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 const SCALE_TIME: std::time::Duration = std::time::Duration::from_secs(15);
