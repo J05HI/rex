@@ -325,6 +325,12 @@ const FITTED_CACHE_ENTRIES: usize = 8192;
 
 static FITTED: OnceLock<Mutex<HashMap<String, (Vec<u8>, String)>>> = OnceLock::new();
 
+/// A remote picture as the fitted cache names it: a source's own artwork, fetched with its login,
+/// apart from the same url fetched public, as `fetch_remote_image` keeps them.
+pub(super) fn remote_picture(url: &str, from_source: bool) -> Vec<u8> {
+    format!("{}{url}", if from_source { "source " } else { "" }).into_bytes()
+}
+
 /// The disk cache's file name carries the answer's type, so a kept picture reads back as it was served.
 const DISK_TYPES: [(&str, &str); 4] = [("image/jpeg", "jpg"), ("image/png", "png"), ("image/webp", "webp"), ("image/gif", "gif")];
 
@@ -514,6 +520,8 @@ mod image_cache_tests {
         let key_of = |picture: &[u8]| PhotoFit::new(&query, picture, "ffmpeg".into(), dir.clone()).unwrap().key;
         assert_eq!(key_of(b"https://metadata-static.plex.tv/a.jpg"), fit.key);
         assert_ne!(key_of(b"https://metadata-static.plex.tv/b.jpg"), fit.key);
+        // A source's own artwork never answers a public request for the same url.
+        assert_ne!(key_of(&remote_picture("https://source/a.jpg", true)), key_of(&remote_picture("https://source/a.jpg", false)));
         let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().remove(&fit.key);
         // A kept JPEG comes back from disk, after a restart (memory forgotten), with its type.
         fit.remember((b"jpeg bytes".to_vec(), "image/jpeg".to_string()));
