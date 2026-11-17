@@ -6984,7 +6984,7 @@ anything for all five, so a client sending a malformed tile URL got an image whe
 refuses the request. Not emulated and recorded instead: the 500s a real PMS answers for a width
 or height that scales the image to nothing (`width=1&height=100` on a 1000×1500 poster is a 500
 where `width=2` is a 200, and `height=-1` is a 200 where `width=-1` is a 500) — those depend on
-the image's own aspect ratio and on a resizer rex does not have.
+the image's own aspect ratio (re-measured 2026-11-17, "The photo transcoder, measured": still not emulated).
 
 **The session row's `Player` is the one element there that is not alphabetical, and its
 `profile` is not a constant.** Cycle 26 recorded a session `Role` as `filter, actor, id, role,
@@ -7149,7 +7149,7 @@ that error on plexlab and not on rex.
   **Overturned 2026-09-30:** a complete lower-case line is closed AT ONCE on plexlab (1.43.4) and
   plexscratch42 (1.42.2), and the check runs before every other rule of the line (see
   protocol-traps.md); only an unterminated one is held.
-- **The `width`/`height` 500s of `/photo/:/transcode`** (above): a resizer rex does not have.
+- **The `width`/`height` 500s of `/photo/:/transcode`** (above): the picture is served as it is ("The photo transcoder, measured", 2026-11-17).
 - **`PROFILE_NAMES` is single-witness by construction.** Neither read-only reference can be given
   a playback session, so the copy (1.43.4) is the only instrument, and rex reports 1.42.2.
 - **The `Player` string/non-string split has a second model that fits** the same fifteen
@@ -7510,11 +7510,11 @@ Bunny), so the territory had two witnesses rather than one. Four findings plus a
 **Measured and deliberately not emulated.** The photo transcoder's geometry is now pinned — the
 default scales to FIT inside the box, `minSize=1` scales to COVER it uncropped, and without
 `upscale=1` the result is capped at the source's own size, with `quality=` the real JPEG quality
-and `opacity=` accepted and discarded — but rex has no resizer, so it still picks a TMDB bucket
-and passes those bytes through (the `width`/`height` 500s were already held out in cycle 27). A
+and `opacity=` accepted and discarded. (**Emulated since 2026-11-17** with an FFmpeg, re-measured on
+plexlab: "The photo transcoder, measured"; the `width`/`height` 500s, held out in cycle 27, still are.) A
 section `/composite/{v}` is a 512×512 JPEG mosaic on both references and rex has no
 compositor. `/photo/:/transcode` omits `Accept-Ranges` on the FIRST (uncached) transcode and sends
-it on every later one — a cache tell no client can see, and rex has no transcode cache. The
+it on every later one — a cache tell no client can see; rex keeps fitted answers since 2026-11-17 and still sends it every time. The
 416's own HTML body and the fact that the static writer's refusals name no connection state and
 CLOSE the socket stay recorded: rex's text/plain error bodies are cycle 1's deliberate
 deviation, and keeping a connection the reference drops is the forgiving direction. The 1.42.2
@@ -15675,7 +15675,8 @@ album's slideshow and a picture at the top (`tests/fixtures/photos/web-photos.js
   for the viewer (1920x1213) and the filmstrip, and `url=/library/metadata/{id}/thumb/{t}` for
   tiles. Thumb, composite and every transcode answer `image/jpeg`, a PNG's transcode too, whose
   bytes stay a PNG; a Part read is `image/jpeg` or `image/png` by its file. rex answers the picture
-  itself to all of them (no resizer) with those types.
+  itself to all of them with those types: a photo's Part is streamed from its source, never held
+  whole, so it is not fitted as artwork is (2026-11-17, "The photo transcoder, measured").
 - **A picture on screen is a session.** `/status/sessions` listed the picture being viewed with its
   Player and User. rex does not (yet).
 - **Plex for Android 2026.21.0 lists no photo library.** Pinned to plexscratch through the Android
@@ -16132,3 +16133,71 @@ plex.tv 3 s later, so its write lands after the claim's announce every time: 841
 /api/v2/resources after rex-direct's provider asked plex.tv; announced again` 11 s after the claim and
 was listed from 15.4 s to the end. Six more fixed claims through the plain stand-in were listed in 5.1
 to 5.5 s and never needed the second announce, the provider's minute retry included.
+
+## The photo transcoder, measured (2026-11-17, rex#24)
+
+rex answered every `/photo/:/transcode` with the picture as it is, so Plex Web's grid tile of a Plex
+agent poster (`width=240&height=360&minSize=1&upscale=1`, 76 times in `reference-walk.jsonl`) was its
+1920x2880 original, 600-800 KB, and a page of posters tens of megabytes (rex#24). PR #25 (espensgr)
+scaled it with the transcoder's FFmpeg with no reference to compare against. plexlab (1.43.4,
+unclaimed) was then asked by hand, not through a client (`probes/record_photo_transcode.py`,
+`tests/fixtures/photos/transcode_s1434.json`), for Sintel's poster (Plex's agent: a 1920x2880
+progressive 4:2:0 JPEG at IJG quality 85, 632 KB), its clearLogo (a 786x132 RGBA PNG, labelled
+`image/jpeg` by the direct path too), the same poster by its metadata-static and TMDB `original`
+urls, and pictures made for it and served on its own network: a 300x200 JPEG with EXIF orientation
+6 and without, a half-transparent PNG, a WebP and a GIF.
+
+- **Geometry.** Fitted inside the box by default, covering it with `minSize=1`, never past the
+  picture's own size without `upscale=1`, each side rounded to the nearest pixel: 1000x300 is
+  200x300, with `minSize=1` 1000x1500; 2000x2000 with `minSize=1` 1920x2880, with `upscale=1` too
+  2000x3000; 4096x4096 1920x2880 (re-encoded, 627 KB); the clearLogo into 400x200 400x67, covering
+  it 1191x200. A zero side is a 256x256 box: 0x0, 0x360 and 240x0 were all 171x256.
+- **No 2000-pixel cap.** 4096x6144, 5461x8192 and 6667x10000 were answered; 11000 into the
+  poster's box (7333x11000) and 8192 covering it (8192x12288) were 500s, so the limit is about the
+  answer's sides, past 10000. The box is not limited (12000x1000 into the logo: 5955x1000). A
+  negative side and `width=1&height=100` (a 1x2 answer) were 500s too.
+- **EXIF orientation is applied** and the tag dropped: the picture with orientation 6 into 150x150
+  was 100x150, its red band on top.
+- **Type.** A JPEG, WebP or GIF is answered as a JPEG, a PNG as a PNG with its alpha. Every answer is
+  labelled `image/jpeg`, a PNG's bytes included, but `format=`'s: `png` is a PNG labelled `image/png`
+  (RGB from the JPEG), `jpeg` and `jpg` a JPEG, `webp` a WebP labelled `image/webp`, and `gif` a JPEG
+  labelled `image/gif`.
+- **JPEG.** Baseline, chroma at full resolution (4:4:4), no EXIF, at the IJG quality `quality=` names
+  and 75 without it: the luminance table is libjpeg's scaled standard table exactly, at 1, 10, 50, 90
+  and 100. The value is read by its low seven bits: -1, 0, 128 and 256 are 75; 101, 127 and 255 are
+  100; 129 is 1, 150 22, 200 72, 300 44. The grid tile was 18,273 bytes; at quality 10 4,107, at 90
+  31,297, at 100 102,631; `format=png` 144,737.
+- `blur=20` blurred the tile (3,082 bytes); `opacity=50` and `background=ff0000` changed nothing on
+  an opaque JPEG.
+- By its metadata-static url the poster was the same file and the same 18,273-byte tile; by TMDB's
+  `original` (1000x1500, 338 KB) a 240x360 tile of 21,996 bytes.
+
+**What rex does, with an FFmpeg** (`transcoder::PhotoFit`). The answer's size is worked out from the
+picture's header as above (`fitted_size`; `transcoder::image_cache_tests` holds every recorded size),
+and FFmpeg scales to exactly that. rex applies the EXIF orientation itself, with `-noautorotate` and
+a transpose: Ubuntu 22.04's FFmpeg 4.4 leaves the picture sideways where jellyfin's 8.1.3 and FFmpeg
+9.0 turn it on their own, which would have turned it twice. FFmpeg reads the picture as the format
+its bytes start with (`jpeg_pipe`, `png_pipe`, `webp_pipe`) with only `pipe` allowed to open, never
+guessing at a remote body; at most two pictures are scaled at once, a slot waited for up to 10 s, and
+each is killed after 15 s. Anything else, a failure or a timeout is the picture as it is, kept
+nowhere, so it is tried again. FFmpeg's MJPEG writes no IJG tables (its DC step is fixed at 8 and
+its matrix is MPEG's), so `quality` becomes the qscale whose files came out the size libjpeg's did
+on a 480x720 test picture at 4:4:4: the IJG scaling percentage over ten, within 2..31 (75 is 5:
+32,563 bytes against libjpeg's 32,623; 90 is 2: 48,625 against 47,902; 50 is 10: 22,004 against
+24,183; 10 is 31: 11,242 against 14,269; 100 cannot be reached). Types and labels are as measured.
+An answer is kept by the picture (its remote url with the source's login, or the bytes the route
+read) and the shape asked, in memory (8192 answers within 64 MB) and on disk under
+`REX_ARTWORK_CACHE_MB`. Both memory caches, the fetched originals' and the fitted answers', let their
+least recently used picture go one at a time where they were cleared whole once full: with 3 MB
+backgrounds the 22nd dropped the 21 before it. `tests/test_photo_transcode.py` replays every
+recorded request for stand-ins of the same sizes and formats: 68 checks, 12 passing on 424d85ac and
+on #25's head (8529c55b), which capped every box at 2000 (4096x4096 was 1333x2000), wrote 4:2:0 at a
+fixed qscale and labelled a PNG `image/png`.
+
+**Measured and not emulated.** WebP and GIF output (no recorded client asks for either, and rex for
+Android's FFmpeg has no WebP encoder: such a request is answered as without `format=`), `blur=` (Plex
+Web asks it for backgrounds), plexlab's 500s (the picture as it is; a 1-pixel side is fitted), a GIF
+(served as it is), and `Accept-Ranges` left off a first transcode. A photo library's pictures are not
+fitted: a Part is streamed from its source after the lock, never held whole. Without an FFmpeg every
+answer is the picture as it is, as before, at `_at_width`'s TMDB variant, which also picks what is
+fetched for fitting (a variant at least as wide as asked: the same size, from a smaller fetch).

@@ -24625,16 +24625,13 @@ fn handle_connection<S: Read + Write + PollRead>(
                 }
             });
             let ultrablur = guard.pending_ultrablur.take();
-            let photo_fit = if request_path == "/photo/:/transcode" && response.status == 200 {
-                // The picture the route resolved: the remote url it is about to fetch, or the bytes it read.
-                let remote = image.as_ref().map(|(url, from_source)| transcoder::remote_picture(url, from_source.as_deref()));
-                let picture = remote.as_deref().unwrap_or(&response.body);
-                guard.transcoder.as_ref().and_then(|transcoder| {
-                    transcoder::PhotoFit::new(&query, picture, &response.content_type, transcoder.ffmpeg().to_path_buf(), plextv::claim_path(&guard.catalog_path).with_file_name(""))
-                })
-            } else {
-                None
-            };
+            // Only the client's own `/photo/:/transcode` is fitted: the ultrablur route's inner
+            // transcode reads the original, as PMS's does.
+            let fit_with = guard
+                .transcoder
+                .as_ref()
+                .filter(|_| request_path == "/photo/:/transcode" && response.status == 200)
+                .map(|transcoder| (transcoder.ffmpeg().to_path_buf(), plextv::claim_path(&guard.catalog_path).with_file_name("")));
             let claim = guard.pending_claim.take();
             let artifact = guard.pending_artifact.take().map(|(artifact, seek, kind)| (Arc::clone(&guard.analysis_jobs), artifact, seek, kind));
             if std::mem::take(&mut guard.pending_auto_collections) {
@@ -24695,7 +24692,13 @@ fn handle_connection<S: Read + Write + PollRead>(
             if let Some(plan) = PROJECTION_PLAN.with(|plan| plan.borrow_mut().take()) {
                 project_planned(&runtime, &request, &mut response, plan);
             }
-            // A kept answer for the same picture and box is the whole answer: nothing is fetched.
+            // The picture the route resolved: the remote url it is about to fetch, or the bytes it
+            // read, hashed here, outside the lock. A kept answer for the same picture and box is the
+            // whole answer: nothing is fetched.
+            let photo_fit = fit_with.and_then(|(ffmpeg, dir)| {
+                let remote = image.as_ref().map(|(url, from_source)| transcoder::remote_picture(url, from_source.as_deref()));
+                transcoder::PhotoFit::new(&query, remote.as_deref().unwrap_or(&response.body), ffmpeg, dir)
+            });
             let fitted = photo_fit.as_ref().and_then(transcoder::PhotoFit::cached);
             let served_kept = fitted.is_some();
             let image = if served_kept { None } else { image };

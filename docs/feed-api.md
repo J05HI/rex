@@ -551,9 +551,9 @@ own Add Library and its walk of the library, viewer and slideshow (`tests/fixtur
 - **Titles are in natural order.** An album lists its albums and pictures by title, digits by their
   value (`page 2` before `page 10`), as PMS listed `page 1`, `page 2`, `page 10`; a slideshow of an
   album or of the library plays every picture below it in that order.
-- **Pictures are scaled to what the client asks.** A client's `/photo/:/transcode` of a photo and
-  its thumb answer the picture read from the source as its Part is, scaled to the asked size with
-  the transcoder's FFmpeg; without FFmpeg, or where it cannot read the picture, the picture itself.
+- **Pictures are served as they are.** A client's `/photo/:/transcode` of a photo and its thumb
+  answer the picture itself, streamed from the source as its Part is: a PMS answers it resized,
+  which rex does for artwork (with an FFmpeg) but not for a photo, never held whole.
 - **A photo library is needed.** rex makes none on a push: add one in Plex (Add Library, Photos) or
   declare one (`directories: [{"name": "comics", "photos": "Comics"}]`). A picture no photo library
   takes is rejected, `no photo library holds <file>`.

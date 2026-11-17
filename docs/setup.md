@@ -662,12 +662,14 @@ poster and background the first time a listing shows it, and kept in `rex.db`.
 `REX_ARTWORK_ANALYSIS=off` turns that off.
 
 Artwork a client asks for at a size (`/photo/:/transcode`, every poster grid) is scaled to that
-size with the transcoder's FFmpeg, so a 240x360 tile is ~20 KB rather than the ~800 KB original.
-Scaled pictures are kept in memory; `REX_ARTWORK_CACHE_MB=<megabytes>` keeps them on disk too, in
+size with the transcoder's FFmpeg, as a Plex Media Server scales it, so Plex Web's 240x360 poster
+tile is ~20 KB rather than the ~800 KB original; two pictures at most are scaled at once. A photo
+library's pictures are served as they are, and so is everything without FFmpeg (or with
+`REX_TRANSCODER=off`). Scaled pictures are kept in memory; `REX_ARTWORK_CACHE_MB=<megabytes>` keeps them on disk too, in
 `artwork-cache/` beside `rex.db`, the least recently read removed past that budget, so a restart
 fetches nothing again. The budget is soft: it is checked every 128 writes, so the folder can pass it
 by up to 128 pictures in between. A picture is kept by what it resolves to, so a new poster
-pick is a new picture even behind the same url. Without FFmpeg (or with `REX_TRANSCODER=off`) the original is served.
+pick is a new picture even behind the same url.
 
 ### Apps downloading straight from the source
 

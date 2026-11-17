@@ -698,6 +698,9 @@ python3 tests/test_music_audiobooks.py      # every audio extension plexav makes
                                             # Store track progress, scrobbles; Android's, Plexamp's and Web's chapters
 python3 tests/test_photo_library.py         # pictures a source pushes (`kind: photo`) are plexscratch's photo library: folders as albums
                                             # titled as named, natural order, Plex Web's walk, viewer and slideshow replayed; needs ffmpeg
+python3 tests/test_photo_transcode.py       # /photo/:/transcode at a size as plexlab answers it (its recorded answers for its poster,
+                                            # clearLogo and made pictures, replayed for stand-ins): fit, cover, upscale, EXIF turned,
+                                            # quality=, format=, types; kept in memory and on disk; nothing else handed to FFmpeg; needs ffmpeg
 python3 tests/test_artwork_blur.py          # thumbBlurHash, artBlurHash and UltraBlurColors as plexav answers them for rex's own synthetic
                                             # covers: which rows carry which, the hash and corners within tolerance, kept by --state
 python3 tests/test_match_show_children.py  # a show Fix Matched takes the picked show's episodes by its rows' TMDB episode ids, by number only where every season's count is Plex's (a real library's Ben 10: Omniverse); one matched onto a show the library holds merges into it, its episodes kept; both listed for the source with the show's ids until Unmatch
