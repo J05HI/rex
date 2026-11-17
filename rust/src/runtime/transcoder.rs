@@ -251,12 +251,12 @@ pub(super) fn tmdb_at_width(url: &str, width: Option<&str>) -> String {
 /// own artwork comes with its headers (`from_source`) and may be on rex's own networks, as the
 /// source is; every other url is public only (`fetch_public`).
 pub(super) fn fetch_remote_image(url: &str, from_source: Option<&[(&'static str, String)]>) -> Option<(Vec<u8>, String)> {
-    static CACHE: OnceLock<Mutex<HashMap<String, (Vec<u8>, String)>>> = OnceLock::new();
-    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    static CACHE: OnceLock<Mutex<ImageCache>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
     // Kept apart: a client naming a source's artwork url (`/photo/:/transcode?url=`) must not
     // be served what the source's own fetch cached, which `fetch_public` would have refused.
     let key = String::from_utf8_lossy(&remote_picture(url, from_source)).into_owned();
-    let cached = cache.lock().ok().and_then(|map| map.get(&key).cloned());
+    let cached = cache.lock().ok().and_then(|mut map| map.get(&key));
     info!(
         "ARTWORK {} {}",
         if cached.is_some() { "cache" } else { "fetch" },
@@ -297,7 +297,7 @@ pub(super) fn fetch_remote_image(url: &str, from_source: Option<&[(&'static str,
         .unwrap_or_else(|| "image/jpeg".to_string());
     let hit = (body, content_type);
     if let Ok(mut map) = cache.lock() {
-        remember_image(&mut map, &key, hit.clone());
+        map.put(&key, hit.clone(), IMAGE_CACHE_ENTRIES);
     }
     Some(hit)
 }
@@ -305,25 +305,52 @@ pub(super) fn fetch_remote_image(url: &str, from_source: Option<&[(&'static str,
 /// Plex's artwork is full size (a background runs to megabytes), so 512 entries alone could
 /// hold a gigabyte on a host with 8 GB; the cache is bounded by bytes too.
 const IMAGE_CACHE_BYTES: usize = 64 << 20;
+const IMAGE_CACHE_ENTRIES: usize = 512;
 
-fn remember_image(map: &mut HashMap<String, (Vec<u8>, String)>, url: &str, hit: (Vec<u8>, String)) {
-    remember_within(map, url, hit, 512, IMAGE_CACHE_BYTES);
+/// Pictures by key within a count and `IMAGE_CACHE_BYTES`, the least recently used going first,
+/// one at a time. Both caches used to be cleared whole once full: with 3 MB backgrounds the 22nd
+/// dropped the 21 before it, and a grid scrolled past the budget fetched everything again (rex#24).
+#[derive(Default)]
+struct ImageCache {
+    map: HashMap<String, (Vec<u8>, String, u64)>,
+    held: usize,
+    tick: u64,
 }
 
-fn remember_within(map: &mut HashMap<String, (Vec<u8>, String)>, key: &str, hit: (Vec<u8>, String), entries: usize, bytes: usize) {
-    let held: usize = map.values().map(|(body, _)| body.len()).sum();
-    if map.len() > entries || held + hit.0.len() > bytes {
-        map.clear();
+impl ImageCache {
+    fn get(&mut self, key: &str) -> Option<(Vec<u8>, String)> {
+        self.tick += 1;
+        let tick = self.tick;
+        let (body, content_type, used) = self.map.get_mut(key)?;
+        *used = tick;
+        Some((body.clone(), content_type.clone()))
     }
-    if hit.0.len() <= bytes {
-        map.insert(key.to_string(), hit);
+
+    fn put(&mut self, key: &str, (body, content_type): (Vec<u8>, String), entries: usize) {
+        if body.len() > IMAGE_CACHE_BYTES {
+            return;
+        }
+        if let Some((old, _, _)) = self.map.remove(key) {
+            self.held -= old.len();
+        }
+        while self.map.len() >= entries || self.held + body.len() > IMAGE_CACHE_BYTES {
+            let Some(oldest) = self.map.iter().min_by_key(|(_, (_, _, used))| *used).map(|(key, _)| key.clone()) else {
+                break;
+            };
+            if let Some((gone, _, _)) = self.map.remove(&oldest) {
+                self.held -= gone.len();
+            }
+        }
+        self.tick += 1;
+        self.held += body.len();
+        self.map.insert(key.to_string(), (body, content_type, self.tick));
     }
 }
 
 /// A fitted poster is tens of kilobytes, so the same budget holds thousands of them.
 const FITTED_CACHE_ENTRIES: usize = 8192;
 
-static FITTED: OnceLock<Mutex<HashMap<String, (Vec<u8>, String)>>> = OnceLock::new();
+static FITTED: OnceLock<Mutex<ImageCache>> = OnceLock::new();
 
 /// A remote picture as the caches name it: a source's own artwork by the login it is fetched with,
 /// apart from the same url fetched public or with another source's login (two sources can share a host).
@@ -382,7 +409,7 @@ impl PhotoFit {
     /// A kept answer, from memory or disk.
     pub(super) fn cached(&self) -> Option<(Vec<u8>, String)> {
         let memory = FITTED.get_or_init(Default::default);
-        if let Some(hit) = memory.lock().ok().and_then(|map| map.get(&self.key).cloned()) {
+        if let Some(hit) = memory.lock().ok().and_then(|mut map| map.get(&self.key)) {
             return Some(hit);
         }
         let dir = self.dir.as_ref()?;
@@ -395,7 +422,7 @@ impl PhotoFit {
         let _ = std::fs::File::options().write(true).open(&path).and_then(|file| file.set_modified(std::time::SystemTime::now()));
         let hit = (body, content_type.to_string());
         if let Ok(mut map) = memory.lock() {
-            remember_within(&mut map, &self.key, hit.clone(), FITTED_CACHE_ENTRIES, IMAGE_CACHE_BYTES);
+            map.put(&self.key, hit.clone(), FITTED_CACHE_ENTRIES);
         }
         Some(hit)
     }
@@ -414,7 +441,7 @@ impl PhotoFit {
             WARNED.call_once(|| warning!("photo transcode: {} could not scale a picture; originals are served", self.ffmpeg.display()));
             // In memory only, so the picture is not tried again each request, nor kept unscaled past a restart.
             if let Ok(mut map) = FITTED.get_or_init(Default::default).lock() {
-                remember_within(&mut map, &self.key, (response.body.clone(), response.content_type.clone()), FITTED_CACHE_ENTRIES, IMAGE_CACHE_BYTES);
+                map.put(&self.key, (response.body.clone(), response.content_type.clone()), FITTED_CACHE_ENTRIES);
             }
             return;
         };
@@ -441,7 +468,7 @@ impl PhotoFit {
             }
         }
         if let Ok(mut map) = FITTED.get_or_init(Default::default).lock() {
-            remember_within(&mut map, &self.key, hit, FITTED_CACHE_ENTRIES, IMAGE_CACHE_BYTES);
+            map.put(&self.key, hit, FITTED_CACHE_ENTRIES);
         }
     }
 }
@@ -497,16 +524,43 @@ fn scale_image(ffmpeg: &std::path::Path, image: &[u8], filter: &str, png: bool) 
 mod image_cache_tests {
     use super::*;
 
+    fn image(n: usize) -> (Vec<u8>, String) {
+        (vec![0u8; n], "image/jpeg".to_string())
+    }
+
     #[test]
     fn the_image_cache_never_holds_more_than_its_byte_budget() {
-        let mut map = HashMap::new();
-        let image = |n: usize| (vec![0u8; n], "image/jpeg".to_string());
+        let mut cache = ImageCache::default();
         for i in 0..40 {
-            remember_image(&mut map, &format!("u{i}"), image(3 << 20));
-            assert!(map.values().map(|(body, _)| body.len()).sum::<usize>() <= IMAGE_CACHE_BYTES);
+            cache.put(&format!("u{i}"), image(3 << 20), IMAGE_CACHE_ENTRIES);
+            assert!(cache.map.values().map(|(body, _, _)| body.len()).sum::<usize>() <= IMAGE_CACHE_BYTES);
+            assert_eq!(cache.held, cache.map.values().map(|(body, _, _)| body.len()).sum::<usize>());
         }
-        remember_image(&mut map, "huge", image(IMAGE_CACHE_BYTES + 1));
-        assert!(!map.contains_key("huge"));
+        cache.put("huge", image(IMAGE_CACHE_BYTES + 1), IMAGE_CACHE_ENTRIES);
+        assert!(!cache.map.contains_key("huge"));
+    }
+
+    /// rex#24: the 22nd 3 MB background cleared the 21 before it; now only the oldest goes, and a
+    /// picture read again since is kept over one that was not.
+    #[test]
+    fn a_full_image_cache_lets_only_its_least_recently_used_go() {
+        let mut cache = ImageCache::default();
+        for i in 0..21 {
+            cache.put(&format!("u{i}"), image(3 << 20), IMAGE_CACHE_ENTRIES);
+        }
+        assert!(cache.get("u0").is_some());
+        cache.put("u21", image(3 << 20), IMAGE_CACHE_ENTRIES);
+        assert_eq!(cache.map.len(), 21, "one picture made room, not all of them");
+        assert!(cache.map.contains_key("u0"), "read again, so not the least recently used");
+        assert!(!cache.map.contains_key("u1"));
+        // By count as well: the fitted cache's 8192, here 3.
+        let mut cache = ImageCache::default();
+        for key in ["a", "b", "c", "d"] {
+            cache.put(key, image(10), 3);
+        }
+        let mut kept = cache.map.keys().cloned().collect::<Vec<_>>();
+        kept.sort();
+        assert_eq!(kept, ["b", "c", "d"]);
     }
 
     #[test]
@@ -532,7 +586,7 @@ mod image_cache_tests {
         assert_ne!(key_of(&remote_picture("https://source/a.jpg", Some(&one))), key_of(&remote_picture("https://source/a.jpg", None)));
         // Nor does one source's, from another source on the same host.
         assert_ne!(key_of(&remote_picture("https://source/a.jpg", Some(&one))), key_of(&remote_picture("https://source/a.jpg", Some(&two))));
-        let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().remove(&fit.key);
+        let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().map.remove(&fit.key);
         // A kept JPEG comes back from disk, after a restart (memory forgotten), with its type.
         fit.remember((b"jpeg bytes".to_vec(), "image/jpeg".to_string()));
         forget(&fit);
