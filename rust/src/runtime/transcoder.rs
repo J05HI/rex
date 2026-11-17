@@ -344,6 +344,9 @@ pub(super) struct PhotoFit {
     format: Option<&'static str>,
     ffmpeg: std::path::PathBuf,
     dir: Option<std::path::PathBuf>,
+    /// Only a picture that cannot change under its url is kept: versioned artwork, a bundled
+    /// resource, or an outside url. `/library/metadata/7/thumb` follows a poster pick, so it is fitted but never kept.
+    keep: bool,
 }
 
 impl PhotoFit {
@@ -358,16 +361,27 @@ impl PhotoFit {
             Some("jpeg" | "jpg") => Some("image/jpeg"),
             _ => None,
         };
-        // The picture is named by its url, whose artwork paths are versioned; the token is not part of it.
-        let url = logging::redact_tokens(&percent_decode(query.get("url")?));
+        let raw = percent_decode(query.get("url")?);
+        let outside = matches!(url_scheme(&raw).as_deref(), Some("http" | "https"));
+        let path = raw.split('?').next().unwrap_or_default();
+        let segments = path.split('/').filter(|segment| !segment.is_empty()).collect::<Vec<_>>();
+        let keep = outside
+            || path.starts_with("/:/resources/")
+            || matches!(segments.as_slice(), ["library", "metadata", _, _, stamp] if stamp.bytes().all(|b| b.is_ascii_digit()));
+        // rex's own token differs per viewer and grants nothing here (the route already answered);
+        // an outside url's credentials stay part of its identity.
+        let url = if outside { raw.clone() } else { logging::redact_tokens(&raw) };
         let digest = Sha1::digest(format!("{url} {width}x{height} {cover} {upscale} {format:?}").as_bytes());
         let key = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         let enabled = artwork_cache_budget().is_some();
-        Some(Self { key, width, height, cover, upscale, format, ffmpeg, dir: enabled.then(|| dir.join("artwork-cache")) })
+        Some(Self { key, width, height, cover, upscale, format, ffmpeg, dir: enabled.then(|| dir.join("artwork-cache")), keep })
     }
 
     /// A kept answer, from memory or disk.
     pub(super) fn cached(&self) -> Option<(Vec<u8>, String)> {
+        if !self.keep {
+            return None;
+        }
         let memory = FITTED.get_or_init(Default::default);
         if let Some(hit) = memory.lock().ok().and_then(|map| map.get(&self.key).cloned()) {
             return Some(hit);
@@ -400,14 +414,14 @@ impl PhotoFit {
             static WARNED: std::sync::Once = std::sync::Once::new();
             WARNED.call_once(|| warning!("photo transcode: {} could not scale a picture; originals are served", self.ffmpeg.display()));
             // In memory only, so the picture is not tried again each request, nor kept unscaled past a restart.
-            if let Ok(mut map) = FITTED.get_or_init(Default::default).lock() {
+            if let Some(mut map) = self.keep.then(|| FITTED.get_or_init(Default::default).lock().ok()).flatten() {
                 remember_within(&mut map, &self.key, (response.body.clone(), response.content_type.clone()), FITTED_CACHE_ENTRIES, IMAGE_CACHE_BYTES);
             }
             return;
         };
-        // A picture already as small as the box goes out as it came, unless another type was asked for.
+        // A picture already as small as the box goes out as it came, unless it was asked to grow or change type.
         let converted = target != response.content_type;
-        if !body.is_empty() && (body.len() < response.body.len() || (converted && self.format.is_some())) {
+        if !body.is_empty() && (body.len() < response.body.len() || self.upscale || (converted && self.format.is_some())) {
             response.body = body;
             response.content_type = target.to_string();
         }
@@ -415,6 +429,9 @@ impl PhotoFit {
     }
 
     fn remember(&self, hit: (Vec<u8>, String)) {
+        if !self.keep {
+            return;
+        }
         // On disk only as a type `cached` reads back; any other stays in memory.
         let ext = DISK_TYPES.iter().find(|(content_type, _)| *content_type == hit.1).map(|(_, ext)| ext);
         if let (Some(dir), Some(ext)) = (&self.dir, ext) {
@@ -425,7 +442,7 @@ impl PhotoFit {
             if std::fs::create_dir_all(dir).is_ok() && std::fs::write(&partial, &hit.0).is_ok() {
                 let _ = std::fs::rename(&partial, dir.join(format!("{}.{ext}", self.key)));
             }
-            if let Some(budget) = artwork_cache_budget().filter(|_| write % 128 == 0) {
+            if let Some(budget) = artwork_cache_budget().filter(|_| write.is_multiple_of(128)) {
                 prune_artwork_cache(dir, budget);
             }
         }
@@ -508,6 +525,12 @@ mod image_cache_tests {
             .collect::<HashMap<_, _>>();
         let mut fit = PhotoFit::new(&query, "ffmpeg".into(), dir.clone()).unwrap();
         fit.dir = Some(dir.clone());
+        // Only what cannot change under its url is kept; rex's own token is not part of the key, an outside url's is.
+        let fit_of = |url: &str| PhotoFit::new(&[("width".to_string(), "1".to_string()), ("height".to_string(), "1".to_string()), ("url".to_string(), url.to_string())].into_iter().collect(), "ffmpeg".into(), dir.clone()).unwrap();
+        assert!(!fit_of("/library/metadata/7/thumb").keep);
+        assert!(fit_of("/:/resources/movie.png").keep && fit_of("https://example.com/a.jpg").keep);
+        assert_eq!(fit_of("/library/metadata/7/thumb/7?X-Plex-Token=a").key, fit_of("/library/metadata/7/thumb/7?X-Plex-Token=b").key);
+        assert_ne!(fit_of("https://example.com/a.jpg?token=a").key, fit_of("https://example.com/a.jpg?token=b").key);
         let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().remove(&fit.key);
         // A kept JPEG comes back from disk, after a restart (memory forgotten), with its type.
         fit.remember((b"jpeg bytes".to_vec(), "image/jpeg".to_string()));
