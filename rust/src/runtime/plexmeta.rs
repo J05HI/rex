@@ -222,23 +222,22 @@ impl PlexMeta {
         // episodes in pages of 50, Animaniacs' 160, 2026-10-23, `tests/fixtures/provider/feed_episodes_1023.json`):
         // one page left every episode past the 50th unmatched. A page that cannot be read leaves
         // the answer as the earlier ones made it.
-        while method == "GET" {
-            let Some(container) = fetched.as_mut().and_then(|answer| answer.get_mut("MediaContainer")) else {
-                break;
-            };
-            let total = container.get("totalSize").and_then(Value::as_u64).unwrap_or(0) as usize;
-            let have = container.get("Metadata").and_then(Value::as_array).map_or(0, Vec::len);
-            if have == 0 || have >= total {
-                break;
-            }
-            let more = page(have).and_then(|next| next.pointer("/MediaContainer/Metadata").and_then(Value::as_array).cloned()).unwrap_or_default();
-            if more.is_empty() {
-                break;
-            }
-            if let Some(Value::Array(rows)) = container.get_mut("Metadata") {
-                rows.extend(more);
-                let size = rows.len();
-                container["size"] = json!(size);
+        if method == "GET" {
+            while let Some(container) = fetched.as_mut().and_then(|answer| answer.get_mut("MediaContainer")) {
+                let total = container.get("totalSize").and_then(Value::as_u64).unwrap_or(0) as usize;
+                let have = container.get("Metadata").and_then(Value::as_array).map_or(0, Vec::len);
+                if have == 0 || have >= total {
+                    break;
+                }
+                let more = page(have).and_then(|next| next.pointer("/MediaContainer/Metadata").and_then(Value::as_array).cloned()).unwrap_or_default();
+                if more.is_empty() {
+                    break;
+                }
+                if let Some(Value::Array(rows)) = container.get_mut("Metadata") {
+                    rows.extend(more);
+                    let size = rows.len();
+                    container["size"] = json!(size);
+                }
             }
         }
         // The provider unreachable: the answer it gave before, however empty.
