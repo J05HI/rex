@@ -368,9 +368,10 @@ impl PhotoFit {
         let keep = outside
             || path.starts_with("/:/resources/")
             || matches!(segments.as_slice(), ["library", "metadata", _, _, stamp] if stamp.bytes().all(|b| b.is_ascii_digit()));
-        // rex's own token differs per viewer and grants nothing here (the route already answered);
-        // an outside url's credentials stay part of its identity.
-        let url = if outside { raw.clone() } else { logging::redact_tokens(&raw) };
+        // The viewer's X-Plex-Token differs per viewer and grants nothing here (the route already
+        // answered), so every viewer shares one picture; any other credential stays part of its identity.
+        static VIEWER_TOKEN: OnceLock<Regex> = OnceLock::new();
+        let url = VIEWER_TOKEN.get_or_init(|| Regex::new(r"(?i)\bx-plex-token=[^&]*").unwrap()).replace_all(&raw, "");
         let digest = Sha1::digest(format!("{url} {width}x{height} {cover} {upscale} {format:?}").as_bytes());
         let key = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         let enabled = artwork_cache_budget().is_some();
@@ -525,11 +526,12 @@ mod image_cache_tests {
             .collect::<HashMap<_, _>>();
         let mut fit = PhotoFit::new(&query, "ffmpeg".into(), dir.clone()).unwrap();
         fit.dir = Some(dir.clone());
-        // Only what cannot change under its url is kept; rex's own token is not part of the key, an outside url's is.
+        // Only what cannot change under its url is kept; the viewer's X-Plex-Token is not part of the key, any other token is.
         let fit_of = |url: &str| PhotoFit::new(&[("width".to_string(), "1".to_string()), ("height".to_string(), "1".to_string()), ("url".to_string(), url.to_string())].into_iter().collect(), "ffmpeg".into(), dir.clone()).unwrap();
         assert!(!fit_of("/library/metadata/7/thumb").keep);
         assert!(fit_of("/:/resources/movie.png").keep && fit_of("https://example.com/a.jpg").keep);
         assert_eq!(fit_of("/library/metadata/7/thumb/7?X-Plex-Token=a").key, fit_of("/library/metadata/7/thumb/7?X-Plex-Token=b").key);
+        assert_eq!(fit_of("http://127.0.0.1:32400/library/metadata/7/thumb/7?X-Plex-Token=a").key, fit_of("http://127.0.0.1:32400/library/metadata/7/thumb/7?X-Plex-Token=b").key);
         assert_ne!(fit_of("https://example.com/a.jpg?token=a").key, fit_of("https://example.com/a.jpg?token=b").key);
         let forget = |fit: &PhotoFit| FITTED.get_or_init(Default::default).lock().unwrap().remove(&fit.key);
         // A kept JPEG comes back from disk, after a restart (memory forgotten), with its type.
