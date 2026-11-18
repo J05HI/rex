@@ -8282,6 +8282,45 @@ impl Runtime {
         Some(result)
     }
 
+    /// `/library/metadata/` asked by guid: Plex Web's Discover person page asks every server
+    /// for the person's titles as `/library/metadata/<encodeURIComponent(guid)>,...?skipRefresh=1`,
+    /// ten a request, and draws none from a server that refuses ("Movies & Shows in Media
+    /// Libraries"). Decoded, the guid's `//` met the empty-segment 404. plexlab answers each
+    /// guid as its row's ratingKey, byte for byte, in request order, under `/children` too;
+    /// one it holds no row of drops out, and nothing left is the unknown key's 404; a guid two
+    /// rows share is the lower id's alone (plexscratch42), and only the encoded form is a guid
+    /// (`guid_lookup_s1434.json`). PMS takes any guid PREFIX (the first row by guid);
+    /// no client sends one, so rex matches whole guids only. `None`: not a guid lookup;
+    /// `Some(None)`: no guid named a row.
+    fn guid_lookup_path(&self, target: &str) -> Option<Option<String>> {
+        let raw = target.split('?').next().unwrap_or("");
+        let rest = raw.strip_prefix("/library/metadata/")?;
+        let (lookup, tail) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
+        let lookup = percent_decode(lookup);
+        if !lookup.contains("://") {
+            return None;
+        }
+        let keys = lookup
+            .split(',')
+            .filter_map(|member| {
+                if !member.contains("://") {
+                    return Some(member.to_string());
+                }
+                self.catalog
+                    .lazy_by(crate::catalog::By::Guid, member)
+                    .iter()
+                    // The lookup files by a hash: the text decides.
+                    .filter(|row| row.get("guid").and_then(Field::as_str) == Some(member))
+                    .filter_map(key_of)
+                    .min_by_key(|key| (key.parse::<u64>().unwrap_or(u64::MAX), key.clone()))
+            })
+            .collect::<Vec<_>>();
+        if keys.is_empty() {
+            return Some(None);
+        }
+        Some(Some(format!("/library/metadata/{}{}", keys.join(","), percent_decode(&tail.replace('+', "%2B")))))
+    }
+
     fn request_route(&mut self, request: &Request) -> Response {
         let (mut path, raw_query) = split_target(&request.target);
         if path.is_empty() {
@@ -8292,6 +8331,21 @@ impl Runtime {
             .any(|part| !part.is_empty() && !part.contains('='))
         {
             return Response::error(400, "rex: bad request");
+        }
+        // A guid no row holds is a 404 only once the token is admitted. An unknown KEY is
+        // PMS's 404 before the token (`unauthorized_route`), but guids are public: without a
+        // token every guid lookup is the 401 a held one gets, so a peer rex-direct lets in
+        // cannot test which titles a server holds (a claimed PMS's answer is unmeasured).
+        let mut guid_missed = false;
+        if matches!(request.method.as_str(), "GET" | "HEAD") {
+            match self.guid_lookup_path(&request.target) {
+                Some(Some(resolved)) => path = resolved,
+                Some(None) => {
+                    guid_missed = true;
+                    path = "/library/metadata/guid".to_string();
+                }
+                None => {}
+            }
         }
         // Empty path components are refused by the route table.  A finite
         // measured table of routes is the exception (cycle 50): the doubled
@@ -8486,6 +8540,9 @@ impl Runtime {
                 split_target(&request.target).0
             );
             return response;
+        }
+        if guid_missed {
+            return Response::error(404, "rex: not found");
         }
         if let Some(refusal) = self.share_refusal(request, &path) {
             return refusal;

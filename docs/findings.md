@@ -16209,3 +16209,46 @@ Web asks it for backgrounds), plexlab's 500s (the picture as it is; a 1-pixel si
 fitted: a Part is streamed from its source after the lock, never held whole. Without an FFmpeg every
 answer is the picture as it is, as before, at `_at_width`'s TMDB variant, which also picks what is
 fetched for fitting (a variant at least as wide as asked: the same size, from a smaller fetch).
+
+## Library items asked by guid: Discover's "Movies & Shows in Media Libraries" (2026-11-18)
+
+A Discover person page in Plex Web (4.160.0) lists the person's titles a server holds by asking
+every server of the account, ten guids a request (`main-8792` chunk, generators `WP`/`HP`):
+
+    GET /library/metadata/${guids.map(encodeURIComponent).join(",")}?skipRefresh=1
+
+and reads any error as "none here". rex decoded the path, met the guid's `//` in the
+empty-segment guard and answered 404, so a rex never appeared in that row (reported with a patch
+on Discord, 2026-10-19).
+
+Measured on plexlab (1.43.4, unclaimed, from its own host; `probes/record_guid_lookup.py`,
+`tests/fixtures/guid_lookup_s1434.json`), each guid request beside the same request by ratingKey:
+
+| Asked by guid | plexlab | Same bytes as |
+|---|---|---|
+| a film, show, season or episode | 200 | its ratingKey |
+| `local://11` (a season Plex's agent did not match) | 200 | `11` |
+| a batch, out of key order; ten at once | 200, request order | the keys in that order |
+| known, unknown (either order) | 200 | the known key alone (a detail, not a batch) |
+| unknown alone; two unknowns | 404 | an unknown key's 404 |
+| guid then key, key then guid | 200 | the keys in that order |
+| one guid twice; a guid and its own key | 200, the row twice | `1,1` |
+| `/children` of a show by guid | 200 | its key's `/children` |
+| JSON and XML, with or without `skipRefresh` | as by key | |
+| a film's id under `plex://show/`, `plex://bogus/`, `com.plexapp.agents.imdb://...` | 404 | |
+| the guid NOT encoded (`/library/metadata/plex://movie/...`) | 404 | |
+| `plex://movie/`, `plex://movie/5d77688`, `plex://show/5d9c08` | 200, one row | |
+
+The last row is a PREFIX match: each answers one row, the first whose guid starts with it in guid
+order (`plex://movie/` is Elephants Dream, the smallest movie guid, not the lowest key). plexlab
+holds no guid on two rows, so plexscratch42 (1.42.2, offline) had two of its films given one
+plex:// guid in its database for the requests and put back: the guid answered the lower id alone,
+in a batch too, where `3,4` by key answered both.
+
+rex now exchanges each encoded member that names a scheme for the key of the row holding exactly
+that guid (the lowest key when several do, through the catalog's guid lookup) before routing, so
+what follows is the request by key: a member with no row drops out, and nothing left is the 404.
+Without a token a guid lookup is always the 401 a held one gets, a miss included: an unknown KEY is
+PMS's 404 before the token, but guids are public, so a peer could test which titles a server holds.
+A claimed PMS's tokenless answer for a guid is unmeasured. **Measured and not emulated:** the prefix match (no client sends a partial guid, and it would read
+the library for each). `tests/test_guid_lookup.py` replays the fixture on `catalog_ui.json`'s rows.
