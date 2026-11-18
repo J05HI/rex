@@ -3642,6 +3642,14 @@ impl Runtime {
                         object.insert("value".to_string(), value);
                     }
                 }
+                // The device the transcoder's probe found, read per request: the probe
+                // finishes after the start (`Hardware::device_option`).
+                if object.get("id").and_then(Value::as_str) == Some("HardwareDevicePath") {
+                    if let Some(device) = self.transcoder.as_ref().and_then(|transcoder| transcoder.with_hardware(universal::Hardware::device_option)) {
+                        let lead = object.get("enumValues").and_then(Value::as_str).unwrap_or(":Auto");
+                        object.insert("enumValues".to_string(), json!(format!("{lead}|{device}")));
+                    }
+                }
             }
         }
         if !rows.is_empty() {

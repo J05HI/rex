@@ -801,7 +801,9 @@ restarts (a reboot, or the last login session ending); until then start rex unde
 | `REX_TRANSCODE_DIR` | `$TMPDIR/rex-transcode-<port>` | segments; cleared at start |
 
 The startup log says what the probe found (`transcoder: ... hardware vaapi encode=true
-tonemapx=true opencl_tonemap=true bounded_http=false alpha_subtitles=true hls_lenient=true decode=[h264,hevc,mpeg2video]`). A
+tonemapx=true opencl_tonemap=true bounded_http=false alpha_subtitles=true hls_lenient=true decode=[h264,hevc,mpeg2video]`), and
+Plex's Settings > Transcoder lists that device under "Hardware transcoding device", after Auto;
+only Auto there means no device was found. Picking it changes nothing: rex always uses what it found. A
 conversion runs on the GPU end to end when it can decode the source there, uploads CPU-decoded frames when it cannot or should not
 (AV1 on older Intel, a burned image subtitle, HDR on a device without OpenCL), and falls back to x264 when there is no device.
 HDR and Dolby Vision stay on the GPU, tonemapped through OpenCL with whichever tonemapping
