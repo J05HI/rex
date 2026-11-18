@@ -1,0 +1,946 @@
+{
+ "server": "1.43.4.10903-e5521bd8c",
+ "library": [
+  {
+   "ratingKey": "1",
+   "type": "movie",
+   "guid": "plex://movie/5d7768352e80df001ebde4c9"
+  },
+  {
+   "ratingKey": "18",
+   "type": "movie",
+   "guid": "plex://movie/5d776bd7594b2b001e6e4d2f"
+  },
+  {
+   "ratingKey": "17",
+   "type": "movie",
+   "guid": "plex://movie/5d776833103a2d001f5674a1"
+  },
+  {
+   "ratingKey": "3",
+   "type": "movie",
+   "guid": "plex://movie/5d77688123d5a3001f4ed3df"
+  },
+  {
+   "ratingKey": "4",
+   "type": "movie",
+   "guid": "plex://movie/5d77699b96b655001fdd3b87"
+  },
+  {
+   "ratingKey": "6",
+   "type": "show",
+   "guid": "plex://show/5d9c086c7d06d9001ffd27aa"
+  },
+  {
+   "ratingKey": "7",
+   "type": "season",
+   "guid": "plex://season/602e67e766dfdb002c0a1b5b"
+  },
+  {
+   "ratingKey": "11",
+   "type": "season",
+   "guid": "local://11"
+  },
+  {
+   "ratingKey": "8",
+   "type": "episode",
+   "guid": "plex://episode/5d9c127e4eefaa001f6449c2"
+  },
+  {
+   "ratingKey": "9",
+   "type": "episode",
+   "guid": "plex://episode/5d9c127e4eefaa001f6449b6"
+  },
+  {
+   "ratingKey": "10",
+   "type": "episode",
+   "guid": "plex://episode/5d9c127e2df347001e41c8f3"
+  },
+  {
+   "ratingKey": "12",
+   "type": "episode",
+   "guid": "local://12"
+  },
+  {
+   "ratingKey": "13",
+   "type": "episode",
+   "guid": "local://13"
+  },
+  {
+   "ratingKey": "14",
+   "type": "episode",
+   "guid": "local://14"
+  }
+ ],
+ "cases": [
+  {
+   "name": "film",
+   "members": [
+    "plex://movie/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/1?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "show",
+   "members": [
+    "plex://show/5d9c086c7d06d9001ffd27aa"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fshow%2F5d9c086c7d06d9001ffd27aa?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "d962847e-2c7c-4d45-8355-e45e16287846",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "6",
+     "type": "show",
+     "guid": "plex://show/5d9c086c7d06d9001ffd27aa"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/6?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "season",
+   "members": [
+    "plex://season/602e67e766dfdb002c0a1b5b"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fseason%2F602e67e766dfdb002c0a1b5b?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "d962847e-2c7c-4d45-8355-e45e16287846",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "7",
+     "type": "season",
+     "guid": "plex://season/602e67e766dfdb002c0a1b5b"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/7?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "episode",
+   "members": [
+    "plex://episode/5d9c127e4eefaa001f6449c2"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fepisode%2F5d9c127e4eefaa001f6449c2?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "d962847e-2c7c-4d45-8355-e45e16287846",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "8",
+     "type": "episode",
+     "guid": "plex://episode/5d9c127e4eefaa001f6449c2"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/8?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "local season",
+   "members": [
+    "local://11"
+   ],
+   "path": "/library/metadata/local%3A%2F%2F11?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "d962847e-2c7c-4d45-8355-e45e16287846",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "11",
+     "type": "season",
+     "guid": "local://11"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/11?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "batch out of key order",
+   "members": [
+    "plex://movie/5d77699b96b655001fdd3b87",
+    "plex://movie/5d7768352e80df001ebde4c9",
+    "plex://show/5d9c086c7d06d9001ffd27aa"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d77699b96b655001fdd3b87,plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9,plex%3A%2F%2Fshow%2F5d9c086c7d06d9001ffd27aa?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 3,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "4",
+     "type": "movie",
+     "guid": "plex://movie/5d77699b96b655001fdd3b87"
+    },
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    },
+    {
+     "ratingKey": "6",
+     "type": "show",
+     "guid": "plex://show/5d9c086c7d06d9001ffd27aa"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/4,1,6?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "batch of ten",
+   "members": [
+    "plex://movie/5d776bd7594b2b001e6e4d2f",
+    "plex://movie/5d776833103a2d001f5674a1",
+    "plex://movie/5d77688123d5a3001f4ed3df",
+    "plex://movie/5d77699b96b655001fdd3b87",
+    "plex://movie/5d7768352e80df001ebde4c9",
+    "plex://show/5d9c086c7d06d9001ffd27aa",
+    "plex://season/602e67e766dfdb002c0a1b5b",
+    "plex://episode/5d9c127e2df347001e41c8f3",
+    "plex://episode/5d9c127e4eefaa001f6449b6",
+    "plex://episode/5d9c127e4eefaa001f6449c2"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d776bd7594b2b001e6e4d2f,plex%3A%2F%2Fmovie%2F5d776833103a2d001f5674a1,plex%3A%2F%2Fmovie%2F5d77688123d5a3001f4ed3df,plex%3A%2F%2Fmovie%2F5d77699b96b655001fdd3b87,plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9,plex%3A%2F%2Fshow%2F5d9c086c7d06d9001ffd27aa,plex%3A%2F%2Fseason%2F602e67e766dfdb002c0a1b5b,plex%3A%2F%2Fepisode%2F5d9c127e2df347001e41c8f3,plex%3A%2F%2Fepisode%2F5d9c127e4eefaa001f6449b6,plex%3A%2F%2Fepisode%2F5d9c127e4eefaa001f6449c2?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 10,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "18",
+     "type": "movie",
+     "guid": "plex://movie/5d776bd7594b2b001e6e4d2f"
+    },
+    {
+     "ratingKey": "17",
+     "type": "movie",
+     "guid": "plex://movie/5d776833103a2d001f5674a1"
+    },
+    {
+     "ratingKey": "3",
+     "type": "movie",
+     "guid": "plex://movie/5d77688123d5a3001f4ed3df"
+    },
+    {
+     "ratingKey": "4",
+     "type": "movie",
+     "guid": "plex://movie/5d77699b96b655001fdd3b87"
+    },
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    },
+    {
+     "ratingKey": "6",
+     "type": "show",
+     "guid": "plex://show/5d9c086c7d06d9001ffd27aa"
+    },
+    {
+     "ratingKey": "7",
+     "type": "season",
+     "guid": "plex://season/602e67e766dfdb002c0a1b5b"
+    },
+    {
+     "ratingKey": "10",
+     "type": "episode",
+     "guid": "plex://episode/5d9c127e2df347001e41c8f3"
+    },
+    {
+     "ratingKey": "9",
+     "type": "episode",
+     "guid": "plex://episode/5d9c127e4eefaa001f6449b6"
+    },
+    {
+     "ratingKey": "8",
+     "type": "episode",
+     "guid": "plex://episode/5d9c127e4eefaa001f6449c2"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/18,17,3,4,1,6,7,10,9,8?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "known then unknown",
+   "members": [
+    "plex://movie/5d7768352e80df001ebde4c9",
+    "plex://movie/5d776b59ad5437001f79c6f8"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9,plex%3A%2F%2Fmovie%2F5d776b59ad5437001f79c6f8?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/1?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "unknown then known",
+   "members": [
+    "plex://movie/5d776b59ad5437001f79c6f8",
+    "plex://movie/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d776b59ad5437001f79c6f8,plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/1?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "unknown alone",
+   "members": [
+    "plex://movie/5d776b59ad5437001f79c6f8"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d776b59ad5437001f79c6f8?skipRefresh=1",
+   "accept": "application/json",
+   "status": 404,
+   "container": null,
+   "rows": null,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>",
+   "same_as": {
+    "path": "/library/metadata/999999?skipRefresh=1",
+    "status": 404,
+    "identical": true
+   }
+  },
+  {
+   "name": "two unknowns",
+   "members": [
+    "plex://movie/5d776b59ad5437001f79c6f8",
+    "plex://show/5d9c086c7d06d9001ffd27ab"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d776b59ad5437001f79c6f8,plex%3A%2F%2Fshow%2F5d9c086c7d06d9001ffd27ab?skipRefresh=1",
+   "accept": "application/json",
+   "status": 404,
+   "container": null,
+   "rows": null,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>"
+  },
+  {
+   "name": "guid then key",
+   "members": [
+    "plex://movie/5d7768352e80df001ebde4c9",
+    "3"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9,3?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 2,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    },
+    {
+     "ratingKey": "3",
+     "type": "movie",
+     "guid": "plex://movie/5d77688123d5a3001f4ed3df"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/1,3?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "key then guid",
+   "members": [
+    "3",
+    "plex://movie/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/3,plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 2,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "3",
+     "type": "movie",
+     "guid": "plex://movie/5d77688123d5a3001f4ed3df"
+    },
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/3,1?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "same guid twice",
+   "members": [
+    "plex://movie/5d7768352e80df001ebde4c9",
+    "plex://movie/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9,plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 2,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    },
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/1,1?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "guid and its own key",
+   "members": [
+    "plex://movie/5d7768352e80df001ebde4c9",
+    "1"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9,1?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 2,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    },
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/1,1?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "film id under show",
+   "members": [
+    "plex://show/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fshow%2F5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": "application/json",
+   "status": 404,
+   "container": null,
+   "rows": null,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>"
+  },
+  {
+   "name": "empty id",
+   "members": [
+    "plex://movie/"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "17",
+     "type": "movie",
+     "guid": "plex://movie/5d776833103a2d001f5674a1"
+    }
+   ]
+  },
+  {
+   "name": "guid prefix",
+   "members": [
+    "plex://movie/5d77688"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d77688?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "3",
+     "type": "movie",
+     "guid": "plex://movie/5d77688123d5a3001f4ed3df"
+    }
+   ]
+  },
+  {
+   "name": "guid prefix of a show",
+   "members": [
+    "plex://show/5d9c08"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fshow%2F5d9c08?skipRefresh=1",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "d962847e-2c7c-4d45-8355-e45e16287846",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "6",
+     "type": "show",
+     "guid": "plex://show/5d9c086c7d06d9001ffd27aa"
+    }
+   ]
+  },
+  {
+   "name": "unknown scheme",
+   "members": [
+    "plex://bogus/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fbogus%2F5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": "application/json",
+   "status": 404,
+   "container": null,
+   "rows": null,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>"
+  },
+  {
+   "name": "other agent",
+   "members": [
+    "com.plexapp.agents.imdb://tt1254207?lang=en"
+   ],
+   "path": "/library/metadata/com.plexapp.agents.imdb%3A%2F%2Ftt1254207%3Flang%3Den?skipRefresh=1",
+   "accept": "application/json",
+   "status": 404,
+   "container": null,
+   "rows": null,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>"
+  },
+  {
+   "name": "not encoded",
+   "members": [
+    "plex://movie/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex://movie/5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": "application/json",
+   "status": 404,
+   "container": null,
+   "rows": null,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>",
+   "same_as": {
+    "path": "/library/metadata/1?skipRefresh=1",
+    "status": 200,
+    "identical": false
+   }
+  },
+  {
+   "name": "batch not encoded",
+   "members": [
+    "plex://movie/5d77699b96b655001fdd3b87",
+    "plex://movie/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex://movie/5d77699b96b655001fdd3b87,plex://movie/5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": "application/json",
+   "status": 404,
+   "container": null,
+   "rows": null,
+   "body": "<html><head><title>Not Found</title></head><body><h1>404 Not Found</h1></body></html>",
+   "same_as": {
+    "path": "/library/metadata/4,1?skipRefresh=1",
+    "status": 200,
+    "identical": false
+   }
+  },
+  {
+   "name": "no query",
+   "members": [
+    "plex://movie/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "e46d000f-bcc4-4b5b-8a7b-1a9d721346ec",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632
+   },
+   "rows": [
+    {
+     "ratingKey": "1",
+     "type": "movie",
+     "guid": "plex://movie/5d7768352e80df001ebde4c9"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "xml film",
+   "members": [
+    "plex://movie/5d7768352e80df001ebde4c9"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9?skipRefresh=1",
+   "accept": null,
+   "status": 200,
+   "container": null,
+   "rows": null,
+   "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<MediaContainer size=\"1\" allowSync=\"1\" identifier=\"com.plexapp.plugins.library\" librarySectionID=\"1\" librarySectionTitle=\"Movies\" librarySectionUUID=\"e46d000f-bcc4-4b5b-8a7b-1a9d721346ec\" mediaTagPrefix=\"/system/bundle/media/flags/\" mediaTagVersion=\"1786914632\">\n<Video ratingKey=\"1\" key=\"/library/metadata/1\" guid=\"plex://movie/5d7768352e80df001ebde4c9\" slug=\"",
+   "same_as": {
+    "path": "/library/metadata/1?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "xml batch",
+   "members": [
+    "plex://movie/5d77699b96b655001fdd3b87",
+    "plex://movie/5d7768352e80df001ebde4c9",
+    "plex://show/5d9c086c7d06d9001ffd27aa"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d77699b96b655001fdd3b87,plex%3A%2F%2Fmovie%2F5d7768352e80df001ebde4c9,plex%3A%2F%2Fshow%2F5d9c086c7d06d9001ffd27aa?skipRefresh=1",
+   "accept": null,
+   "status": 200,
+   "container": null,
+   "rows": null,
+   "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<MediaContainer size=\"3\" allowSync=\"1\" identifier=\"com.plexapp.plugins.library\" librarySectionID=\"1\" librarySectionTitle=\"Movies\" librarySectionUUID=\"e46d000f-bcc4-4b5b-8a7b-1a9d721346ec\" mediaTagPrefix=\"/system/bundle/media/flags/\" mediaTagVersion=\"1786914632\">\n<Video ratingKey=\"4\" key=\"/library/metadata/4\" guid=\"plex://movie/5d77699b96b655001fdd3b87\" slug=\"",
+   "same_as": {
+    "path": "/library/metadata/4,1,6?skipRefresh=1",
+    "status": 200,
+    "identical": true
+   }
+  },
+  {
+   "name": "children by guid",
+   "members": [
+    "plex://show/5d9c086c7d06d9001ffd27aa"
+   ],
+   "path": "/library/metadata/plex%3A%2F%2Fshow%2F5d9c086c7d06d9001ffd27aa/children",
+   "accept": "application/json",
+   "status": 200,
+   "container": {
+    "size": 3,
+    "allowSync": true,
+    "art": "/library/metadata/6/art/1794449835",
+    "identifier": "com.plexapp.plugins.library",
+    "key": "6",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "d962847e-2c7c-4d45-8355-e45e16287846",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914632,
+    "nocache": true,
+    "parentIndex": 1,
+    "parentTitle": "Firefly",
+    "parentYear": 2002,
+    "summary": "In the year 2517, the universe is a vast frontier where lawlessness reigns and adventure awaits! Join Captain Malcolm Reynolds and his ragtag crew aboard the spaceship Serenity as they navigate the fringes of society, battling the oppressive Alliance and facing off against ruthless bounty hunters.",
+    "theme": "/library/metadata/6/theme/1794449835",
+    "thumb": "/library/metadata/6/thumb/1794449835",
+    "title1": "TV Shows",
+    "title2": "Firefly",
+    "viewGroup": "season",
+    "viewMode": 65593,
+    "Directory": [
+     {
+      "leafCount": 6,
+      "thumb": "/library/metadata/6/thumb/1794449835",
+      "viewedLeafCount": 0,
+      "key": "/library/metadata/6/allLeaves",
+      "title": "All episodes"
+     }
+    ]
+   },
+   "rows": [
+    {
+     "ratingKey": "7",
+     "type": "season",
+     "guid": "plex://season/602e67e766dfdb002c0a1b5b"
+    },
+    {
+     "ratingKey": "11",
+     "type": "season",
+     "guid": "local://11"
+    }
+   ],
+   "same_as": {
+    "path": "/library/metadata/6/children",
+    "status": 200,
+    "identical": true
+   }
+  }
+ ],
+ "shared": {
+  "server": "1.42.2.10156-f737b826c",
+  "rows_before": "3|local://3|Elephants Dream\n4|local://4|Sintel",
+  "guid": "plex://movie/5d776833103a2d001f5674a1",
+  "cases": [
+   {
+    "path": "/library/metadata/3,4?skipRefresh=1",
+    "status": 200,
+    "rows": [
+     {
+      "ratingKey": "3",
+      "guid": "plex://movie/5d776833103a2d001f5674a1"
+     },
+     {
+      "ratingKey": "4",
+      "guid": "plex://movie/5d776833103a2d001f5674a1"
+     }
+    ]
+   },
+   {
+    "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d776833103a2d001f5674a1?skipRefresh=1",
+    "status": 200,
+    "rows": [
+     {
+      "ratingKey": "3",
+      "guid": "plex://movie/5d776833103a2d001f5674a1"
+     }
+    ]
+   },
+   {
+    "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d776833103a2d001f5674a1,plex%3A%2F%2Fmovie%2F5d776b59ad5437001f79c6f8?skipRefresh=1",
+    "status": 200,
+    "rows": [
+     {
+      "ratingKey": "3",
+      "guid": "plex://movie/5d776833103a2d001f5674a1"
+     }
+    ]
+   },
+   {
+    "path": "/library/metadata/5,plex%3A%2F%2Fmovie%2F5d776833103a2d001f5674a1?skipRefresh=1",
+    "status": 200,
+    "rows": [
+     {
+      "ratingKey": "5",
+      "guid": "tv.plex.agents.none://5"
+     },
+     {
+      "ratingKey": "3",
+      "guid": "plex://movie/5d776833103a2d001f5674a1"
+     }
+    ]
+   },
+   {
+    "path": "/library/metadata/plex%3A%2F%2Fmovie%2F5d776833103a2d001f5674a1,5?skipRefresh=1",
+    "status": 200,
+    "rows": [
+     {
+      "ratingKey": "3",
+      "guid": "plex://movie/5d776833103a2d001f5674a1"
+     },
+     {
+      "ratingKey": "5",
+      "guid": "tv.plex.agents.none://5"
+     }
+    ]
+   }
+  ],
+  "rows_after": "3|local://3|Elephants Dream\n4|local://4|Sintel"
+ }
+}
