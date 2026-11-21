@@ -14,7 +14,7 @@ HTTPS address. rex starts once (step 4), with the flags the later steps need, so
 
 | | |
 |---|---|
-| A Linux, macOS or Windows host | rex is one binary with no other runtime dependencies |
+| A Linux, macOS or Windows host | rex is one binary with no other runtime dependencies. On a phone or TV box, [rex for Android](https://notes.debridmediamanager.com/rex/android/) runs it instead; for sponsors, [zurg+rex](https://notes.debridmediamanager.com/zurg/guides/android/), a Plex server on your phone, also connects a debrid and Usenet library to it |
 | 1 GB of RAM | with 4,062 movies and 656 shows (34,678 episodes) rex used under 500 MB while it started and about 730 MB while the library was browsed; converting video takes more |
 | rex nightly 2026.10.25 or newer | download it ([step 1](#1-get-it)), run the [Docker image](#docker) on Linux, or build it with Rust 1.89 or newer (rustup) |
 | One or more sources | anything that serves the files over HTTP and pushes them to rex's feed: [rex-stremio](https://github.com/debridmediamanager/rex-stremio) for Stremio addons, [zurg](https://zurg.debridmediamanager.com/) nightly 2026.10.27 or newer for a debrid account or Usenet (zurg v1.0.0 has no rex feed), or your own |
@@ -213,7 +213,12 @@ You then watch signed in as yourself, with your own watch state. Fix Match works
 the account rex is claimed with: rex refuses it (403) to the accounts it is shared with, as a
 real Plex Media Server does.
 
-A claimed rex refuses another claim (409). To move it to another account (the fresh one was
+A claimed rex refuses another claim (409), unless plex.tv no longer accepts its claim: removing
+the server under Authorized Devices should do that, and rex then logs `plex.tv refused the claim's
+server token` (within about a minute when the device was removed through plex.tv's API or the
+account signed out of all devices) and `curl -s http://<rex's LAN IP>:32400/rex/claim` says `"refused": true`. Claim it
+again as above, no restart: the new claim replaces the refused one. A rex started on a claim plex.tv
+refuses drops it, as a Plex Media Server does, and is simply unclaimed: claim it again. To move it to another account (the fresh one was
 lost or banned), stop it, remove `claim_state.json`, start it, claim again and share again. If
 the old account can still sign in, also remove the server there (app.plex.tv, Settings,
 Authorized Devices, Servers). Those two are the whole unclaim: rex has no sign-out, and
@@ -510,7 +515,7 @@ services:
     image: ghcr.io/debridmediamanager/rex:nightly
     container_name: rex
     restart: unless-stopped
-    network_mode: host        # LAN discovery (GDM), and each source's registered address reachable as on the host
+    network_mode: host        # LAN discovery (GDM, DLNA), and each source's registered address reachable as on the host
     devices:
       - /dev/dri:/dev/dri     # an Intel or AMD GPU for converting; leave out where there is none
     volumes:
@@ -635,6 +640,7 @@ eligibility, still apply. Music, photos and Live TV come from sources that send 
 | Music | A source's tracks as artists and albums, named by Plex from their MusicBrainz release, played in Plexamp, Plex Web and Plex for Android with lyrics and loudness when the source sends them. Audiobooks too, with their chapters: turn on **Store track progress** in the library's Advanced settings for a player to resume where it stopped |
 | Live TV | A source's live channels and guide in Plex Web's and Plex for Android's Live TV: What's On, the guide, search and watching a channel |
 | Photos | A source's pictures as albums of its folders (a comic book is one), browsed, viewed and played as a slideshow in Plex Web. Plex for Android lists no photo library, a real Plex server's either, and Plezy lists them but opens none |
+| DLNA | TVs and players on your LAN that speak DLNA (VLC, Windows Media Player, most smart TVs) browse the movie and TV libraries and play each file as it is, nothing converted. Turn it on in Plex: Settings, DLNA, **Enable the DLNA server**. It works on the LAN only, and in Docker it needs host networking |
 
 ### Analysis and disk use
 
@@ -654,6 +660,16 @@ Deleting preview thumbnails leaves chapter images and markers intact.
 The blurred backgrounds and colours the Plex apps draw behind a title are worked out from its
 poster and background the first time a listing shows it, and kept in `rex.db`.
 `REX_ARTWORK_ANALYSIS=off` turns that off.
+
+Artwork a client asks for at a size (`/photo/:/transcode`, every poster grid) is scaled to that
+size with the transcoder's FFmpeg, as a Plex Media Server scales it, so Plex Web's 240x360 poster
+tile is ~20 KB rather than the ~800 KB original; two pictures at most are scaled at once. A photo
+library's pictures are served as they are, and so is everything without FFmpeg (or with
+`REX_TRANSCODER=off`). Scaled pictures are kept in memory; `REX_ARTWORK_CACHE_MB=<megabytes>` keeps them on disk too, in
+`artwork-cache/` beside `rex.db`, the least recently read removed past that budget, so a restart
+fetches nothing again. The budget is soft: it is checked every 128 writes, so the folder can pass it
+by up to 128 pictures in between. A picture is kept by what it resolves to, so a new poster
+pick is a new picture even behind the same url.
 
 ### Apps downloading straight from the source
 
@@ -785,7 +801,9 @@ restarts (a reboot, or the last login session ending); until then start rex unde
 | `REX_TRANSCODE_DIR` | `$TMPDIR/rex-transcode-<port>` | segments; cleared at start |
 
 The startup log says what the probe found (`transcoder: ... hardware vaapi encode=true
-tonemapx=true opencl_tonemap=true bounded_http=false alpha_subtitles=true hls_lenient=true decode=[h264,hevc,mpeg2video]`). A
+tonemapx=true opencl_tonemap=true bounded_http=false alpha_subtitles=true hls_lenient=true decode=[h264,hevc,mpeg2video]`), and
+Plex's Settings > Transcoder lists that device under "Hardware transcoding device", after Auto;
+only Auto there means no device was found. Picking it changes nothing: rex always uses what it found. A
 conversion runs on the GPU end to end when it can decode the source there, uploads CPU-decoded frames when it cannot or should not
 (AV1 on older Intel, a burned image subtitle, HDR on a device without OpenCL), and falls back to x264 when there is no device.
 HDR and Dolby Vision stay on the GPU, tonemapped through OpenCL with whichever tonemapping

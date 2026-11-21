@@ -1,0 +1,163 @@
+{
+ "provenance": "2026-11-16, a scratch rex (2026.11.14 nightly) on zen claimed to a lab Plex account, its server device then removed with DELETE plex.tv/devices/<id>.xml (the API call; the Authorized Devices page's Remove was not clicked). Each call rex makes with the claim's server token, asked once more with that token 5 s later, with a real PMS's headers. Bodies as plex.tv answered them; the features answer is clipped. The token is the only secret and appears in no body.",
+ "machine": "{machine}",
+ "calls": [
+  {
+   "host": "plex.tv",
+   "method": "GET",
+   "path": "/api/v2/server/access_tokens",
+   "status": 401,
+   "content_type": null,
+   "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<errors>\n  <error code=\"1001\" message=\"User could not be authenticated\" status=\"401\"/>\n</errors>\n"
+  },
+  {
+   "host": "servers.plex.tv",
+   "method": "GET",
+   "path": "/api/v2/user",
+   "status": 401,
+   "content_type": "application/xml; charset=utf-8",
+   "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<errors>\n  <error code=\"1001\" message=\"User could not be authenticated\" status=\"401\"/>\n</errors>\n"
+  },
+  {
+   "host": "servers.plex.tv",
+   "method": "GET",
+   "path": "/api/v2/features",
+   "status": 200,
+   "content_type": "application/xml; charset=utf-8",
+   "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<features>\n  <feature id=\"guided-upgrade\" uuid=\"c9d9b7ee-fdd9-474e-b143-5039c04e9b9b\"/>\n  <feature id=\"increase-password-complexity\" uuid=\"9e93f8a8-7ccd-4d15-99fa-76a158027660\"/>\n  <feature id=\"upgrade-3ds2\" uuid=\"547514ab-3284-46e5-af77-bbaff247e3fc\"/>\n  <feat",
+   "body_clipped_at": 300
+  },
+  {
+   "host": "plex.tv",
+   "method": "GET",
+   "path": "/api/v2/server/webhooks",
+   "status": 401,
+   "content_type": null,
+   "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<errors>\n  <error code=\"1001\" message=\"User could not be authenticated\" status=\"401\"/>\n</errors>\n"
+  },
+  {
+   "host": "plex.tv",
+   "method": "GET",
+   "path": "/api/v2/resources",
+   "status": 401,
+   "content_type": null,
+   "body": "{\"errors\":[{\"code\":1001,\"message\":\"User could not be authenticated\",\"status\":401}]}"
+  },
+  {
+   "host": "servers.plex.tv",
+   "method": "PUT",
+   "path": "/devices/{machine}",
+   "status": 401,
+   "content_type": "application/xml; charset=utf-8",
+   "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<errors>\n  <error>Invalid authentication token.</error>\n</errors>\n"
+  },
+  {
+   "host": "plex.tv",
+   "method": "POST",
+   "path": "/servers.xml",
+   "status": 401,
+   "content_type": null,
+   "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<errors>\n  <error>Invalid authentication token.</error>\n</errors>\n"
+  },
+  {
+   "host": "pubsub.plex.tv",
+   "method": "GET",
+   "path": "/sub/eventsource/{account}/{machine}",
+   "status": 403,
+   "content_type": "text/html",
+   "body": "<html>\r\n<head><title>403 Forbidden</title></head>\r\n<body>\r\n<center><h1>403 Forbidden</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n"
+  }
+ ],
+ "rex_log_after_restart": [
+  "claim state: CLAIMED by <owner>",
+  "token gate: ENFORCED -- claimed: the server's own token and the ones plex.tv lists for it",
+  "claimed-account refresh failed (1 in a row): HTTP Error 401: Unauthorized",
+  "heartbeat failed (1 in a row): HTTP Error 401: Unauthorized",
+  "access tokens read failed: HTTP Error 401: Unauthorized",
+  "servers.xml POST -> 401",
+  "pubsub failed: HTTP Error 403: Forbidden; resubscribing in 15s"
+ ],
+ "pubsub_after_removal": {
+  "provenance": "2026-11-16, later the same day: two scratch rex on zen claimed to the lab account, pubsub open; the timed one's device removed with DELETE plex.tv/devices/<id>.xml at t=0 (the call took 0.5 s). plex.tv did not close the removed server's pubsub stream or answer it 403: it went on sending keepalives, and both servers' streams got the two events below in the second of the removal (the removed one's rex logged them at the same second; these raw lines were read on the other server's stream, with its own live token). The removed token's access-token read, asked every 0.5 s, answered 200 up to just before the DELETE and 401 from the first read after it returned. Seconds from the DELETE's start; the events are the second removal's (the first's came 0.526 and 0.598 s on).",
+  "events": [
+   {
+    "after_s": 0.465,
+    "data": "data: <Message command=\"notifyFavoritesChange\"/>\n"
+   },
+   {
+    "after_s": 0.465,
+    "data": "\n"
+   },
+   {
+    "after_s": 0.472,
+    "data": "data: <Message command=\"notifyFavoritesChange\"/>\n"
+   },
+   {
+    "after_s": 0.472,
+    "data": "\n"
+   }
+  ],
+  "keepalive": {
+   "data": ": -1\n",
+   "every_s": 10
+  },
+  "access_token_read": [
+   {
+    "run": 1,
+    "delete_returned_s": 0.539,
+    "last_200_s": -0.126,
+    "first_401_s": 0.743
+   },
+   {
+    "run": 2,
+    "delete_returned_s": 0.502,
+    "last_200_s": -0.223,
+    "first_401_s": 0.65
+   }
+  ]
+ },
+ "pubsub_after_sign_out_everywhere": {
+  "provenance": "2026-11-16 16:21 and 16:26 UTC, lab account, scratch rex on zen claimed and pubsub open. Signing out of all devices is the account page's password change with \"Sign out connected devices after password change\" checked: PUT clients.plex.tv/api/v2/user?includeSubscriptions=1&includeProviders=1&includeSettings=0&includeSharedSettings=0 with password, passwordConfirmation and currentPassword (here the unchanged password) and resetDevices true, which answered 204 sent as Plex Web and 403 code 1068 \"This action is not available for this device.\" with another X-Plex-Product. Every token of the account answered 401 after it, the caller's own included; every device row stayed. The second run's raw lines below were read on a second claimed server's stream with its own token (its rex stopped); the rex on the first server logged the same two commands at the same second. Seconds from the PUT's start; the stream stayed open with its keepalives.",
+  "events": [
+   {
+    "after_s": 2.296,
+    "data": "data: <Message command=\"notifyResetToken\"/>\n"
+   },
+   {
+    "after_s": 2.297,
+    "data": "\n"
+   },
+   {
+    "after_s": 2.367,
+    "data": "data: <Message command=\"notifyAccountChange\"/>\n"
+   },
+   {
+    "after_s": 2.367,
+    "data": "\n"
+   }
+  ],
+  "access_token_read": [
+   {
+    "run": 1,
+    "notice_s": 2.054,
+    "first_401_s": 2.28,
+    "rex": "841e7bc6 + 88ffee06: notifyResetToken unhandled, still refused false 66 s on (heartbeat an hour away)"
+   },
+   {
+    "run": 2,
+    "notice_s": 2.296,
+    "first_401_s": 2.583,
+    "rex": "with notifyResetToken asked: plex.tv asked 7.4 s on, refused 7.7 s on"
+   }
+  ]
+ },
+ "pms_restart": {
+  "provenance": "2026-11-16, plexlab's PMS (1.43.4) claimed to the lab account, its server device then removed on plex.tv (findings, \"A claim whose device was removed\"). Running, it went on answering claimed=\"1\" and signInState=\"ok\" for the 30 s watched; restarted, its first access-token read was a 401 and it logged `MyPlex: Token was invalid, resetting security.`, emptied PlexOnlineToken and answered as below.",
+  "log": "Token was invalid, resetting security",
+  "identity_claimed": "0",
+  "myplex_account": {
+   "signInState": "invalid",
+   "mappingError": "badauth"
+  }
+ }
+}

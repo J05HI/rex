@@ -45,6 +45,8 @@ Pick the guide for what you have.
 |---|---|
 | Files your own app serves over HTTP | [rex with your own app](https://notes.debridmediamanager.com/rex/any-source/) |
 | Stremio addons | [rex with your Stremio addons](https://notes.debridmediamanager.com/rex/stremio/), free, with no sponsorship |
+| Only a phone or a TV box | [rex for Android](https://github.com/debridmediamanager/rex-android), with [addons](#small-addons-rex-addons) for YouTube, Spotify and more |
+| A phone or a TV box, and your debrid library or Usenet | [zurg+rex for Android](#zurg-and-rex-in-one-app-zurgrex-for-android), for sponsors |
 | Your debrid library or Usenet, through zurg | [rex with zurg](https://notes.debridmediamanager.com/rex/with-zurg/) |
 | A Plex server today | [Move from Plex to rex](https://notes.debridmediamanager.com/rex/from-plex/) |
 
@@ -74,6 +76,39 @@ rex reads no media from disk. A source (an addon, your own app or zurg) tells re
 | Your own | [Building rex addons](https://notes.debridmediamanager.com/rex/addons/) walks through one |
 
 <p align="center"><img src="docs/images/rex-stremio-catalogs.webp" width="640" alt="rex-stremio's settings page: Stremio catalogs, each going into a rex library"></p>
+
+### Small addons: rex-addons
+
+[rex-addons](https://github.com/debridmediamanager/rex-addons) runs addons written in plain JavaScript, each in its own sandbox that can reach only the websites it lists. It runs beside rex on a computer, or inside rex for Android. You add a repository, pick the addons you want and sign in where one needs your account.
+
+| Addon | What it brings |
+|---|---|
+| Internet Archive | Public domain films from archive.org, in the rex-addons repository |
+| Stremio addons | Your Stremio addons' catalogs, played from your stream addons |
+| YouTube | Your playlists, Liked videos and Watch later, up to 1080p. Sign in with a code |
+| Spotify | Your playlists, liked songs and saved albums as music for Plexamp. You connect from the Spotify app; the sound plays from YouTube, so it needs the YouTube addon |
+| Your own | [Writing an addon](https://github.com/debridmediamanager/rex-addons/blob/main/docs/writing-addons.md): two files, no build step |
+
+The Stremio, YouTube and Spotify addons are in [rex-community-addons](https://github.com/debridmediamanager/rex-community-addons): add that repository to get them.
+
+### rex on a phone or TV box: rex for Android
+
+[rex for Android](https://github.com/debridmediamanager/rex-android) turns a phone, tablet, Android TV, Google TV or Fire TV into the server. One app runs rex and rex-addons, so the Plex apps on that device and on your home network play from it with no computer involved. It is free: [download it](https://github.com/debridmediamanager/rex-android/releases/latest).
+
+<p align="center">
+  <img src="docs/images/android-rex-status.webp" width="30%" alt="rex for Android's Status page: rex running, signed in to Plex">
+  <img src="docs/images/android-rex-addons.webp" width="30%" alt="rex for Android's Addons page with the Internet Archive and Spotify addons">
+  <img src="docs/images/android-rex-plexamp.webp" width="30%" alt="Plexamp playing the Spotify addon's albums from rex on the phone">
+</p>
+
+### zurg and rex in one app: zurg+rex for Android
+
+zurg+rex is the same idea with zurg inside: one app runs zurg, rex and rex-addons, so your debrid library or Usenet and your addons fill one library on the phone or TV box. It installs addons the same way rex for Android does, from zurg nightly 2026.11.12. It is a sponsor app: you need an active sponsorship, and [gatekeeper](https://gatekeeper.debridmediamanager.com/) gives your account the download.
+
+<p align="center">
+  <img src="docs/images/android-zurgrex-status.webp" width="30%" alt="zurg+rex's Status page: the library ready, with rex for the Plex apps">
+  <img src="docs/images/android-zurgrex-addons.webp" width="30%" alt="zurg+rex's Addons page: addons beside your library">
+</p>
 
 ## Limits
 

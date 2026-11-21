@@ -1,0 +1,2161 @@
+{
+ "_provenance": "plexlab (PMS 1.43.4.10903-e5521bd8c, unclaimed) on the lab host, 2026-11-17: /photo/:/transcode asked by hand with probes/record_photo_transcode.py (not a client recording; Plex Web's grid request is the first). Plex's artwork kept by sha256 and length only; the synthetic pictures are made by synthetic().",
+ "server": "1.43.4.10903-e5521bd8c",
+ "sources": {
+  "poster": {
+   "bytes": 632028,
+   "sha256": "41d07c474939b50c8fb8ea2b46603a5228f2d9809a90545cbb2a443c823e899e",
+   "format": "JPEG",
+   "size": [
+    1920,
+    2880
+   ],
+   "mode": "RGB",
+   "orientation": 1,
+   "quality": 85,
+   "subsampling": "4:2:0",
+   "progressive": true,
+   "url": "/library/metadata/3/thumb/1794449834",
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  "logo": {
+   "bytes": 31257,
+   "sha256": "aeda1a09a42c5578c9211b06fcb17b65ff6a1c22c32bb6083c7d0cf5f3f771e6",
+   "format": "PNG",
+   "size": [
+    786,
+    132
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "url": "/library/metadata/3/clearLogo/1794449834",
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  "remote": {
+   "bytes": 632028,
+   "sha256": "41d07c474939b50c8fb8ea2b46603a5228f2d9809a90545cbb2a443c823e899e",
+   "format": "JPEG",
+   "size": [
+    1920,
+    2880
+   ],
+   "mode": "RGB",
+   "orientation": 1,
+   "quality": 85,
+   "subsampling": "4:2:0",
+   "progressive": true,
+   "url": "https://metadata-static.plex.tv/1/gracenote/1a7cc949108d516645843ee308b1e1e9.jpg",
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  "tmdb": {
+   "bytes": 337950,
+   "sha256": "0d1aae3e4a56674331c450cb2dbb0e99f74dad27050e703382394479c8397e8c",
+   "format": "JPEG",
+   "size": [
+    1000,
+    1500
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 85,
+   "subsampling": "4:2:2",
+   "progressive": false,
+   "url": "https://image.tmdb.org/t/p/original/l98Zns4oQe1BSvbF4hJ8oL6VSf0.jpg",
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  "exif6": {
+   "bytes": 2467,
+   "sha256": "59a0c6b630393387ee2150f4ced5fcc36de155c84a0d5d72a505a568a3b13a4f",
+   "format": "JPEG",
+   "size": [
+    300,
+    200
+   ],
+   "mode": "RGB",
+   "orientation": 6,
+   "quality": 90,
+   "subsampling": "4:2:0",
+   "progressive": false,
+   "url": "exif6.jpg",
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  "exif1": {
+   "bytes": 2431,
+   "sha256": "3a2347ee136100f42beac749b917d8346109c34e1dcfe43f10025a53e66e4873",
+   "format": "JPEG",
+   "size": [
+    300,
+    200
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 90,
+   "subsampling": "4:2:0",
+   "progressive": false,
+   "url": "exif1.jpg",
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  "alpha": {
+   "bytes": 1439,
+   "sha256": "e9a90c7ad45a6e6e1c3153d3265a5b8b29066f87e8c53396d521e2e7275e1963",
+   "format": "PNG",
+   "size": [
+    600,
+    300
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "url": "alpha.png",
+   "status": 200,
+   "type": "image/png"
+  },
+  "webp": {
+   "bytes": 416,
+   "sha256": "9134b92ec2b325883a6dcf7064a06290dc1c38bea117cf5cca8c0cdf536ea9ba",
+   "format": "WEBP",
+   "size": [
+    600,
+    300
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "url": "webp.webp",
+   "status": 200,
+   "type": "application/octet-stream"
+  },
+  "gif": {
+   "bytes": 1518,
+   "sha256": "2a7c70820c9090da184ad7398a64bc51ba79d9adf8d72f38a8a44f52c8badde7",
+   "format": "GIF",
+   "size": [
+    600,
+    300
+   ],
+   "mode": "P",
+   "orientation": null,
+   "url": "gif.gif",
+   "status": 200,
+   "type": "image/gif"
+  }
+ },
+ "answers": [
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 13709,
+   "sha256": "a402fdbd7ee217219035e4bd6bd2ddd2de4d1a6e239d8e557fcc5b9e1b16d094",
+   "format": "JPEG",
+   "size": [
+    200,
+    300
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "1000"
+    ],
+    [
+     "height",
+     "300"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 193125,
+   "sha256": "87ad0be1e72e779390c5b87915fa9fcb93cac0397999d4a5fc64f9f76f14ac9b",
+   "format": "JPEG",
+   "size": [
+    1000,
+    1500
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "1000"
+    ],
+    [
+     "height",
+     "300"
+    ],
+    [
+     "minSize",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 627308,
+   "sha256": "cdf693234cf33de50059c61b59d51abf70b37b71dbd151edfbbcad4e7cd8a0b2",
+   "format": "JPEG",
+   "size": [
+    1920,
+    2880
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "2000"
+    ],
+    [
+     "height",
+     "2000"
+    ],
+    [
+     "minSize",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 544337,
+   "sha256": "6aa5ec0ef2406858f17f690ec90ab4d5641f63ac895f2e1d306dc46d87ccac29",
+   "format": "JPEG",
+   "size": [
+    2000,
+    3000
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "2000"
+    ],
+    [
+     "height",
+     "2000"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 627308,
+   "sha256": "cdf693234cf33de50059c61b59d51abf70b37b71dbd151edfbbcad4e7cd8a0b2",
+   "format": "JPEG",
+   "size": [
+    1920,
+    2880
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "4096"
+    ],
+    [
+     "height",
+     "4096"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 1508102,
+   "sha256": "6594fe1d18122401a895f86730e7fbb1c8ea96aea97d97572647f2b881663eb4",
+   "format": "JPEG",
+   "size": [
+    4096,
+    6144
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "4096"
+    ],
+    [
+     "height",
+     "4096"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 973690,
+   "sha256": "185705655076c96fa89975e4f9df76c38476d1bb2d6debb3646dd979849d1940",
+   "format": "JPEG",
+   "size": [
+    3000,
+    4500
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "3000"
+    ],
+    [
+     "height",
+     "5000"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 2242980,
+   "sha256": "d2010ad7aadebe429311e0b7a12433f358b70a2aa249ba19463be55582624df9",
+   "format": "JPEG",
+   "size": [
+    5461,
+    8192
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "8192"
+    ],
+    [
+     "height",
+     "8192"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 2976104,
+   "sha256": "044ee6c39f1c0159baef9f3dafd6f5eaae276308fe9ba523ff582c4ee085bb2c",
+   "format": "JPEG",
+   "size": [
+    6667,
+    10000
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "10000"
+    ],
+    [
+     "height",
+     "10000"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 109,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "11000"
+    ],
+    [
+     "height",
+     "11000"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 500,
+   "type": "text/html"
+  },
+  {
+   "bytes": 109,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "8192"
+    ],
+    [
+     "height",
+     "8192"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 500,
+   "type": "text/html"
+  },
+  {
+   "bytes": 10467,
+   "sha256": "3e693fbec2ed222799049fbac715c7ba2c96911b612852db374a629f079dbf30",
+   "format": "JPEG",
+   "size": [
+    171,
+    256
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "0"
+    ],
+    [
+     "height",
+     "0"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 10467,
+   "sha256": "3e693fbec2ed222799049fbac715c7ba2c96911b612852db374a629f079dbf30",
+   "format": "JPEG",
+   "size": [
+    171,
+    256
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "0"
+    ],
+    [
+     "height",
+     "360"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 10467,
+   "sha256": "3e693fbec2ed222799049fbac715c7ba2c96911b612852db374a629f079dbf30",
+   "format": "JPEG",
+   "size": [
+    171,
+    256
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "0"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 109,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "1"
+    ],
+    [
+     "height",
+     "100"
+    ]
+   ],
+   "status": 500,
+   "type": "text/html"
+  },
+  {
+   "bytes": 109,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "-5"
+    ],
+    [
+     "height",
+     "360"
+    ]
+   ],
+   "status": 500,
+   "type": "text/html"
+  },
+  {
+   "bytes": 1962,
+   "sha256": "cfdbc9d666bb200864edab43cad1c154cf5084c03f2e0fde289575e43a61909b",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 1,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 4107,
+   "sha256": "cb9376b6b5f08bc17eac6b9761776bc203465e9cbd81d22a9303d21f6e4aab8f",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 10,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "10"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 11864,
+   "sha256": "3ec661f65ab0bd6502350f713bc8c3977fc2d07f6119ffdd76b1722b66910278",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 50,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "50"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 31297,
+   "sha256": "7a8659e2c5a6fc46968d3953167955349eb9b7115d67feab0c042b209a68f22f",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 90,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "90"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 102631,
+   "sha256": "1d9ff29971a6b8754d2f7c76ead05ae2398fa89e9564ddb4f66f539a37294a81",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 100,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "100"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "-1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "0"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 102631,
+   "sha256": "1d9ff29971a6b8754d2f7c76ead05ae2398fa89e9564ddb4f66f539a37294a81",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 100,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "101"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 102631,
+   "sha256": "1d9ff29971a6b8754d2f7c76ead05ae2398fa89e9564ddb4f66f539a37294a81",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 100,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "127"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "128"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 1962,
+   "sha256": "cfdbc9d666bb200864edab43cad1c154cf5084c03f2e0fde289575e43a61909b",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 1,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "129"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 6908,
+   "sha256": "070de3c324602a385cc6e7038001c01d44eb06c1058cdec7dc589e23b9e49791",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 22,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "150"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 17128,
+   "sha256": "9766eeba3455a1f70195be86d7ae587a4cf422604e59320ce205f97ad1aaa19a",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 72,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "200"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 102631,
+   "sha256": "1d9ff29971a6b8754d2f7c76ead05ae2398fa89e9564ddb4f66f539a37294a81",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 100,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "255"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "256"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 10959,
+   "sha256": "93bbff95a519ecbee20f2d4fd2f3ab2cb0472759de7985fdc2eb77d6430d72c6",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 44,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "quality",
+     "300"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 144737,
+   "sha256": "1e830fafb711ec206781cc636f42e6179b390d264a6d560568b32e19b1a48ae3",
+   "format": "PNG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "format",
+     "png"
+    ]
+   ],
+   "status": 200,
+   "type": "image/png"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "format",
+     "jpeg"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "format",
+     "jpg"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 10604,
+   "sha256": "2d1cbff75ad96a1aa939a280e41c4d5d010c4f35b932124fd5fa96746e1a06e7",
+   "format": "WEBP",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "format",
+     "webp"
+    ]
+   ],
+   "status": 200,
+   "type": "image/webp"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "format",
+     "gif"
+    ]
+   ],
+   "status": 200,
+   "type": "image/gif"
+  },
+  {
+   "bytes": 3082,
+   "sha256": "2080f4f0ba908a2e39474f3c7b15d549c09a3fefc1305d85008e306c8423ba8d",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "blur",
+     "20"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "opacity",
+     "50"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "poster",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ],
+    [
+     "background",
+     "ff0000"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 14427,
+   "sha256": "b8b02b784ab68052a0d20d59df1485caa939fdafef0f7396c4ae4f728b74996f",
+   "format": "PNG",
+   "size": [
+    400,
+    67
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "source": "logo",
+   "query": [
+    [
+     "width",
+     "400"
+    ],
+    [
+     "height",
+     "200"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 14427,
+   "sha256": "b8b02b784ab68052a0d20d59df1485caa939fdafef0f7396c4ae4f728b74996f",
+   "format": "PNG",
+   "size": [
+    400,
+    67
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "source": "logo",
+   "query": [
+    [
+     "width",
+     "400"
+    ],
+    [
+     "height",
+     "200"
+    ],
+    [
+     "format",
+     "png"
+    ]
+   ],
+   "status": 200,
+   "type": "image/png"
+  },
+  {
+   "bytes": 4084,
+   "sha256": "ba33fa0353bf25b572d035ccd63d9b7cc5742ebafd8e56f791c5510413861ebf",
+   "format": "JPEG",
+   "size": [
+    400,
+    67
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "logo",
+   "query": [
+    [
+     "width",
+     "400"
+    ],
+    [
+     "height",
+     "200"
+    ],
+    [
+     "format",
+     "jpeg"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 64863,
+   "sha256": "69836ed879ace1957850bfa9b6ef2e252a8020cbe3d17aa7fe0cab3c028d48aa",
+   "format": "PNG",
+   "size": [
+    1191,
+    200
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "source": "logo",
+   "query": [
+    [
+     "width",
+     "400"
+    ],
+    [
+     "height",
+     "200"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 595745,
+   "sha256": "ac80af8132693985d67d0339404ec7ef8953f83af5d0c84fd47a8cfd0a5ba6bd",
+   "format": "PNG",
+   "size": [
+    5955,
+    1000
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "source": "logo",
+   "query": [
+    [
+     "width",
+     "6000"
+    ],
+    [
+     "height",
+     "1000"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 595745,
+   "sha256": "ac80af8132693985d67d0339404ec7ef8953f83af5d0c84fd47a8cfd0a5ba6bd",
+   "format": "PNG",
+   "size": [
+    5955,
+    1000
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "source": "logo",
+   "query": [
+    [
+     "width",
+     "12000"
+    ],
+    [
+     "height",
+     "1000"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 1370,
+   "sha256": "b72a17a244967937b8edb143256166b408fc7acbe236b22cfa0cc72bafa57ddb",
+   "format": "PNG",
+   "size": [
+    60,
+    10
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "source": "logo",
+   "query": [
+    [
+     "width",
+     "3000"
+    ],
+    [
+     "height",
+     "10"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 8308,
+   "sha256": "a184aa1d5e39fafa82a34930d0e08bf926a2eeb3bf050a16ac720288971c6a92",
+   "format": "PNG",
+   "size": [
+    256,
+    43
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "source": "logo",
+   "query": [
+    [
+     "width",
+     "0"
+    ],
+    [
+     "height",
+     "0"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 18273,
+   "sha256": "c5e1cf8a5ac79b58448df0ce84a081fd7c90de14e17dca14de0bfff60e2cbaa8",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "remote",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 21996,
+   "sha256": "7f98076ba42b47c9c8c2da408ae8b945699c3da14c4b1206a147bb1735ce7b5f",
+   "format": "JPEG",
+   "size": [
+    240,
+    360
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "tmdb",
+   "query": [
+    [
+     "width",
+     "240"
+    ],
+    [
+     "height",
+     "360"
+    ],
+    [
+     "minSize",
+     "1"
+    ],
+    [
+     "upscale",
+     "1"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg"
+  },
+  {
+   "bytes": 678,
+   "sha256": "5c7a3653620286e551c557a2e47c71050fb41d5871cb0667c1f188c6eceb88ea",
+   "format": "JPEG",
+   "size": [
+    100,
+    150
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "exif6",
+   "query": [
+    [
+     "width",
+     "150"
+    ],
+    [
+     "height",
+     "150"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg",
+   "top": [
+    254,
+    0,
+    0
+   ],
+   "bottom": [
+    0,
+    0,
+    254
+   ]
+  },
+  {
+   "bytes": 1272,
+   "sha256": "32bece3cfe3b5db917aa3533fce5e5dc90fe62644ad1031e67a141287c9c3d4f",
+   "format": "JPEG",
+   "size": [
+    200,
+    300
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "exif6",
+   "query": [
+    [
+     "width",
+     "1000"
+    ],
+    [
+     "height",
+     "1000"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg",
+   "top": [
+    254,
+    0,
+    0
+   ],
+   "bottom": [
+    0,
+    0,
+    254
+   ]
+  },
+  {
+   "bytes": 790,
+   "sha256": "845821b086cd956dc9c0784d9398c88f0602d12bb0b57e39bd4c60e8819ee882",
+   "format": "JPEG",
+   "size": [
+    150,
+    100
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "exif1",
+   "query": [
+    [
+     "width",
+     "150"
+    ],
+    [
+     "height",
+     "150"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg",
+   "top": [
+    0,
+    0,
+    254
+   ],
+   "bottom": [
+    0,
+    0,
+    254
+   ]
+  },
+  {
+   "bytes": 598,
+   "sha256": "9028f86a09e85bf984e225de4024b150b0da2e0cd4c8b6c8bcdc4530f543b2e0",
+   "format": "PNG",
+   "size": [
+    300,
+    150
+   ],
+   "mode": "RGBA",
+   "orientation": null,
+   "source": "alpha",
+   "query": [
+    [
+     "width",
+     "300"
+    ],
+    [
+     "height",
+     "300"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg",
+   "top": [
+    0,
+    255,
+    0
+   ],
+   "bottom": [
+    0,
+    255,
+    0
+   ]
+  },
+  {
+   "bytes": 828,
+   "sha256": "ae064958877bf3c535c66a8123b61137b8c7f19d1b673397e5540c4c4792dd62",
+   "format": "JPEG",
+   "size": [
+    300,
+    150
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "alpha",
+   "query": [
+    [
+     "width",
+     "300"
+    ],
+    [
+     "height",
+     "300"
+    ],
+    [
+     "format",
+     "jpeg"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg",
+   "top": [
+    0,
+    255,
+    1
+   ],
+   "bottom": [
+    0,
+    255,
+    1
+   ]
+  },
+  {
+   "bytes": 828,
+   "sha256": "ae064958877bf3c535c66a8123b61137b8c7f19d1b673397e5540c4c4792dd62",
+   "format": "JPEG",
+   "size": [
+    300,
+    150
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "webp",
+   "query": [
+    [
+     "width",
+     "300"
+    ],
+    [
+     "height",
+     "300"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg",
+   "top": [
+    0,
+    255,
+    1
+   ],
+   "bottom": [
+    0,
+    255,
+    1
+   ]
+  },
+  {
+   "bytes": 828,
+   "sha256": "ae064958877bf3c535c66a8123b61137b8c7f19d1b673397e5540c4c4792dd62",
+   "format": "JPEG",
+   "size": [
+    300,
+    150
+   ],
+   "mode": "RGB",
+   "orientation": null,
+   "quality": 75,
+   "subsampling": "4:4:4",
+   "progressive": false,
+   "source": "gif",
+   "query": [
+    [
+     "width",
+     "300"
+    ],
+    [
+     "height",
+     "300"
+    ]
+   ],
+   "status": 200,
+   "type": "image/jpeg",
+   "top": [
+    0,
+    255,
+    1
+   ],
+   "bottom": [
+    0,
+    255,
+    1
+   ]
+  }
+ ]
+}

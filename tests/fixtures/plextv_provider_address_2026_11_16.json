@@ -1,0 +1,429 @@
+{
+ "measured": "2026-11-16 on zen (home line), lab Plex account, rex 841e7bc6 with REX_TRANSCODER=off and --heartbeat-interval 3600 so no beat announced in the window. The provider is a stand-in on dmm-01 (DMM's own host) making DMM's src/utils/plexServerOwner.ts calls header for header; 'own' runs sent the provider's own X-Plex-Client-Identifier instead of the server's. Polled with the account token every ~3 s: devices.xml (the server's row) and clients.plex.tv /api/v2/resources. Addresses: home = the home line's public IPv4, provider = dmm-01's.",
+ "claims_provider_first": {
+  "note": "A first claim: rex asks its provider before its servers.xml and device PUT (finish_claim), so the provider's plex.tv call comes first; whichever write plex.tv applies last is the server's publicAddress.",
+  "runs": [
+   {
+    "run": "b2",
+    "provider_client_identifier": "the server's machineIdentifier",
+    "polled": [
+     {
+      "t": 2.2,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.4,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.4
+   },
+   {
+    "run": "b3",
+    "provider_client_identifier": "the server's machineIdentifier",
+    "polled": [
+     {
+      "t": 2.1,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.3,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.3
+   },
+   {
+    "run": "b4",
+    "provider_client_identifier": "the server's machineIdentifier",
+    "polled": [
+     {
+      "t": 2.2,
+      "publicAddress": "home",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.4,
+      "publicAddress": "provider",
+      "connections": 1,
+      "listed": false
+     }
+    ],
+    "first_listed_s": null,
+    "unlisted_until_stopped_s": 240
+   },
+   {
+    "run": "b5",
+    "provider_client_identifier": "the server's machineIdentifier",
+    "polled": [
+     {
+      "t": 2.1,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.4,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.4
+   },
+   {
+    "run": "o1",
+    "provider_client_identifier": "the provider's own",
+    "polled": [
+     {
+      "t": 2.1,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.4,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.4
+   },
+   {
+    "run": "o2",
+    "provider_client_identifier": "the provider's own",
+    "polled": [
+     {
+      "t": 2.1,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.4,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.4
+   },
+   {
+    "run": "o3",
+    "provider_client_identifier": "the provider's own",
+    "polled": [
+     {
+      "t": 2.2,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.6,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.6
+   },
+   {
+    "run": "o4",
+    "provider_client_identifier": "the provider's own",
+    "polled": [
+     {
+      "t": 2.2,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.5,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.5
+   },
+   {
+    "run": "o5",
+    "provider_client_identifier": "the provider's own",
+    "polled": [
+     {
+      "t": 2.1,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.4,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.4
+   },
+   {
+    "run": "o6",
+    "provider_client_identifier": "the provider's own",
+    "polled": [
+     {
+      "t": 2.1,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 5.5,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 5.5
+   },
+   {
+    "run": "r1",
+    "provider_client_identifier": "the server's machineIdentifier",
+    "polled": [
+     {
+      "t": 3.1,
+      "publicAddress": "provider",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 8.7,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 8.7
+   },
+   {
+    "run": "r2",
+    "provider_client_identifier": "the server's machineIdentifier",
+    "polled": [
+     {
+      "t": 4.9,
+      "publicAddress": "home",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 8.6,
+      "publicAddress": "home",
+      "connections": 1,
+      "listed": true
+     }
+    ],
+    "first_listed_s": 8.6
+   },
+   {
+    "run": "r3",
+    "provider_client_identifier": "the server's machineIdentifier",
+    "polled": [
+     {
+      "t": 3.5,
+      "publicAddress": "home",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 7.8,
+      "publicAddress": "provider",
+      "connections": 1,
+      "listed": false
+     }
+    ],
+    "first_listed_s": null,
+    "unlisted_until_stopped_s": 900
+   },
+   {
+    "run": "r4",
+    "provider_client_identifier": "the server's machineIdentifier",
+    "polled": [
+     {
+      "t": 3.0,
+      "publicAddress": "home",
+      "connections": 0,
+      "listed": false
+     },
+     {
+      "t": 6.4,
+      "publicAddress": "provider",
+      "connections": 1,
+      "listed": false
+     }
+    ],
+    "first_listed_s": null,
+    "unlisted_until_stopped_s": 900
+   }
+  ]
+ },
+ "provider_after_announce": {
+  "note": "A claim with rex-direct off, listed, then one provider-shaped GET /api/v2/resources from dmm-01 with the server token and the server's client identifier, ~15 s after the claim.",
+  "runs": [
+   {
+    "run": "g1",
+    "asked_s_after_claim": 15,
+    "polled_s_after_ask": [
+     {
+      "t": -5,
+      "publicAddress": "home",
+      "listed": true
+     },
+     {
+      "t": 1,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 5,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 9,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 13,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 17,
+      "publicAddress": "provider",
+      "listed": false
+     }
+    ]
+   },
+   {
+    "run": "g2",
+    "asked_s_after_claim": 15,
+    "polled_s_after_ask": [
+     {
+      "t": -5,
+      "publicAddress": "home",
+      "listed": true
+     },
+     {
+      "t": 1,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 5,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 9,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 13,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 17,
+      "publicAddress": "provider",
+      "listed": false
+     }
+    ]
+   },
+   {
+    "run": "g3",
+    "asked_s_after_claim": 15,
+    "polled_s_after_ask": [
+     {
+      "t": -4,
+      "publicAddress": "home",
+      "listed": true
+     },
+     {
+      "t": 1,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 5,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 9,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 13,
+      "publicAddress": "provider",
+      "listed": false
+     },
+     {
+      "t": 17,
+      "publicAddress": "provider",
+      "listed": false
+     }
+    ]
+   }
+  ]
+ },
+ "restored_by_announce": {
+  "run": "e1",
+  "note": "A listed server the provider's address had dropped; one device PUT shaped as rex's announce, from zen.",
+  "before": {
+   "publicAddress": "provider",
+   "listed": false
+  },
+  "put_status": 200,
+  "after_1s": {
+   "publicAddress": "home",
+   "listed": true
+  }
+ },
+ "without_provider": {
+  "note": "First listed, s after the claim POST.",
+  "rex_direct_off": [
+   5.2,
+   5.3,
+   5.1
+  ],
+  "reclaim_after_device_removed": 5.1,
+  "real_dmm_provider_once": 5.2,
+  "real_pms_1_43_5_docker": 2.5,
+  "rex_without_any_connection_announced": "not listed in 600 s"
+ },
+ "fire_tv_cube": {
+  "note": "The event this explains (zurg app sign-in, rex ae2d690c, DMM's provider). rex started 10:11:56 UTC with the 600 s heartbeat.",
+  "claim": "10:18:40.9",
+  "provider_403": "+0.5 s",
+  "servers_xml": "+1.0 s",
+  "pubsub": "+1.5 s",
+  "device_row_at_55_s": {
+   "publicAddress": "provider",
+   "connections": 1
+  },
+  "not_listed_through": "+184 s",
+  "listed_by": "+211 s",
+  "heartbeat_beat": "10:21:56, +195 s"
+ }
+}

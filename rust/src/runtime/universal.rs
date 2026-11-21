@@ -155,11 +155,28 @@ pub(crate) struct Hardware {
     /// of them ("detected format webvtt ... mismatches allowed extensions", 2026-10-24).
     pub hls_lenient: bool,
     pub filters: HashSet<String>,
+    /// The GPU's own name, where its API tells it (NVENC's device list: `nvenc_gpu_name`).
+    pub name: Option<String>,
 }
 
 impl Hardware {
     fn software() -> Self {
-        Self { accel: Accel::None, decode: HashSet::new(), encode: false, tonemapx: false, opencl_tonemap: false, bounded_http: false, alpha_subtitles: false, hls_lenient: false, filters: HashSet::new() }
+        Self { accel: Accel::None, decode: HashSet::new(), encode: false, tonemapx: false, opencl_tonemap: false, bounded_http: false, alpha_subtitles: false, hls_lenient: false, filters: HashSet::new(), name: None }
+    }
+
+    /// `HardwareDevicePath`'s option for the device the probe found, listed after `:Auto` as the
+    /// 1.42.2 reference lists its GPU (`:Auto|8086%3a1902%3a103c%3a8055@0000%3a00%3a02.0:Intel HD
+    /// Graphics 510`, translations.json). Its id is a PCI address there; no NVIDIA or Windows PMS
+    /// was measured, so rex's is the API's name as `REX_TRANSCODE_HW` takes it. A pick is kept and
+    /// changes nothing: rex converts on what it found (card 614: "Auto" alone read as no GPU).
+    pub fn device_option(&self) -> Option<String> {
+        let name = match &self.accel {
+            Accel::None => return None,
+            Accel::Vaapi(device) => format!("VA-API ({device})"),
+            Accel::Cuda => self.name.clone().unwrap_or_else(|| "NVIDIA NVENC".to_string()),
+            Accel::MediaCodec => "Android MediaCodec".to_string(),
+        };
+        Some(format!("{}:{}", self.accel.name(), name.replace('|', " ")))
     }
 
     pub fn can_normalize_loudness(&self) -> bool { self.filters.contains("loudnorm") }
@@ -2132,9 +2149,34 @@ impl Transcoder {
                 }
                 let _ = std::fs::remove_file(&sample);
             }
-            return Hardware { accel, decode, encode: true, ..Hardware::software() };
+            let name = if accel == Accel::Cuda { self.nvenc_name() } else { None };
+            return Hardware { accel, decode, encode: true, name, ..Hardware::software() };
         }
         Hardware::software()
+    }
+
+    /// NVENC names its GPUs only when it opens one itself (no `-init_hw_device`, CPU frames), and
+    /// `-gpu list` prints them at the default level and stops (nvenc.c's `nvenc_check_device`,
+    /// upstream and jellyfin-ffmpeg alike), so the exit is never a success.
+    /// Bounded as `quiet` is: it opens the GPU, and a driver that hangs must not hold the probe.
+    /// The log goes to a file beside the probe's samples, so a full pipe cannot stall it either.
+    fn nvenc_name(&self) -> Option<String> {
+        let log = self.root.join("probe-nvenc-gpus.log");
+        let file = std::fs::File::create(&log).ok()?;
+        let mut child = Command::new(&self.ffmpeg)
+            .args(["-hide_banner", "-f", "lavfi", "-i", "testsrc2=s=320x240:r=10", "-frames:v", "1", "-c:v", "h264_nvenc", "-gpu", "list", "-f", "null", "-"])
+            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(file).spawn().ok()?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(20)),
+                _ => { let _ = child.kill(); let _ = child.wait(); break; }
+            }
+        }
+        let text = std::fs::read_to_string(&log).ok();
+        let _ = std::fs::remove_file(&log);
+        nvenc_gpu_name(&text?)
     }
 
     pub fn session(&self, id: &str) -> Option<Arc<Session>> {
@@ -3178,6 +3220,13 @@ pub(super) fn spawn_tied(command: Command) -> std::io::Result<Child> {
 fn major_version(text: &str) -> Option<u32> {
     let word = text.split_whitespace().skip_while(|word| *word != "version").nth(1)?;
     word.trim_start_matches('n').split(['.', '-']).next()?.parse().ok()
+}
+
+/// GPU #0's name in NVENC's device list, the device `cuda=hw:0` opens:
+/// `[h264_nvenc @ 0x...] [ GPU #0 - < NVIDIA GeForce RTX 3090 > has Compute SM 8.6 ]`.
+fn nvenc_gpu_name(log: &str) -> Option<String> {
+    let name = log.split_once("[ GPU #0 - < ")?.1.split_once(" > has Compute")?.0.trim();
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 /// Where an FFmpeg is looked for when `REX_TRANSCODER` names none, best first: jellyfin-ffmpeg's
@@ -5249,6 +5298,56 @@ mod tests {
         assert_eq!(std::fs::read(&output).unwrap(), before);
         assert!(!transcoder.root.exists(), "conversion must not depend on startup-cleared transcode root");
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Card 614: Settings > Transcoder's "Hardware transcoding device" listed only Auto on a
+    /// rex with an RTX 3090 its probe had found. The 1.42.2 reference lists its GPU after Auto
+    /// (`:Auto|8086%3a1902%3a103c%3a8055@0000%3a00%3a02.0:Intel HD Graphics 510`, translations.json),
+    /// its lead localised as the bare `:Auto` is; a pick is a text setting kept as any other.
+    #[test]
+    fn hardware_device_setting_lists_the_device_the_probe_found() {
+        let root = std::env::temp_dir().join(format!("rex-hw-device-{}", plextv::uuid4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let catalog = root.join("catalog.json");
+        std::fs::write(&catalog, json!({"machineIdentifier": "hw-device", "friendlyName": "hw", "sections": [], "items": []}).to_string()).unwrap();
+        let mut runtime = Runtime::load(RuntimeOptions { catalog, state: Some(PathBuf::new()), part_mode: "redirect-only".into(), assert_claimed: true, ..RuntimeOptions::default() }).unwrap();
+        let send = |runtime: &mut Runtime, method: &str, target: &str| {
+            runtime.route(&Request { method: method.into(), target: target.into(), version: "HTTP/1.1".into(),
+                headers: HashMap::from([("accept".to_string(), "application/json".to_string())]), body: Vec::new(), body_complete: true })
+        };
+        let listed = |runtime: &mut Runtime, target: &str| {
+            let response = send(runtime, "GET", target);
+            let body: Value = serde_json::from_slice(&response.body).unwrap_or_else(|_| panic!("{} {}", response.status, String::from_utf8_lossy(&response.body)));
+            let settings = body["MediaContainer"]["Setting"].as_array().unwrap().clone();
+            settings.into_iter().find(|row| row["id"] == "HardwareDevicePath").unwrap()
+        };
+        let with = |hardware: Hardware| Some(Arc::new(Transcoder {
+            ffmpeg: PathBuf::from("ffmpeg"), root: root.join("transcode"), hardware: Mutex::new(hardware),
+            sessions: Mutex::new(HashMap::new()), budgets: Mutex::new(HashMap::new()), starts: std::sync::atomic::AtomicU64::new(0),
+        }));
+        assert_eq!(listed(&mut runtime, "/:/prefs")["enumValues"], ":Auto", "no transcoder");
+        runtime.transcoder = with(Hardware::software());
+        assert_eq!(listed(&mut runtime, "/:/prefs")["enumValues"], ":Auto", "nothing found");
+        let bare_es = listed(&mut runtime, "/:/prefs?X-Plex-Language=es")["enumValues"].clone();
+        assert_eq!(bare_es, ":Automático");
+        runtime.transcoder = with(Hardware { accel: Accel::Vaapi("/dev/dri/renderD128".into()), encode: true, ..Hardware::software() });
+        assert_eq!(listed(&mut runtime, "/:/prefs")["enumValues"], ":Auto|vaapi:VA-API (/dev/dri/renderD128)");
+        runtime.transcoder = with(Hardware { accel: Accel::Cuda, encode: true, ..Hardware::software() });
+        assert_eq!(listed(&mut runtime, "/:/prefs")["enumValues"], ":Auto|cuda:NVIDIA NVENC", "a GPU NVENC named nothing for");
+        assert_eq!(listed(&mut runtime, "/:/prefs?X-Plex-Language=es")["enumValues"], ":Automático|cuda:NVIDIA NVENC");
+        assert_eq!(listed(&mut runtime, "/:/prefs?X-Plex-Language=pt-BR")["enumValues"], ":Automático|cuda:NVIDIA NVENC");
+        assert_eq!(listed(&mut runtime, "/:/prefs?X-Plex-Language=de")["enumValues"], ":Auto|cuda:NVIDIA NVENC", "left in English, as the bare one");
+        let named = nvenc_gpu_name("[h264_nvenc @ 0x55d0c8a1e2c0] [ GPU #0 - < NVIDIA GeForce RTX 3090 > has Compute SM 8.6 ]\n[h264_nvenc @ 0x55d0c8a1e2c0] supports NVENC\n");
+        assert_eq!(named.as_deref(), Some("NVIDIA GeForce RTX 3090"));
+        assert_eq!(nvenc_gpu_name("[h264_nvenc @ 0x55d0c8a1e2c0] Cannot load libcuda.so.1\n"), None);
+        runtime.transcoder = with(Hardware { accel: Accel::Cuda, encode: true, name: named, ..Hardware::software() });
+        assert_eq!(listed(&mut runtime, "/:/prefs")["enumValues"], ":Auto|cuda:NVIDIA GeForce RTX 3090");
+        runtime.transcoder = with(Hardware { accel: Accel::MediaCodec, encode: true, ..Hardware::software() });
+        assert_eq!(listed(&mut runtime, "/:/prefs")["enumValues"], ":Auto|mediacodec:Android MediaCodec");
+        assert_eq!(send(&mut runtime, "PUT", "/:/prefs?HardwareDevicePath=mediacodec").status, 200);
+        let picked = listed(&mut runtime, "/:/prefs");
+        assert_eq!((picked["value"].clone(), picked["default"].clone()), (json!("mediacodec"), json!("")));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

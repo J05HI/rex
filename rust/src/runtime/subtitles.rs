@@ -1426,8 +1426,10 @@ fn spans(cues: &[(f64, f64)], starts: &[f64]) -> bool {
 
 // -- the jobs --------------------------------------------------------------------------------
 
-/// The subtitle jobs running, by item, and the automatic searches that found nothing: until
-/// when they are not run again, or None for one the provider refused, never again.
+/// The subtitle jobs running, by item and Part (`job_name`), and the automatic searches that
+/// found nothing, by item, Part and language: until when they are not run again, or None for one
+/// the provider refused, never again. Each version of an item is its own (Discord #rex-support,
+/// 2026-11-13: a version's job used to block, and stand for, the version being played).
 #[derive(Debug, Default)]
 pub(crate) struct Jobs {
     running: Mutex<HashMap<String, usize>>,
@@ -1452,8 +1454,15 @@ impl Jobs {
         }
     }
 
+    /// Whether a job runs for any version of the item `key`.
     fn running(&self, key: &str) -> bool {
-        self.running.lock().unwrap_or_else(PoisonError::into_inner).contains_key(key)
+        let prefix = format!("{key}\u{1f}");
+        self.running.lock().unwrap_or_else(PoisonError::into_inner).keys().any(|name| name.starts_with(&prefix))
+    }
+
+    /// Whether a job runs for this Part (`job_name`).
+    fn busy(&self, name: &str) -> bool {
+        self.running.lock().unwrap_or_else(PoisonError::into_inner).contains_key(name)
     }
 
     fn missed(&self, what: &str) -> bool {
@@ -1508,6 +1517,11 @@ pub(crate) struct Job {
     jobs: Arc<Jobs>,
 }
 
+/// What a job runs under in `Jobs`: its item and the Part it is for.
+fn job_name(key: &str, part: &str) -> String {
+    format!("{key}\u{1f}{part}")
+}
+
 struct Finish(Arc<Jobs>, String);
 
 impl Drop for Finish {
@@ -1519,14 +1533,14 @@ impl Drop for Finish {
 /// Run a job on a thread of its own: everything but storing its answer is done off the lock.
 pub(super) fn spawn(runtime: &SharedRuntime, job: Job) {
     let shared = Arc::clone(runtime);
-    let (jobs, key) = (Arc::clone(&job.jobs), job.key.clone());
+    let (jobs, name) = (Arc::clone(&job.jobs), job_name(&job.key, &job.search.part.id));
     if thread::Builder::new().name("subtitles".to_string()).spawn(move || run(&shared, job)).is_err() {
-        jobs.finish(&key);
+        jobs.finish(&name);
     }
 }
 
 fn run(shared: &SharedRuntime, job: Job) {
-    let _finish = Finish(Arc::clone(&job.jobs), job.key.clone());
+    let _finish = Finish(Arc::clone(&job.jobs), job_name(&job.key, &job.search.part.id));
     let Job { key, account, search, ffmpeg, audio_later, task, jobs } = job;
     let begun = Instant::now();
     let (hash, candidates, refused) = match &task {
@@ -1569,7 +1583,7 @@ fn run(shared: &SharedRuntime, job: Job) {
         Task::Automatic { replaces } => replaces,
         Task::Apply { .. } => None,
     };
-    let unchecked = format!("{key}\u{1f}{}", provider_language(&search.language));
+    let unchecked = format!("{}\u{1f}{}", job_name(&key, &search.part.id), provider_language(&search.language));
     match chosen {
         Some((at, fix, text)) => {
             let candidate = &candidates[at];
@@ -1799,7 +1813,7 @@ impl Runtime {
     }
 
     /// What a search of `key` in `language` asks, None when there is nobody to ask (no claim)
-    /// or no source holds the Part. `media` is the client's `mediaItemID`.
+    /// or no source holds the Part. `media` is the version (`subtitle_media`).
     fn subtitle_search_spec(&self, row: &Value, language: &str, media: Option<&str>) -> Option<Search> {
         let agent = self.subtitle_agent();
         agent.as_ref()?;
@@ -1871,7 +1885,7 @@ impl Runtime {
             }
             Response::json(200, body)
         };
-        let Some(search) = self.subtitle_search_spec(row, language, query.get("mediaItemID").map(String::as_str)) else {
+        let Some(search) = self.subtitle_search_spec(row, language, self.subtitle_media(key, query.get("mediaItemID").map(String::as_str))) else {
             return answer(self, Vec::new());
         };
         let asked = search.clone();
@@ -1918,14 +1932,14 @@ impl Runtime {
         let Some((_, offer)) = offer.filter(|(owner, _)| owner == key) else {
             return Response::error(400, "rex: bad request");
         };
-        let Some(search) = self.subtitle_search_spec(row, &offer.language, query.get("mediaItemID").map(String::as_str)) else {
+        let Some(search) = self.subtitle_search_spec(row, &offer.language, self.subtitle_media(key, query.get("mediaItemID").map(String::as_str))) else {
             return Response::error(400, "rex: bad request");
         };
         let activity = super::butler::new_activity("subtitle.download", "Downloading Subtitle", false);
         self.notify_activity(&activity, "started");
         let uuid = activity.get("uuid").map(string_value).unwrap_or_default();
         info!("SUBTITLE apply {key} <- {} ({})", offer.title, offer.provider);
-        self.subtitle_jobs.start(key);
+        self.subtitle_jobs.start(&job_name(key, &search.part.id));
         self.pending_subtitle = Some(Job {
             key: key.to_string(),
             account: self.viewer.id,
@@ -1946,8 +1960,10 @@ impl Runtime {
     /// measures and keeps one before the playback decision picks the tracks. Only a play's job
     /// reads audio (`playing`): six 90 s windows are a few hundred MB, too much for browsing
     /// (Ben, 2026-10-20). A detail request's pick with nothing else to check it against is kept
-    /// unchecked, and the play's job checks it and puts it right in place.
-    pub(super) fn subtitles_wanted(&mut self, key: &str, row: &Value, playing: bool) {
+    /// unchecked, and the play's job checks it and puts it right in place. Each is for one
+    /// version: `media`, the one a playback decision plays, else `subtitle_media`'s; a play queue
+    /// of a row of several versions none of which rex saw played leaves it to the decision.
+    pub(super) fn subtitles_wanted(&mut self, key: &str, row: &Value, playing: bool, media: Option<&str>) {
         if !matches!(row.get("type").and_then(Value::as_str), Some("movie" | "episode")) || self.pending_subtitle.is_some() {
             return;
         }
@@ -1959,14 +1975,24 @@ impl Runtime {
         if !row.get("guid").and_then(Field::as_str).is_some_and(|guid| guid.starts_with("plex://")) {
             return;
         }
-        let streams = row
-            .pointer("/Media/0/Part/0/Stream")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
+        let media = self.subtitle_media(key, media).map(str::to_string);
+        let versions = row.get("Media").and_then(Field::as_array).map_or(&[][..], Vec::as_slice);
+        if playing && media.is_none() && versions.len() > 1 {
+            return;
+        }
+        let Some(chosen) = media
+            .as_deref()
+            .and_then(|wanted| versions.iter().find(|version| version.get("id").map(string_value).as_deref() == Some(wanted)))
+            .or_else(|| versions.first())
+        else {
+            return;
+        };
+        let part = chosen.pointer("/Part/0").map_or_else(String::new, |part| part.get("id").map(string_value).unwrap_or_default());
+        let chosen_id = chosen.get("id").map(string_value);
+        let streams = chosen.pointer("/Part/0/Stream").and_then(Value::as_array).cloned().unwrap_or_default();
         let Some(language) = wanted_language(&streams, &prefs) else { return };
         let have = crate::mediainfo::setting_language(&language);
-        let miss = format!("{key}\u{1f}{}", provider_language(&language));
+        let miss = format!("{}\u{1f}{}", job_name(key, &part), provider_language(&language));
         let ffmpeg = self.transcoder.as_ref().map(|transcoder| transcoder.ffmpeg().to_path_buf());
         let present = streams.iter().any(|stream| stream.get("streamType").and_then(Value::as_i64) == Some(3) && crate::mediainfo::stream_language(stream).as_deref() == Some(have.as_str()));
         let replaces = match (present, self.subtitle_jobs.unchecked(&miss)) {
@@ -1974,16 +2000,16 @@ impl Runtime {
             (true, Some(stream)) if playing && ffmpeg.is_some() => Some(stream),
             (true, _) => return,
         };
-        if self.subtitle_jobs.running(key) || (replaces.is_none() && self.subtitle_jobs.missed(&miss)) {
+        if self.subtitle_jobs.busy(&job_name(key, &part)) || (replaces.is_none() && self.subtitle_jobs.missed(&miss)) {
             return;
         }
-        let Some(search) = self.subtitle_search_spec(&row, &language, None) else { return };
+        let Some(search) = self.subtitle_search_spec(&row, &language, chosen_id.as_deref()) else { return };
         info!(
             "SUBTITLE automatic {key}: account {} wants {language}{}",
             self.viewer.id,
             if replaces.is_some() { ", checking the kept one against the audio" } else { "" }
         );
-        self.subtitle_jobs.start(key);
+        self.subtitle_jobs.start(&job_name(key, &search.part.id));
         self.pending_subtitle = Some(Job {
             key: key.to_string(),
             account: self.viewer.id,
@@ -1993,6 +2019,28 @@ impl Runtime {
             task: Task::Automatic { replaces },
             jobs: Arc::clone(&self.subtitle_jobs),
         });
+    }
+
+    /// A playback decision's automatic subtitle: for the version it plays (`mediaIndex`), which
+    /// rex keeps for the item when it has several (`played_media`). Only the decision names it:
+    /// the detail request and the play queue carry no version.
+    pub(super) fn subtitles_decided(&mut self, key: &str, query: &HashMap<String, String>) {
+        let Some(row) = self.catalog.get(key).cloned() else { return };
+        let row = crate::catalog::unpacked(&row).into_owned();
+        let versions = row.get("Media").and_then(Value::as_array).map_or(&[][..], Vec::as_slice);
+        let index = query.get("mediaIndex").and_then(|index| index.parse::<usize>().ok()).unwrap_or(0);
+        let Some(media) = versions.get(index).and_then(|version| version.get("id")).map(string_value) else { return };
+        if versions.len() > 1 {
+            self.played_media.insert(key.to_string(), media.clone());
+        }
+        self.subtitles_wanted(key, &row, true, Some(&media));
+    }
+
+    /// Which version of `key` a subtitle is for: the client's (`mediaItemID`), else the one its
+    /// last playback decision played, else None (the first). ponytail: unmeasured what a real PMS
+    /// does with no `mediaItemID` on an item of several versions; rex follows the one played.
+    fn subtitle_media<'a>(&'a self, key: &str, named: Option<&'a str>) -> Option<&'a str> {
+        named.filter(|named| !named.is_empty()).or_else(|| self.played_media.get(key).map(String::as_str))
     }
 
     /// A playback decision for an item whose subtitle job is running waits for it, up to
