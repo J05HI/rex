@@ -714,6 +714,59 @@ def main():
               status == 200 and replaced_adjusted == audio_fixed
               and len([path for _, path, *_ in stub.seen if path.startswith("/dav/")]) > before_replacement_reads)
 
+        # -- two versions of one episode: the subtitle follows the one played (card 684) ---------
+        # A Discord user's two releases of an episode, folded into one row of two Media: the
+        # automatic subtitle and an apply naming no mediaItemID both went to the first version
+        # while he played the second (Discord #rex-support, 2026-11-13).
+        versions = [("shows/%s/%s" % (release, SHOW["file"].replace("S05E07", "S05E10").replace("AndreMor", release[-5:])), release)
+                    for release in ("American.Dad!.S05E10.1080p.WEB-Alpha", "American.Dad!.S05E10.720p.HDTV-Bravo")]
+        for number, (path, _) in enumerate(versions):
+            name = path.rsplit("/", 1)[1]
+            stub.files["/dav/" + path] = open(show, "rb").read()
+            stub.matches[(name, "pt-BR")] = [provider_row(85001 + number, name[:-4], "pt-BR", 900)]
+            stub.subtitles["/files/%d.srt" % (85001 + number)] = srt(show_cues, "Versão %s %%d" % "AB"[number]).encode()
+            stub.matches[(name, "en")] = [provider_row(85101 + number, name[:-4], "en", 900)]
+            stub.subtitles["/files/%d.srt" % (85101 + number)] = srt(show_cues, "Version %s %%d" % "AB"[number]).encode()
+        keys = {server.push("episode", path, show, {"tmdb": 1433, "imdb": "tt0397306"}, season=5, episode=10) for path, _ in versions}
+        two_key = next(iter(keys))
+        media = lambda: server.detail(two_key).get("Media") or []
+        check("two releases of one episode are one row of two versions", len(keys) == 1 and len(media()) == 2,
+              (keys, [m.get("id") for m in media()]))
+        version_subtitles = lambda index, language: [
+            s for part in ((media() + [{}, {}])[index].get("Part") or [{}])[:1] for s in part.get("Stream") or []
+            if s.get("streamType") == 3 and s.get("languageCode") == language]
+        # The detail request above searched the first version, as nothing names the one to play yet.
+        poll_until(lambda: version_subtitles(0, "por"), 20)
+        time.sleep(1.0)
+        first_kept = len(version_subtitles(0, "por"))
+        stub.seen.clear()
+        server.request("/playQueues?type=video&uri=%s&key=%s" % (
+            urllib.parse.quote("server://%s/com.plexapp.plugins.library/library/metadata/%s" % (MACHINE, two_key)),
+            urllib.parse.quote("/library/metadata/%s" % two_key)), "POST")
+        second = [(k, "/library/metadata/%s" % two_key if k == "path" else "1" if k == "mediaIndex" else v) for k, v in DECISION]
+        server.request("/video/:/transcode/universal/decision?" + urllib.parse.urlencode(second))
+        poll_until(lambda: version_subtitles(1, "por"), 60)
+        status, decided = server.request("/video/:/transcode/universal/decision?" + urllib.parse.urlencode(second))
+        listed = [s for m in ((decided or {}).get("MediaContainer") or {}).get("Metadata", [{}])[0].get("Media") or []
+                  for p in m.get("Part") or [] for s in p.get("Stream") or [] if s.get("streamType") == 3]
+        searched = [dict(query).get("filename") for path, query, _ in stub.subtitle_calls() if path.endswith("/streams/matches")]
+        check("playing the second version finds its automatic subtitle on that version, not the first",
+              version_subtitles(1, "por") and len(version_subtitles(0, "por")) == first_kept
+              and versions[1][0].rsplit("/", 1)[1] in searched,
+              (version_subtitles(1, "por"), first_kept, len(version_subtitles(0, "por")), searched))
+        check("and the decision for it lists that subtitle, selected",
+              status == 200 and any(s.get("languageCode") == "por" and s.get("selected") for s in listed), (status, listed))
+        stub.seen.clear()
+        status, found = server.request("/library/metadata/%s/subtitles?language=en" % two_key)
+        offered = (((found or {}).get("MediaContainer") or {}).get("Stream") or [{}])[0]
+        apply_query = [(name, offered.get("key") if name == "key" else value)
+                       for name, value in REFERENCE["client"]["apply"]["request"]["query"] if name != "mediaItemID"]
+        server.request("/library/metadata/%s/subtitles?%s" % (two_key, urllib.parse.urlencode(apply_query)), "PUT")
+        poll_until(lambda: version_subtitles(1, "eng") or version_subtitles(0, "eng"), 30)
+        check("a search and an apply naming no mediaItemID are for the version played",
+              offered.get("sourceKey") == "/library/streams/85102" and version_subtitles(1, "eng") and not version_subtitles(0, "eng"),
+              (offered.get("sourceKey"), version_subtitles(0, "eng"), version_subtitles(1, "eng")))
+
         # -- no automatic search Plex's provider cannot answer (card 580) ------------------------
         # rex-youtube's item (rex_youtube.py `item`): no ids, no size, so no plex:// guid and no
         # OpenSubtitles hash. A real PMS sent no search on its own, and none without a guid

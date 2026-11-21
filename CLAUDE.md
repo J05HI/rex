@@ -80,7 +80,8 @@ image -- and live in `data/`. The descriptors (`server_prefs.json`, `regional_se
 `section_prefs.json`, `section_meta.json`, `section_meta_show.json`, `section_meta_artist.json`, `section_meta_photo.json`, `item_prefs.json`,
 `section_prefs_new.json`, `section_filters.json`, `section_sorts.json`, `system_agents.json`,
 `legacy_agents.json`, `agent_languages.json`, `languages.json`, `translations.json`, `refusal_strings.json`,
-`client_profiles.json`, `spellfix_static_tags.json`, `legacy_agent_config.json`); the strings a
+`client_profiles.json`, `spellfix_static_tags.json`, `legacy_agent_config.json`, and the DLNA server's three
+service descriptions `dlna_*.xml`, plexlab's text byte for byte); the strings a
 real PMS localises per `X-Plex-Language` (`activity_strings.json`, `item_language_names.json`,
 `stream_words.json`, `title_templates.json`); the image's own tables
 (`plugin_bundles.json`, `plugin_prefs.json`, `attributions.json`, `resource_assets.json`,
@@ -129,12 +130,13 @@ Where things live in `rust/src/`:
 | `runtime/source.rs`, `runtime/feed.rs`, `runtime/scan.rs` | Sources (registered over `PUT /rex/sources/{name}`, kept in the state file, deleted with a confirmation: where a Part's bytes are), the feed API sources push items to, open to any peer on a private network (`feed::source_peer`, `docs/feed-api.md`), and the rows those items become: added, held until probed, filled, re-identified, trashed, keys minted once (`mint_key`); a show's file its source did not place is numbered in its release's file order (`number_unplaced`), never by its name; and what a person matched, listed back to its source (`feed_matches`: rows marked `_matched`/`_matched_at`, versions a merge moved marked on their Media) |
 | `runtime/universal.rs` | The video transcoder (`REX_TRANSCODER`): the conversion decision's plan and Media, `start.m3u8`/`start.mpd`, segments served outside the runtime lock, one FFmpeg per session with the hardware ladder, seeks, throttling and the idle reaper, and the `TranscodeSession` rows |
 | `runtime/livetv.rs` | Live TV: a live channel a source pushed with a `channel` is a channel of one DVR (`docs/feed-api.md`, "Live TV"), answered as plexav's (a PMS with an HDHomeRun and an XMLTV guide, no Plex Pass, so no Record): the provider, the guide, What's On, pages, search and the tune, whose session plays the channel row's own live conversion (findings, "Live TV") |
-| `runtime/subtitles.rs` | Subtitle search, apply and automatic subtitles: Plex's provider alone (`streams/matches`, claimed only; no addons), ranked by release name, each kept candidate measured against the release (its embedded text track through `mkvsubs`, else with `REX_TRANSCODER` six 90 s audio windows), corrected by a shift or a frame-rate ratio and stored as UTF-8 (`_content`); automatic jobs start on the detail request and play-queue creation, only a play's reads audio (a detail request's unchecked pick is checked and fixed in place on play), and the decision waits up to 3 s for one (findings, "Subtitle search and automatic subtitles") |
+| `runtime/subtitles.rs` | Subtitle search, apply and automatic subtitles: Plex's provider alone (`streams/matches`, claimed only; no addons), ranked by release name, each kept candidate measured against the release (its embedded text track through `mkvsubs`, else with `REX_TRANSCODER` six 90 s audio windows), corrected by a shift or a frame-rate ratio and stored as UTF-8 (`_content`); automatic jobs start on the detail request, play-queue creation and the decision, each for one version (the decision's `mediaIndex`, kept for an item of several; a search or apply with no `mediaItemID` follows it), only a play's reads audio (a detail request's unchecked pick is checked and fixed in place on play), and the decision waits up to 3 s for one (findings, "Subtitle search and automatic subtitles") |
 | `runtime/plexmeta.rs`, `identify.rs` | Plex's metadata agent (the claim's server token), and which title a release is: the ids its source placed it with, or a TMDB id set by hand at the source (`placed`; `scan::identified_by`), asking Plex's agent for its guid by external id, whose answer and children rows are all a row shows (`metadata::describe`); nothing is read off a name, and what arrives with neither stays for Fix Match, which searches Plex's agent |
 | `runtime/plextv.rs` | claim/heartbeat/account state (`REX_PLEXTV_URL` points plex.tv and Plex's agent at a stub) |
 | `runtime/rexdirect.rs` | rex-direct, a plex.direct of rex's own (`docs/rex-direct-api.md`): on by default, once claimed it registers the machineIdentifier with the claim's server token at its provider (`REX_DIRECT_URL`, DMM's by default, `off`, https or loopback only; `REX_DIRECT_KEY` an optional bearer key), serves the certificate it answers by SNI beside `--tls-cert`'s (`Certificates`, the TLS port's cert resolver), appends `https://<name>:<REX_DIRECT_PORT or --port>` to the announce, keeps the answer in `rex-direct.json`, and registers again every 6 h (10 min after a failure, a 202's `retryAfter` within 15 s..10 min); unclaimed it waits in `PlexTv::direct` for the claim (`plextv::finish_claim`) |
 | `runtime/accounts.rs` | Which plex.tv account each request comes from (the access-token list: owner 1, a share its plex.tv id, with its libraries, filters, flags and track settings) and what that account keeps and sees: its watch state, ratings, hides and track picks shown over the rows while its request runs (`rows::Overlay`), its own playlists and history, the share's libraries and filters pruned from every answer, the owner's routes refused (findings, "Each account its own") |
-| `platform.rs` | Everything asked of the OS beyond `std`: local time, CPU time and load, the host name, thread ids, pausing and killing FFmpeg, the GDM socket. A Unix half and a Windows half; nothing else may call `libc` for these |
+| `platform.rs` | Everything asked of the OS beyond `std`: local time, CPU time and load, the host name, thread ids, pausing and killing FFmpeg, the GDM socket (SSDP's too), the interface a multicast leaves by. A Unix half and a Windows half; nothing else may call `libc` for these |
+| `runtime/dlna.rs` | The DLNA server a real PMS runs while `DlnaEnabled` is on, turned on and off with the pref: SSDP (udp/1900, `REX_SSDP_PORT`) and UPnP (tcp/32469, `REX_DLNA_PORT`), only to peers on private networks; the movie and show libraries as plexlab's tree, each item's first Part through the part read (`open_part`) (findings, "DLNA server") |
 | `runtime/*.rs` (the rest) | One subsystem each, named after it: search, listing, axes, edit, collections, playlists, artwork, butler, framework, i18n, resume (On Deck and hubs), logging and so on |
 | `filters.rs`, `hierarchy.rs`, `metadata.rs`, `mediainfo.rs`, `decision.rs`, `xmlout.rs`, `gate.rs`, `catalog.rs` | Plex's filter grammar (the operator is part of the KEY), flat leaves to show/season/episode, Plex's description of a title and `plex://` guids, ffprobe JSON to `Media`/`Part`/`Stream`, a plain-form decision against the client's own profile, Plex XML, the direct-play gate, the catalog |
 | `store.rs` | The state file: a SQLite database written by the row, holding the catalog too when the catalog is a database |
@@ -239,7 +241,7 @@ A claimed rex announces with the claim's server token only; unclaimed it waits f
 claim and announces the moment it lands, no restart (findings, "A
 claimed server needs no account token"). It announces its own LAN address
 (`http://<private_address>:<port>`, read again at each announce; the bound address under `--host`;
-only an RFC 1918 or ULA one, never loopback, a tunnel's, a public one or 100.64/10, nor one on a container network, which `lan_interface_address` tells by the default route's veth and says once in the log) with no
+only an RFC 1918 or ULA one, never loopback, a tunnel's, a public one or 100.64/10, nor one on a container network, which `lan_interface_address` tells by the default route's veth inside a Docker, Podman or Kubernetes container (its marker; an LXC's bridged veth is the LAN's, rex#22) and says once in the log) with no
 flag, as a real PMS announces its interfaces (`pms_announce_connections_s1422.json`), after
 `--announce-url`'s comma-separated list of extra addresses, each its own connection; a setup
 names only an HTTPS address of its own there (2026-10-24: every guide used to type the LAN IP).
@@ -272,7 +274,11 @@ the private key) and serves a start the provider does not answer. A 202 is a pro
 issuing the certificate: an INFO, asked again after its `retryAfter` (15 s..10 min). Any other
 refusal or an unreachable provider is a WARN and never fatal. A thread registers again every
 6 h, which is the dynamic DNS and swaps in a renewed certificate without a restart, and every
-10 min after a failure. `tests/test_rex_direct.py` drives it against a stub provider and plex.tv.
+10 min after a failure. The provider's plex.tv check with the token makes plex.tv take the provider's
+address for the server's and drop it from `/api/v2/resources` until rex announces again, so 10, 30 and
+70 s after each registration rex looks for itself there (by machineIdentifier) and announces when
+missing (`plextv::settle_after_provider`; findings, "The provider's address, taken for the server's").
+`tests/test_rex_direct.py` drives it against a stub provider and plex.tv.
 
 A real claim -- `POST /myplex/claim?token=` with a token from `plex.tv/api/claim/token.json`,
 once per machineIdentifier -- makes rex register the way a real PMS does (findings, "The
@@ -300,7 +306,16 @@ no account token: `PLEX_TOKEN` is not read since 2026-10-19. An unclaimed server
 nothing: plex.tv applies a device PUT to the device that owns the token, so the 2026-09-11
 spike's unclaimed announce with zurg's account token rewrote the account's "zurg" device row
 (findings, "Collateral change to the Plex account"). A claimed server answers another claim
-with 409.
+with 409, unless plex.tv refuses its server token: a 401 to a call made with it (never a 403, 5xx
+or network failure) marks the claim refused until a 2xx, shown only at rex's own `GET /rex/claim`
+(rex's networks, no token; never in `/identity`), and a new claim from those networks replaces it.
+pubsub's `notifyFavoritesChange` (sent on a removed server's stream, which plex.tv keeps open),
+`notifyResetToken` (sent when the account signs out of all devices), a pubsub 403 and rex-direct's provider refusing the token mark nothing themselves: they have the access-token
+read asked, once a minute at most (`plextv::suspect`), so a removed device is marked in seconds, not
+at the 600 s heartbeat. A running rex never drops or re-exchanges a claim; a start whose first call, the
+access-token read, plex.tv answers 401 drops it as a real PMS does (`plextv::drop_refused_claim`: machine and
+library kept, `/identity` `claimed="0"`, `/rex/claim` unclaimed, so the apps offer Sign in to Plex), and a 403,
+5xx or no answer at a start keeps it (Ben, 2026-11-16; findings, "A claim whose device was removed").
 
 `rex.db`, `rex.env`, `run.sh` and `rex-direct.json` are gitignored: the catalog and
 `rex.env` carry account-scoped credentials, `rex-direct.json` a private key. `examples/catalog.example.json` keeps the shape.
@@ -600,6 +615,8 @@ python3 tests/test_parity_leftovers.py      # the paging grammar, repeated keys,
 python3 tests/test_parity_residue_ra.py     # the UI suite's residue on both servers' own request streams
 python3 tests/test_parity_persist.py        # every kind of state --state keeps, across a restart and a rebuild
 python3 tests/test_parity_split_guid.py     # a split-off row; no Guid on an unmatched row
+python3 tests/test_guid_lookup.py           # /library/metadata/ asked by encoded plex:// guid (Plex Web's Discover person page), as
+                                            # plexlab answers it: each guid its row's key, unknown ones dropped, a shared guid the lower key
 python3 tests/test_parity_inner_token.py    # a query-string token reaches the transcoder's own reads (Plex for Android)
 python3 tests/test_parity_cycle83_*.py      # cycle 83's territory findings (xa, xb, xn, cp)
 python3 tests/test_followups_f{a,b,c,d}.py  # parity follow-ups, each against its measurement
@@ -611,6 +628,9 @@ The native-only suites, all black-box unless noted:
 ```bash
 python3 tests/test_native_runtime_smoke.py  # native routes and CLI refusals
 python3 tests/test_native_gdm.py            # native GDM answers and the /servers self row
+python3 tests/test_dlna.py                  # the DLNA server against plexlab's recordings: DlnaEnabled on and off with no restart,
+                                            # NOTIFYs and M-SEARCH, the descriptions, every action and fault, the tree, streams
+                                            # from a stub source, the byebye of a SIGTERM
 python3 tests/test_pms_identity.py          # current PMS identity, wire/framework captures and every bundled resource's bytes
 REX_NATIVE_BIN=rust/target/release/rex python3 tests/test_native_phase2.py
                                             # the core modules against the oracle's recorded answers, row by row
@@ -680,6 +700,9 @@ python3 tests/test_music_audiobooks.py      # every audio extension plexav makes
                                             # Store track progress, scrobbles; Android's, Plexamp's and Web's chapters
 python3 tests/test_photo_library.py         # pictures a source pushes (`kind: photo`) are plexscratch's photo library: folders as albums
                                             # titled as named, natural order, Plex Web's walk, viewer and slideshow replayed; needs ffmpeg
+python3 tests/test_photo_transcode.py       # /photo/:/transcode at a size as plexlab answers it (its recorded answers for its poster,
+                                            # clearLogo and made pictures, replayed for stand-ins): fit, cover, upscale, EXIF turned,
+                                            # quality=, format=, types; kept in memory and on disk; nothing else handed to FFmpeg; needs ffmpeg
 python3 tests/test_artwork_blur.py          # thumbBlurHash, artBlurHash and UltraBlurColors as plexav answers them for rex's own synthetic
                                             # covers: which rows carry which, the hash and corners within tolerance, kept by --state
 python3 tests/test_match_show_children.py  # a show Fix Matched takes the picked show's episodes by its rows' TMDB episode ids, by number only where every season's count is Plex's (a real library's Ben 10: Omniverse); one matched onto a show the library holds merges into it, its episodes kept; both listed for the source with the show's ids until Unmatch
@@ -797,19 +820,24 @@ precisely how the Seasons bug survived a fix attempt.
 pushes spent the org's Actions budget, which ran out on 2026-10-19 and blocked every run.
 Prove a push locally with `cargo test` and the suites ci.yml lists.
 
-It runs self-hosted, as zurg's does, so neither minutes nor the budget can stop it: every Linux
-job on the repo-scoped `dmm` runner (`~/actions-runner-rex` on dmm, beside zurg's) and the
-Windows tests on `winbox` (`C:\actions-runner-rex` on ben@windows, as NETWORK SERVICE). dmm is a
-production host, so each job compiles and tests inside `.github/ci/Dockerfile`'s image through
-`.github/ci/in-image.sh` (Ubuntu 22.04, glibc 2.35; 6 CPUs, 16 GB; the cargo cache and target dir in
-`~/rex-ci-cache`, rebuilt when zurg's nightly prunes the image). Each run does a release build,
+It runs self-hosted, as zurg's does, so neither minutes nor the budget can stop it. The light jobs
+(`gate`, `collect`, `release`) run on the repo-scoped `dmm` runner (`~/actions-runner-rex` on dmm,
+beside zurg's), the Windows tests on `winbox` (`C:\actions-runner-rex` on ben@windows, as NETWORK
+SERVICE), and the build jobs on a temporary Hetzner VM of the run's own: `build-vm` has dmm's
+`~/bin/hz-ci` start one from a snapshot and register it as a runner for that run alone (label
+`hz-<run id>`), and `collect` copies its stage directory to dmm and deletes it (a failed run keeps it 50
+minutes, so re-running the failed jobs finds it; re-run everything after that). Since 2026-11-12:
+compiling on dmm, which serves the production database, took DMM's p99 latency from 2 s to over 20.
+hz-ci lives in the private setup repository's `ci-runners/`. Each job compiles and tests inside
+`.github/ci/Dockerfile`'s image through `.github/ci/in-image.sh` (Ubuntu 22.04, glibc 2.35; the cargo
+cache and target dir in `~/rex-ci-cache`, a warm copy of which the snapshot carries). Each run does a release build,
 `cargo test`, the black-box suites that need no credentials and the transcoder suite; builds
-linux arm64 (smoke-tested under dmm's qemu binfmt), macOS arm64 and amd64 with cargo-zigbuild
+linux arm64 (smoke-tested under the VM's qemu binfmt), macOS arm64 and amd64 with cargo-zigbuild
 (checked for their architecture only: no runner is a Mac; the first ones passed test_cli, the
 native smoke, test_build_catalog, test_sources and test_feed on an Apple Silicon Mac), and
 Windows amd64 with MinGW, then tests that on Windows (the unit tests and every suite but
 `test_manager`, since `rex manager` is Unix only). Binaries pass between jobs through
-`~/rex-ci-stage/<run id>` on dmm, not artifact storage; the Windows runner reads its two with
+`~/rex-ci-stage/<run id>`, not artifact storage: on the VM while it builds, then on dmm; the Windows runner reads its two with
 `ci-pull\id_ed25519`, a key dmm's `authorized_keys` binds to `~/bin/rex-ci-pull`, which prints
 one staged file and nothing else. Those are the platforms zurg's own releases are downloaded for.
 
@@ -871,7 +899,8 @@ rigs run on.
   anything. One exception, Ben's (2026-10-31): artwork is decoded in pure Rust for the
   BlurHash and UltraBlur colours a real PMS answers (`runtime/blur.rs`), with `zune-jpeg`,
   `png` and `image-webp`, default features off -- the three formats Plex's artwork comes in,
-  no C and no FFmpeg. Nothing else joins them for it.
+  no C and no FFmpeg. Nothing else joins them for it. The photo transcoder reads a picture's size
+  and EXIF orientation with the same `zune-jpeg` and `image-webp` before FFmpeg fits it.
 - Atomic commits, semantic single-line messages (`fix: emit totalSize on paged
   children`), authored as `Ben Adrian Sarmiento <me@bensarmiento.com>`.
 - Never commit a token, a provider download link, zurg's credentials, a Plex token, or

@@ -12,11 +12,13 @@ import copy
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.parse
 
 import test_feed_probe_changed
+from server_command import test_ffmpeg
 from test_feed import BODY, MOUNT, Bytes, Server, catalog, check, results, serve
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +45,9 @@ def main():
     bytes_port = serve(source.handler())
     work = tempfile.mkdtemp(prefix="rex-display-")
     catalog(work)
-    server = Server(work, bytes_port)
+    # An FFmpeg turns on the photo transcoder's fitted cache, which a source's picture must not leak from.
+    ffmpeg = test_ffmpeg()
+    server = Server(work, bytes_port, keys={"REX_TRANSCODER": ffmpeg} if ffmpeg else None)
     first, second = FIXTURE["items"]
     try:
         status, body = server.feed("POST", "items", {"items": [pushed(first), pushed(second)]})
@@ -140,22 +144,38 @@ def main():
         home = json.loads(json.dumps(HOME).replace("{SOURCE}", base).replace("{MOUNT}", MOUNT))
         thumb = "/dav/_thumbs/img-0412-b921b2.jpg"
         source.files.update([thumb, "/dav/_thumbs/birthday-1ce30e.jpg"])
+        source.types.update({thumb: "image/jpeg"})
+        # A real picture, so the photo transcoder fits it rather than keeping the original.
+        still = BODY
+        if ffmpeg:
+            still = subprocess.run([ffmpeg, "-v", "error", "-f", "lavfi", "-i", "color=red:s=640x360", "-frames:v", "1",
+                                    "-f", "image2pipe", "-c:v", "mjpeg", "pipe:1"], capture_output=True, check=True).stdout
+            source.bodies[thumb] = still
         status, body = server.feed("POST", "items", {"items": [home]})
         check("a home video dressed by its source's own pictures is taken",
               status == 200 and (body or {}).get("created") == 1, (status, body))
         episode = server.row(server.keys()[home["id"]])
         show = server.row(episode.get("grandparentRatingKey"))
-        for name, row in (("its still", episode), ("its show's poster", show)):
+        for name, row, original in (("its still", episode, still), ("its show's poster", show, BODY)):
             status, picture = server.request(row.get("thumb", ""))
-            check("%s is the source's picture" % name, status == 200 and picture == BODY,
+            check("%s is the source's picture" % name, status == 200 and picture == original,
                   (status, len(picture or b""), row.get("thumb")))
         asked = [seen for seen in source.seen if seen[1] == thumb]
         check("fetched from the source with the source's login",
               bool(asked) and all(seen[2] == source.auth for seen in asked), asked)
+        # Fitted through the row first, so the fitted cache holds the source's picture for this box.
+        fitted = None
+        if ffmpeg:
+            status, fitted = server.request("/photo/:/transcode?width=320&height=180&url=" + urllib.parse.quote(episode["thumb"], safe=""))
+            check("its still is fitted from the source's picture", status == 200 and fitted and fitted != still,
+                  (status, len(fitted or b"")))
+        else:
+            print("SKIP  the fitted-cache checks: no FFmpeg (REX_TRANSCODER or PATH)")
         # The same url named by a client is the photo transcoder's, public only: never the source's,
-        # even with its picture already fetched.
+        # even with its picture already fetched and fitted for the same box.
         status, picture = server.request("/photo/:/transcode?width=320&height=180&url=" + urllib.parse.quote(base + "/_thumbs/img-0412-b921b2.jpg", safe=""))
-        check("a client naming the source's picture url is not served it", picture != BODY, (status, len(picture or b"")))
+        check("a client naming the source's picture url is refused", status == 404 and picture not in (still, fitted),
+              (status, len(picture or b"")))
         status, picture = server.request("/photo/:/transcode?url=" + urllib.parse.quote("source://zurg/_thumbs/img-0412-b921b2.jpg", safe=""))
         check("nor by naming it as rex keeps it", picture != BODY, (status, len(picture or b"")))
     finally:

@@ -417,9 +417,9 @@ impl Runtime {
     }
 
     /// A picture's bytes for its own thumb, transcode or an album's cover: the file itself, read
-    /// from its source as its Part is. PMS answers a resized JPEG; rex has no resizer (CLAUDE.md,
-    /// the crate rule), so a client draws the picture at its own size.
-    /// ponytail: full-size bytes for every tile; resize with REX_TRANSCODER if a client chokes.
+    /// from its source as its Part is. PMS answers a resized JPEG; a Part is streamed after the
+    /// lock and never held whole, so `transcoder::PhotoFit` (artwork's resizer) has no bytes here.
+    /// ponytail: full-size bytes for every tile; buffer and fit them if a client chokes.
     fn photo_bytes(&mut self, row: &Value, request: &Request) -> Response {
         let picture = if is_album(row) { row.get("ratingKey").map(string_value).and_then(|key| self.album_cover(&key)) } else { Some(row.clone()) };
         let Some(part) = picture.as_ref().and_then(|row| row.pointer("/Media/0/Part/0")) else {

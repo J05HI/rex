@@ -57,6 +57,14 @@ const ACCESS_REFRESH_WINDOW: Duration = Duration::from_secs(6);
 /// `claim.PUBSUB_TIMEOUT` / `PUBSUB_RETRY` (the probe PMS, measured).
 const PUBSUB_TIMEOUT: u64 = 20;
 const PUBSUB_RETRY: u64 = 15;
+/// The least time between two of `suspect`'s checks, doubled up to `SUSPECT_GAP_MAX` while they
+/// fail without a 401 and back to this once one is answered: a pubsub refused every PUBSUB_RETRY
+/// seconds has plex.tv asked once a minute at most.
+const SUSPECT_GAP: Duration = Duration::from_secs(60);
+const SUSPECT_GAP_MAX: Duration = Duration::from_secs(600);
+/// How long after `notifyFavoritesChange` `suspect` asks: it came in the second of a device's
+/// removal, before the DELETE had returned (2026-11-16).
+const SUSPECT_NOTIFY_DELAY: Duration = Duration::from_secs(5);
 
 /// `heartbeat.DEFAULT_INTERVAL`: a registration lease is ~40 minutes (measured).
 pub(crate) const HEARTBEAT_INTERVAL: u64 = 600;
@@ -399,6 +407,13 @@ pub(crate) struct Claim {
     /// The shares among them, by token: whose account each is and what it grants
     /// (`accounts::Grant`), so a start whose read fails still knows who is asking.
     pub access_grants: Vec<(String, super::accounts::Grant)>,
+    /// When plex.tv first answered 401 to a call made with `token` (`verdict`), until one is
+    /// answered 2xx again. Memory only: a start finds out again on its first calls.
+    pub refused_since: Option<i64>,
+    /// When `suspect` last asked plex.tv, and how long until it may ask again, and whether a check
+    /// is waiting to. Memory only.
+    pub suspected: Option<(std::time::Instant, Duration)>,
+    pub suspect_pending: bool,
 }
 
 pub(crate) type SharedClaim = Arc<Mutex<Claim>>;
@@ -425,6 +440,9 @@ impl Claim {
             view_state_cursor: None,
             access_tokens: Vec::new(),
             access_grants: Vec::new(),
+            refused_since: None,
+            suspected: None,
+            suspect_pending: false,
         };
         if !claim.path.exists() {
             return claim;
@@ -644,6 +662,104 @@ pub(crate) fn claim_token(claim: &SharedClaim) -> Option<String> {
     snapshot(claim).token.filter(|token| !token.is_empty())
 }
 
+/// plex.tv's answer to a call made with the claim's server token `token`. Measured 2026-11-16
+/// (findings, "A claim whose device was removed"): once the server's device is removed on
+/// plex.tv, every call rex makes with that token is a 401 -- the access-token list, the owner
+/// read, the webhooks, the resources check, the device PUT, `servers.xml` -- and pubsub a 403;
+/// the features read still answered 200, so only the calls passed here count. A 401 marks the
+/// claim refused, a 2xx clears it; a 403, a 5xx and a network failure say nothing about the
+/// token. Under the claim's lock and only for the token it still holds, so three threads
+/// refused in the same second log once and an old call's 401 never marks a newer claim.
+pub(crate) fn verdict(claim: &SharedClaim, token: &str, status: u16) {
+    let mut state = claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if token.is_empty() || state.token.as_deref() != Some(token) {
+        return;
+    }
+    match status {
+        401 if state.refused_since.is_none() => {
+            state.refused_since = Some(now());
+            warning!(
+                "plex.tv refused the claim's server token (401): the claim by {} no longer works and the Plex apps cannot see rex; claim it again (POST /myplex/claim?token=<code from https://www.plex.tv/claim>) to replace it",
+                state.owner.as_deref().unwrap_or("None")
+            );
+        }
+        200..=299 if state.refused_since.take().is_some() => {
+            info!("plex.tv accepts the claim's server token again");
+        }
+        _ => {}
+    }
+}
+
+/// When plex.tv refused the claim's token (`verdict`), if it still does.
+pub(crate) fn refused_since(claim: &SharedClaim) -> Option<i64> {
+    let state = claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    state.refused_since.filter(|_| state.claimed())
+}
+
+/// A sign that plex.tv may no longer take the claim's server token, from something that cannot say
+/// so itself: pubsub's `notifyFavoritesChange`, its 403, and rex-direct's provider refusing the token.
+/// Measured 2026-11-16 (findings, "A claim whose device was removed"): removing the server's device
+/// left rex's pubsub stream open, with no 403, and sent `notifyFavoritesChange` on it in the second of
+/// the removal; the same message comes when another device of the account is added, a fresh token's
+/// first calls can answer 403, and the provider's 401 is also a wrong key's, so none marks the claim.
+/// Each has plex.tv asked, `delay` on, on a thread of its own, with the access-token read, whose 401
+/// `verdict` takes as it takes any: seen within seconds, not at the next heartbeat (up to 10 min).
+/// One check at a time, at most once per gap (`SUSPECT_GAP`, doubling to `SUSPECT_GAP_MAX` while the
+/// read fails without a 401); a sign inside the gap waits for its end rather than being lost. None
+/// while the claim is already refused (the heartbeat sees it accepted again); nothing is exchanged
+/// or dropped.
+pub(crate) fn suspect(claim: &SharedClaim, why: &str, delay: Duration) {
+    let wait = {
+        let mut state = claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        // ponytail: a sign arriving while a check waits is folded into it; a removal's notice in the
+        // second before that check asks can be answered 200 and wait for the heartbeat. Narrow (it
+        // needs another notice 5 s before); run the check again for such a sign if it is ever seen.
+        if !state.claimed() || state.refused_since.is_some() || state.suspect_pending {
+            return;
+        }
+        state.suspect_pending = true;
+        state.suspected.map_or(Duration::ZERO, |(at, gap)| gap.saturating_sub(at.elapsed())).max(delay)
+    };
+    let (claim, why) = (Arc::clone(claim), why.to_string());
+    let _ = thread::Builder::new().name("rex-claim-check".to_string()).spawn(move || {
+        thread::sleep(wait);
+        {
+            let mut state = claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.suspect_pending = false;
+            if !state.claimed() || state.refused_since.is_some() {
+                return;
+            }
+            let gap = state.suspected.map_or(SUSPECT_GAP, |(_, gap)| gap);
+            state.suspected = Some((std::time::Instant::now(), gap));
+        }
+        info!("{why}; asking plex.tv whether the claim's server token still works");
+        let read = fetch_access_tokens(&claim, None);
+        if let Err(message) = &read {
+            error!("access tokens read failed: {message}");
+        }
+        if let Some((_, gap)) = &mut claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).suspected {
+            *gap = if read.is_ok() { SUSPECT_GAP } else { (*gap * 2).min(SUSPECT_GAP_MAX) };
+        }
+    });
+}
+
+/// `urlopen` for a call made with the claim's server token `token`, telling `verdict` its answer.
+fn urlopen_as(
+    claim: &SharedClaim,
+    token: &str,
+    method: &str,
+    url: &str,
+    headers: &[(&str, String)],
+    body: Option<&[u8]>,
+    timeout: u64,
+) -> Result<(u16, Vec<u8>), Failure> {
+    let result = urlopen(method, url, headers, body, timeout);
+    if let Ok((status, _)) | Err(Failure::Http(status, _)) = &result {
+        verdict(claim, token, *status);
+    }
+    result
+}
+
 /// Read only the shared wire identity, not a copy of the credentials and grants.
 pub(crate) fn version(claim: &SharedClaim) -> String {
     claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).version.clone()
@@ -743,13 +859,18 @@ pub(crate) fn exchange(claim: &SharedClaim, claim_token: &str) -> Result<(), Str
         state.owner = root.get("username").map(str::to_string);
         state.email = root.get("email").map(str::to_string);
         // The pubsub path names the account; the exchange answer already carries it.
-        if let Some(id) = root
+        state.account_id = root
             .get("id")
             .filter(|id| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit()))
-            .and_then(|id| id.parse::<i64>().ok())
-        {
-            state.account_id = Some(id);
-        }
+            .and_then(|id| id.parse::<i64>().ok());
+        // Nothing of a refused claim this one replaces carries over: its account's features,
+        // cloud cursor and the tokens it let in are another claim's, maybe another account's.
+        state.feature_uuids.clear();
+        state.view_state_cursor = None;
+        state.access_tokens.clear();
+        state.access_grants.clear();
+        state.refused_since = None;
+        state.suspected = None;
         state.save();
         state.owner.clone()
     };
@@ -779,12 +900,13 @@ fn fetch_features(claim: &Claim) -> Result<Vec<String>, String> {
     Ok(uuids)
 }
 
-fn fetch_account_id(claim: &Claim) -> Result<Option<i64>, String> {
+fn fetch_account_id(claim: &SharedClaim) -> Result<Option<i64>, String> {
     fetch_account(claim).map(|(id, _)| id)
 }
 
 /// The owner's id and track settings from the one `/api/v2/user` read.
-fn fetch_account(claim: &Claim) -> Result<(Option<i64>, Option<crate::mediainfo::TrackPrefs>), String> {
+fn fetch_account(shared: &SharedClaim) -> Result<(Option<i64>, Option<crate::mediainfo::TrackPrefs>), String> {
+    let claim = &snapshot(shared);
     let Some(token) = claim.token.clone().filter(|token| !token.is_empty()) else {
         return Ok((None, None));
     };
@@ -796,9 +918,9 @@ fn fetch_account(claim: &Claim) -> Result<(Option<i64>, Option<crate::mediainfo:
         ])
     );
     let mut headers = claim.headers();
-    headers.push(("X-Plex-Token", token));
+    headers.push(("X-Plex-Token", token.clone()));
     let (_, body) =
-        urlopen("GET", &url, &headers, None, 30).map_err(|failure| failure.to_string())?;
+        urlopen_as(shared, &token, "GET", &url, &headers, None, 30).map_err(|failure| failure.to_string())?;
     let root = parse_xml(&body)?;
     let id = root
         .get("id")
@@ -815,7 +937,7 @@ fn ensure_account_id(claim: &SharedClaim) -> Result<Option<i64>, String> {
     if current.account_id.is_some() || !current.claimed() {
         return Ok(current.account_id);
     }
-    let fetched = fetch_account_id(&current)?;
+    let fetched = fetch_account_id(claim)?;
     let mut state = claim
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -881,7 +1003,8 @@ pub(crate) fn announce_connectivity(
 /// let in. Each maps to its account: an owned `type="device"` row is the owner's, a
 /// `type="server"` row a share, named by its `<invited>` user and granting its `<sections>`
 /// and `<settings>` (`tests/fixtures/plextv_access_tokens_shared_s1434.json`).
-fn fetch_access_tokens(claim: &Claim, unknown: Option<&str>) -> Result<HashMap<String, super::accounts::Grant>, String> {
+fn fetch_access_tokens(shared: &SharedClaim, unknown: Option<&str>) -> Result<HashMap<String, super::accounts::Grant>, String> {
+    let claim = &snapshot(shared);
     let token = claim.token.clone().unwrap_or_default();
     let mut pairs = vec![("auth_token", token.clone())];
     if let Some(unknown) = unknown.filter(|unknown| !unknown.is_empty()) {
@@ -889,9 +1012,9 @@ fn fetch_access_tokens(claim: &Claim, unknown: Option<&str>) -> Result<HashMap<S
     }
     let url = format!("{ACCESS_TOKENS_URL}?{}", urlencode(&pairs));
     let mut headers = claim.pms_headers("PlexMediaServer", true);
-    headers.push(("X-Plex-Token", token));
+    headers.push(("X-Plex-Token", token.clone()));
     let (_, body) =
-        urlopen("GET", &url, &headers, None, 30).map_err(|failure| failure.to_string())?;
+        urlopen_as(shared, &token, "GET", &url, &headers, None, 30).map_err(|failure| failure.to_string())?;
     Ok(parse_xml(&body)?
         .all("token")
         .into_iter()
@@ -949,14 +1072,13 @@ fn profile_prefs(profile: &Element) -> crate::mediainfo::TrackPrefs {
 /// <webhooks>` (`tests/fixtures/plextv_registration_s1422.json`, claimed_start). That list was
 /// empty; Plex Web's WebhookModel reads `url` off each entry, so any element under
 /// `<webhooks>` with a `url` is one.
-fn fetch_webhooks(claim: &Claim) -> Result<Vec<Webhook>, String> {
-    let url = format!(
-        "{WEBHOOKS_URL}?{}",
-        urlencode(&[("X-Plex-Token", claim.token.clone().unwrap_or_default())])
-    );
+fn fetch_webhooks(shared: &SharedClaim) -> Result<Vec<Webhook>, String> {
+    let claim = &snapshot(shared);
+    let token = claim.token.clone().unwrap_or_default();
+    let url = format!("{WEBHOOKS_URL}?{}", urlencode(&[("X-Plex-Token", token.clone())]));
     let headers = claim.pms_headers("PlexMediaServer", true);
     let (_, body) =
-        urlopen("GET", &url, &headers, None, 30).map_err(|failure| failure.to_string())?;
+        urlopen_as(shared, &token, "GET", &url, &headers, None, 30).map_err(|failure| failure.to_string())?;
     webhooks_in(&body)
 }
 
@@ -1062,7 +1184,7 @@ fn deliver_webhooks(claim: &SharedClaim, local: &Mutex<Vec<String>>, events: mps
     let mut read: Option<std::time::Instant> = None;
     for event in events {
         if read.is_none_or(|at| at.elapsed() >= WEBHOOKS_REFRESH) {
-            match if snapshot(claim).claimed() { fetch_webhooks(&snapshot(claim)) } else { Ok(Vec::new()) } {
+            match if snapshot(claim).claimed() { fetch_webhooks(claim) } else { Ok(Vec::new()) } {
                 Ok(found) => urls = found,
                 Err(message) => error!("webhooks read failed: {message}"),
             }
@@ -1213,6 +1335,12 @@ impl Access {
         self.tokens.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).values().cloned().collect()
     }
 
+    /// Drop the list as last read: it was a replaced claim's.
+    fn forget(&self) {
+        self.tokens.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clear();
+        self.transient.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clear();
+    }
+
     /// Read the list again now: plex.tv sent `notifySharingChange` or `notifyHomeChange`.
     pub(crate) fn reread(&self, claim: &SharedClaim) {
         let mut read = self.read.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -1222,7 +1350,7 @@ impl Access {
     /// `Claim.refresh_access_tokens`, with the read lock already held: a failed read keeps
     /// the last list.
     fn refresh(&self, claim: &SharedClaim, unknown: Option<&str>, read: &mut Option<std::time::Instant>) {
-        match fetch_access_tokens(&snapshot(claim), unknown) {
+        match fetch_access_tokens(claim, unknown) {
             Ok(tokens) => {
                 info!("plex.tv lists {} access tokens", tokens.len());
                 let mut sorted = tokens.keys().cloned().collect::<Vec<_>>();
@@ -1351,13 +1479,11 @@ fn publish(claim: &SharedClaim, local_address: &str, sections: &[Value]) -> Resu
         xml_attr(&current.version),
         section_directories(sections),
     );
-    let url = format!(
-        "{SERVERS_URL}?{}",
-        urlencode(&[("auth_token", current.token.clone().unwrap_or_default())])
-    );
+    let token = current.token.clone().unwrap_or_default();
+    let url = format!("{SERVERS_URL}?{}", urlencode(&[("auth_token", token.clone())]));
     let mut headers = current.pms_headers("PlexMediaServer", true);
     headers.push(("Content-Type", "application/xml".to_string()));
-    match urlopen("POST", &url, &headers, Some(body.as_bytes()), 30) {
+    match urlopen_as(claim, &token, "POST", &url, &headers, Some(body.as_bytes()), 30) {
         Ok((status, _)) | Err(Failure::Http(status, _)) => Ok(status.to_string()),
         Err(Failure::Other(message)) => Err(message),
     }
@@ -1385,6 +1511,9 @@ fn subscribe(claim: &SharedClaim, access: Option<&Arc<Access>>) -> Result<(), St
     )
     .map_err(|error| format!("<urlopen error {error}>"))?;
     if response.status >= 400 {
+        if matches!(response.status, 401 | 403) {
+            suspect(claim, &format!("pubsub answered {}", response.status), Duration::ZERO);
+        }
         return Err(Failure::Http(response.status, Vec::new()).to_string());
     }
     info!("pubsub subscribed for {}", current.machine);
@@ -1423,6 +1552,14 @@ fn command(payload: &str, claim: &SharedClaim, access: Option<&Arc<Access>>) {
                 access.reread(claim);
             }
         }
+        // Sent on the stream of a server whose device was just removed, which plex.tv leaves open
+        // (2026-11-16), and to the account's other servers when a device is added or removed.
+        // notifyResetToken: sent to every server of the account when it signs out of all devices
+        // (the account page's resetDevices, 2026-11-16), its token 401 a quarter second later.
+        Some(name @ ("notifyFavoritesChange" | "notifyResetToken")) => {
+            info!("pubsub: {name}");
+            suspect(claim, &format!("pubsub: {name}"), SUSPECT_NOTIFY_DELAY);
+        }
         // ponytail: other commands are logged, not acted on.
         other => info!("pubsub: unhandled command {}", other.unwrap_or("None")),
     }
@@ -1446,16 +1583,12 @@ pub(crate) fn start_registration(
             if let Some(access) = &access {
                 let mut read = access.read.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                 access.refresh(&claim, None, &mut read);
-            }
-            match publish(&claim, &local_address, &sections) {
-                Ok(status) => info!("servers.xml POST -> {status}"),
-                Err(message) => error!("registration failed: {message}"),
-            }
-            if let Some(beat) = &beat {
-                if let Err(message) = beat.beat(&claim) {
-                    error!("registration failed: {message}");
+                drop(read);
+                if drop_refused_claim(&claim, access) {
+                    return;
                 }
             }
+            register(&claim, &local_address, &sections, beat.as_ref());
             loop {
                 match subscribe(&claim, access.as_ref()) {
                     Ok(()) => warning!("pubsub stream ended; resubscribing in {PUBSUB_RETRY}s"),
@@ -1466,6 +1599,51 @@ pub(crate) fn start_registration(
                 thread::sleep(Duration::from_secs(PUBSUB_RETRY));
             }
         });
+}
+
+/// A claimed start whose first call, the access-token read, plex.tv answered 401 (`verdict`) drops
+/// the claim, as plexlab's PMS did (findings, "A claim whose device was removed": restarted on a
+/// removed device's claim it logged "Token was invalid, resetting security" and answered
+/// `claimed="0"`). The machineIdentifier, version and library stay; the claim's account, token and
+/// lists go, so the apps offer Sign in to Plex. Its `/myplex/account` (`signInState="invalid"`,
+/// `mappingError="badauth"`) is not mirrored: an unclaimed rex answers that path 401 to everyone. A 403, a 5xx or no answer marks nothing and keeps
+/// it. A running server only marks a refusal (`verdict`); a start is the only place a claim drops.
+fn drop_refused_claim(claim: &SharedClaim, access: &Access) -> bool {
+    {
+        let mut state = claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !state.claimed() || state.refused_since.is_none() {
+            return false;
+        }
+        warning!(
+            "Token was invalid, resetting security: plex.tv refused the server token of the claim by {} (401), so rex is unclaimed again; claim it again (POST /myplex/claim?token=<code from https://www.plex.tv/claim>)",
+            state.owner.as_deref().unwrap_or("None")
+        );
+        state.token = None;
+        state.owner = None;
+        state.email = None;
+        state.account_id = None;
+        state.feature_uuids.clear();
+        state.view_state_cursor = None;
+        state.access_tokens.clear();
+        state.access_grants.clear();
+        state.refused_since = None;
+        state.save();
+    }
+    access.forget();
+    true
+}
+
+/// The SERVER record and, with a URL to announce, the device PUT.
+fn register(claim: &SharedClaim, local_address: &str, sections: &[Value], beat: Option<&Beat>) {
+    match publish(claim, local_address, sections) {
+        Ok(status) => info!("servers.xml POST -> {status}"),
+        Err(message) => error!("registration failed: {message}"),
+    }
+    if let Some(beat) = beat {
+        if let Err(message) = beat.beat(claim) {
+            error!("registration failed: {message}");
+        }
+    }
 }
 
 /// A claimed server's `POST /servers.xml` again, off the request path, after its
@@ -1505,7 +1683,7 @@ pub(crate) fn lan_ipv4() -> Option<std::net::Ipv4Addr> {
 /// (`tests/fixtures/outbound-announce.json`). `url` is a comma-separated list: a server
 /// with several connections sends one `Connection[][uri]` pair each, in a row
 /// (`tests/fixtures/pms_announce_connections_s1422.json`).
-fn announce(token: &str, machine: &str, url: &str, name: &str, version: &str) -> Result<(), String> {
+fn announce(claim: &SharedClaim, token: &str, machine: &str, url: &str, name: &str, version: &str) -> Result<(), String> {
     let url = with_lan(url);
     if url.is_empty() {
         return Err("no address to announce yet: no private network address".to_string());
@@ -1538,7 +1716,9 @@ fn announce(token: &str, machine: &str, url: &str, name: &str, version: &str) ->
         ("X-Plex-Model", "x86_64".to_string()),
         ("X-Plex-Device-Vendor", "Docker".to_string()),
     ];
-    let (_, body) = urlopen(
+    let (_, body) = urlopen_as(
+        claim,
+        token,
         "PUT",
         &format!("{ANNOUNCE_BASE}/devices/{machine}?{query}"),
         &headers,
@@ -1551,21 +1731,22 @@ fn announce(token: &str, machine: &str, url: &str, name: &str, version: &str) ->
 
 /// `heartbeat.is_visible`: is the server in the list every client reads?
 /// Asked as this server (`machine`), as a real PMS asks plex.tv everything; one fixed
-/// identifier shared by every install was trivial for plex.tv to single out.
-fn is_visible(token: &str, name: &str, machine: &str) -> Result<bool, String> {
+/// identifier shared by every install was trivial for plex.tv to single out. Matched on the
+/// machine, not the name: an account can hold several servers named alike ("Pixel 6").
+fn is_visible(claim: &SharedClaim, token: &str, machine: &str) -> Result<bool, String> {
     let headers = [
         ("X-Plex-Token", token.to_string()),
         ("X-Plex-Client-Identifier", machine.to_string()),
         ("Accept", "application/json".to_string()),
     ];
     let (_, body) =
-        urlopen("GET", RESOURCES_URL, &headers, None, 25).map_err(|failure| failure.to_string())?;
+        urlopen_as(claim, token, "GET", RESOURCES_URL, &headers, None, 25).map_err(|failure| failure.to_string())?;
     let rows: Value = serde_json::from_slice(&body).map_err(|error| error.to_string())?;
     let rows = rows
         .as_array()
         .ok_or_else(|| "'dict' object has no attribute 'get'".to_string())?;
     Ok(rows.iter().any(|row| {
-        row.get("name").and_then(Value::as_str) == Some(name)
+        row.get("clientIdentifier").and_then(Value::as_str) == Some(machine)
             && row
                 .get("provides")
                 .and_then(Value::as_str)
@@ -1586,8 +1767,36 @@ impl Beat {
     /// `Heartbeat.beat`: one announce.
     fn beat(&self, claim: &SharedClaim) -> Result<(), String> {
         let token = claim_token(claim).ok_or("no claim to announce with")?;
-        announce(&token, &self.machine, &self.url, &self.name, &snapshot(claim).version)
+        announce(claim, &token, &self.machine, &self.url, &self.name, &snapshot(claim).version)
     }
+}
+
+/// rex-direct's provider asks plex.tv with the claim's token from its own address, and plex.tv
+/// takes that address for the server's (`publicAddress`) and drops it from /api/v2/resources until
+/// rex announces again (zen, 2026-11-16: 5 of 5 asked after the announce, 3 of 8 claims where the
+/// provider's write landed up to ~7 s after the claim's announce; the Cube waited for its next
+/// beat). So after each provider call rex looks for itself there and announces when it is missing.
+const PROVIDER_SETTLE: [Duration; 3] = [Duration::from_secs(10), Duration::from_secs(20), Duration::from_secs(40)];
+
+pub(crate) fn settle_after_provider(plextv: Arc<PlexTv>) {
+    let _ = thread::Builder::new().name("rex-direct-settle".to_string()).spawn(move || {
+        for wait in PROVIDER_SETTLE {
+            thread::sleep(wait);
+            let beat = plextv.beat.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
+            let (Some(beat), Some(token)) = (beat, claim_token(&plextv.claim)) else {
+                return;
+            };
+            // Only a list read that leaves rex out: a refused token, plex.tv down or no address to
+            // announce is the heartbeat's to report, not three more failures per provider call.
+            if with_lan(&beat.url).is_empty() || is_visible(&plextv.claim, &token, &beat.machine) != Ok(false) {
+                return;
+            }
+            match beat.beat(&plextv.claim) {
+                Ok(()) => info!("not in /api/v2/resources after rex-direct's provider asked plex.tv; announced again"),
+                Err(message) => error!("announcing again after rex-direct's provider failed: {message}"),
+            }
+        }
+    });
 }
 
 /// `heartbeat.Heartbeat.start`: re-announce on an interval, on its own thread. The target is
@@ -1621,11 +1830,11 @@ pub(crate) fn start_heartbeat(plextv: Arc<PlexTv>, interval: u64) {
                     thread::sleep(Duration::from_secs(interval));
                     continue;
                 };
-                let result = announce(&token, &beat.machine, &beat.url, &beat.name, &snapshot(&claim).version).and_then(|_| {
+                let result = announce(&claim, &token, &beat.machine, &beat.url, &beat.name, &snapshot(&claim).version).and_then(|_| {
                     failures = 0;
                     // Verifying costs a second request but turns a silent
                     // disappearance into a log line.
-                    if !is_visible(&token, &beat.name, &beat.machine)? {
+                    if !is_visible(&claim, &token, &beat.machine)? {
                         warning!(
                             "announced but NOT visible in /api/v2/resources -- clients cannot see rex right now"
                         );
@@ -1655,7 +1864,7 @@ impl AccountRefresh {
         if !current.claimed() {
             return Ok(false);
         }
-        let (account_id, prefs) = fetch_account(&current)?;
+        let (account_id, prefs) = fetch_account(claim)?;
         if let Some(prefs) = prefs {
             runtime
                 .lock()
@@ -2436,6 +2645,32 @@ impl super::Runtime {
         }
     }
 
+    /// `GET /rex/claim`, rex's own: whether a real claim holds a token, and whether plex.tv
+    /// refuses it (`verdict`), for an app that cannot tell from `/identity`, which keeps a real
+    /// PMS's shape.
+    pub(super) fn route_rex_claim(&self) -> super::Response {
+        let claim = self.claim_snapshot();
+        let claimed = claim.claimed();
+        let since = claim.refused_since.filter(|_| claimed);
+        // Not `Response::json`, which drops the nulls this answer names, and not plain
+        // `application/json`, which a client not asking for JSON is answered as Plex XML.
+        let mut response = super::Response::bytes(200, "application/json; charset=utf-8");
+        response.body = json!({
+            "claimed": claimed,
+            "refused": since.is_some(),
+            "refused_since": since,
+            "owner": claim.owner.filter(|owner| claimed && !owner.is_empty()),
+        })
+        .to_string()
+        .into_bytes();
+        response
+    }
+
+    /// A real claim plex.tv refuses the token of: a new claim may replace it.
+    pub(super) fn claim_refused(&self) -> bool {
+        refused_since(&self.plextv.claim).is_some()
+    }
+
     /// `_claimed`: `--assert-claimed`, or a real claim.
     pub(super) fn claimed(&self) -> bool {
         self.assert_claimed || self.claim_snapshot().claimed()
@@ -2641,7 +2876,10 @@ pub(super) fn finish_claim(runtime: &SharedRuntime, token: &str, _target: &str) 
         }
     }
     let claiming = Claiming(&plextv.claiming);
-    let exchanged = if plextv.claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).claimed() {
+    // A claim plex.tv refuses the token of (`verdict`) is replaced by this one; a working one is
+    // never exchanged again.
+    let replacing = refused_since(&plextv.claim).is_some();
+    let exchanged = if plextv.claim.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).claimed() && !replacing {
         Err(None)
     } else {
         refresh_version(&plextv.claim);
@@ -2671,6 +2909,12 @@ pub(super) fn finish_claim(runtime: &SharedRuntime, token: &str, _target: &str) 
         }
         (guard.private_address.clone(), guard.published_sections(), attached)
     };
+    if replacing {
+        // The refused claim's list let its account's devices in; until the new one is read,
+        // only the new token does.
+        plextv.access.forget();
+        info!("the refused claim is replaced");
+    }
     if attached {
         // What its sources placed while there was no agent is named now, not 50 a pass every ten
         // minutes: a sponsor's rex given zurg before its claim held 7,035 releases on their release
@@ -2685,12 +2929,24 @@ pub(super) fn finish_claim(runtime: &SharedRuntime, token: &str, _target: &str) 
     let registration = Arc::clone(&plextv);
     // rex-direct registers first, so the device PUT already names its URL; off the claim's
     // answer, which would otherwise wait on the provider.
+    let account = Arc::clone(runtime);
     let _ = thread::Builder::new().name("rex-claimed".to_string()).spawn(move || {
         if let Some(direct) = direct {
             direct.start(Arc::clone(&registration));
         }
         let beat = registration.beat.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
-        start_registration(Arc::clone(&registration.claim), local_address, sections, beat, None);
+        if !replacing {
+            start_registration(Arc::clone(&registration.claim), local_address, sections, beat, None);
+            return;
+        }
+        // The refused claim's threads run on and read the new token on their next turn: its
+        // pubsub loop resubscribes within PUBSUB_RETRY, the heartbeat and rex-direct on their
+        // interval. What the first claim did at once is done at once here.
+        registration.access.reread(&registration.claim);
+        register(&registration.claim, &local_address, &sections, beat.as_ref());
+        if let Err(message) = AccountRefresh::refresh(&registration.claim, &account) {
+            error!("claimed-account refresh failed: {message}");
+        }
     });
     plextv.start_account(runtime);
     let guard = runtime
@@ -2748,6 +3004,30 @@ mod tests {
         let count = |key: &str| runtime.catalog.get(key).and_then(|row| row.get("viewCount")).cloned();
         assert_eq!((count("1"), count("2"), count("4")), (Some(json!(1)), Some(json!(1)), None));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn only_a_401_to_the_current_token_refuses_the_claim_and_a_2xx_clears_it() {
+        // What plex.tv answered once the server's device was removed (2026-11-16): 401 to the
+        // token's calls, 403 to pubsub; neither a 403 nor a 5xx says the token is gone.
+        let path = std::env::temp_dir().join(format!("rex-verdict-{}", uuid4())).join("claim_state.json");
+        let mut claim = Claim::load("machine", path, "name", PMS_VERSION_FALLBACK);
+        claim.token = Some("current".to_string());
+        let shared: SharedClaim = Arc::new(Mutex::new(claim));
+        for status in [403, 404, 422, 429, 500, 502, 503] {
+            verdict(&shared, "current", status);
+        }
+        assert_eq!(refused_since(&shared), None);
+        verdict(&shared, "replaced", 401);
+        assert_eq!(refused_since(&shared), None, "a replaced token's 401 is not this claim's");
+        verdict(&shared, "current", 401);
+        let since = refused_since(&shared).expect("a 401 refuses the claim");
+        verdict(&shared, "current", 401);
+        verdict(&shared, "current", 503);
+        verdict(&shared, "replaced", 200);
+        assert_eq!(refused_since(&shared), Some(since), "kept from the first 401");
+        verdict(&shared, "current", 200);
+        assert_eq!(refused_since(&shared), None, "a 2xx clears it");
     }
 
     #[test]

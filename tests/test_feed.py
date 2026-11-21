@@ -98,6 +98,10 @@ class Bytes:
 
     def __init__(self):
         self.files = set()
+        # A file served as another type than a video's, by path (a source's own artwork).
+        self.types = {}
+        # A whole file served as other bytes than the video's, by path (a source's own picture).
+        self.bodies = {}
         self.seen = []
         self.auth = "Bearer " + BYTES_TOKEN
 
@@ -110,7 +114,7 @@ class Bytes:
 
             def reply(self, status, body=b"", extra=()):
                 self.send_response(status)
-                self.send_header("Content-Type", "video/x-matroska")
+                self.send_header("Content-Type", source.types.get(urllib.parse.unquote(self.path), "video/x-matroska"))
                 self.send_header("Content-Length", str(len(body)))
                 for name, value in extra:
                     self.send_header(name, value)
@@ -132,7 +136,7 @@ class Bytes:
                     first, last = int(first), min(int(last) if last else len(BODY) - 1, len(BODY) - 1)
                     return self.reply(206, BODY[first:last + 1],
                                       [("Content-Range", "bytes %d-%d/%d" % (first, last, len(BODY)))])
-                self.reply(200, BODY)
+                self.reply(200, source.bodies.get(path, BODY))
 
             do_HEAD = do_GET
         return Handler

@@ -1759,7 +1759,8 @@ the fetched bytes through unchanged. The client gates those filters on a VERSION
 comparison (`imageFilters: "0.9.9.13"` in its feature table) and rex advertises
 1.42.2, so it does send them -- background art renders sharp and fully opaque where
 it should be blurred and dimmed. Recorded as a limitation, not a gap to be papered
-over.
+over. (Since 2026-11-17 an FFmpeg fits the picture and honours `format=png`; the filters still are
+not emulated: "The photo transcoder, measured".)
 
 #### An unknown SINGLE-segment path is a 200, not a 404
 
@@ -6984,7 +6985,7 @@ anything for all five, so a client sending a malformed tile URL got an image whe
 refuses the request. Not emulated and recorded instead: the 500s a real PMS answers for a width
 or height that scales the image to nothing (`width=1&height=100` on a 1000×1500 poster is a 500
 where `width=2` is a 200, and `height=-1` is a 200 where `width=-1` is a 500) — those depend on
-the image's own aspect ratio and on a resizer rex does not have.
+the image's own aspect ratio (re-measured 2026-11-17, "The photo transcoder, measured": still not emulated).
 
 **The session row's `Player` is the one element there that is not alphabetical, and its
 `profile` is not a constant.** Cycle 26 recorded a session `Role` as `filter, actor, id, role,
@@ -7149,7 +7150,7 @@ that error on plexlab and not on rex.
   **Overturned 2026-09-30:** a complete lower-case line is closed AT ONCE on plexlab (1.43.4) and
   plexscratch42 (1.42.2), and the check runs before every other rule of the line (see
   protocol-traps.md); only an unterminated one is held.
-- **The `width`/`height` 500s of `/photo/:/transcode`** (above): a resizer rex does not have.
+- **The `width`/`height` 500s of `/photo/:/transcode`** (above): the picture is served as it is ("The photo transcoder, measured", 2026-11-17).
 - **`PROFILE_NAMES` is single-witness by construction.** Neither read-only reference can be given
   a playback session, so the copy (1.43.4) is the only instrument, and rex reports 1.42.2.
 - **The `Player` string/non-string split has a second model that fits** the same fifteen
@@ -7510,11 +7511,11 @@ Bunny), so the territory had two witnesses rather than one. Four findings plus a
 **Measured and deliberately not emulated.** The photo transcoder's geometry is now pinned — the
 default scales to FIT inside the box, `minSize=1` scales to COVER it uncropped, and without
 `upscale=1` the result is capped at the source's own size, with `quality=` the real JPEG quality
-and `opacity=` accepted and discarded — but rex has no resizer, so it still picks a TMDB bucket
-and passes those bytes through (the `width`/`height` 500s were already held out in cycle 27). A
+and `opacity=` accepted and discarded. (**Emulated since 2026-11-17** with an FFmpeg, re-measured on
+plexlab: "The photo transcoder, measured"; the `width`/`height` 500s, held out in cycle 27, still are.) A
 section `/composite/{v}` is a 512×512 JPEG mosaic on both references and rex has no
 compositor. `/photo/:/transcode` omits `Accept-Ranges` on the FIRST (uncached) transcode and sends
-it on every later one — a cache tell no client can see, and rex has no transcode cache. The
+it on every later one — a cache tell no client can see; rex keeps fitted answers since 2026-11-17 and still sends it every time. The
 416's own HTML body and the fact that the static writer's refusals name no connection state and
 CLOSE the socket stay recorded: rex's text/plain error bodies are cycle 1's deliberate
 deviation, and keeping a connection the reference drops is the forgiving direction. The 1.42.2
@@ -9611,7 +9612,8 @@ from their own values, so nothing here is version-split; the CLAIM is what split
   machineIdentifier the 1.42.2 reference already held.
 * **Nothing else on the LAN.** Bonjour/mDNS advertises no Plex service at all, and TCP
   8324 (Companion), 32469 (DLNA) and 1900 (SSDP) are refused on the 1.42.2 reference: GDM is the
-  whole of LAN discovery.
+  whole of LAN discovery. (Its DLNA server was off, the default; with `DlnaEnabled` on a PMS answers
+  both, findings "DLNA server", 2026-11-10.)
 
 ##### Two more things the discovery surface exposed
 
@@ -12599,7 +12601,9 @@ on from about 12 s after load) and FFmpeg's reader (`tests/test_http_mkv.py`).
 `tests/test_http_mkv.py` walks every profile in `data/client_profiles.json`: each streaming
 target's protocol must convert a live channel and a capped file and start media FFmpeg decodes.
 The 21 profiles whose targets name no protocol are PMS's DLNA renderer profiles, listed by name;
-rex runs no DLNA server, and a new one, or a protocol rex does not serve, fails the suite.
+no request of theirs reaches the universal transcoder (rex's DLNA server, added 2026-11-10, serves
+every renderer the original file, as plexlab's did; "DLNA server"), and a new one, or a protocol
+rex does not serve, fails the suite.
 
 ### Live DASH start-up, a silent source's hang-up, live AAC (2026-10-27)
 
@@ -13981,6 +13985,15 @@ verdicts, is `tests/fixtures/subtitles/sync_corpus.json.gz`.
   against keeps the best-named candidate unchecked, and the play queue's job measures the
   candidates against the audio and puts the kept stream right in place, same id and key
   (`test_subtitles.py`'s S05E08). Browsing reads no audio.
+- An item of several versions (two releases of one episode folded into one row): each is its own,
+  and only the playback decision says which is played (`mediaIndex`); the detail request and the
+  play queue carry none. So a decision starts the job for the version it plays, waited up to 3 s
+  as above, and rex keeps that version for the item; a play queue of such an item with none kept
+  leaves the job to the decision, and a search or apply with no `mediaItemID` is for the kept
+  version, else the first. A job, a miss and an unchecked pick are per version (its Part). Before
+  2026-11-15 every one went to the first version while the second played (Discord #rex-support,
+  2026-11-13; `test_subtitles.py`'s S05E10). Unmeasured: what a real PMS does with no
+  `mediaItemID` on such an item, and whether Plex for Apple TV sends one.
 
 **Measured against the corpus** (`subtitles.rs`' corpus test, rex's ranking and meter on the
 fixture's energy masks and cues; a pick is right when its truth is in sync and rex left it alone,
@@ -15663,7 +15676,8 @@ album's slideshow and a picture at the top (`tests/fixtures/photos/web-photos.js
   for the viewer (1920x1213) and the filmstrip, and `url=/library/metadata/{id}/thumb/{t}` for
   tiles. Thumb, composite and every transcode answer `image/jpeg`, a PNG's transcode too, whose
   bytes stay a PNG; a Part read is `image/jpeg` or `image/png` by its file. rex answers the picture
-  itself to all of them (no resizer) with those types.
+  itself to all of them with those types: a photo's Part is streamed from its source, never held
+  whole, so it is not fitted as artwork is (2026-11-17, "The photo transcoder, measured").
 - **A picture on screen is a session.** `/status/sessions` listed the picture being viewed with its
   Player and User. rex does not (yet).
 - **Plex for Android 2026.21.0 lists no photo library.** Pinned to plexscratch through the Android
@@ -15834,3 +15848,407 @@ and answered over IPv6 with a valid certificate; app.plex.tv played the film at 
   router). Measured in network namespaces on a Hetzner box, a feed PUT from `::3` to rex at `::2`
   in the same /64: with IPv4 192.168.77.2, main a1474bc7 401 and the fix 200; with IPv4
   198.51.100.2 (a VPS), 401 on both.
+
+## DLNA server (2026-11-10)
+
+plexlab (PMS 1.43.4, unclaimed) with `DlnaEnabled` on, recorded from its own network namespace:
+`probes/record_dlna.py` (`tests/fixtures/dlna/plexlab_1434_s1110.json`: the NOTIFYs of turning the
+pref off and on, each search target, the device and service descriptions, every action, a whole
+Browse walk and the streams of six items, walked again under VLC's, a Samsung TV's and Windows Media
+Player's User-Agents) and `probes/record_dlna_edges.py` (`plexlab_1434_edges_s1110.json`: search
+timing, Browse of an item, the HTTP edges). Every client got the same tree byte for byte and the
+original file: PMS converted nothing for any of them. rex runs the same server while the pref is on
+(`runtime/dlna.rs`, `tests/test_dlna.py`).
+
+- **The pref is the switch, with no restart.** Turned off, plexlab sent `ssdp:byebye` for each of its
+  six NTs twice, at once; turned on, `ssdp:alive` twice, 50 ms apart and the rounds 250 ms apart,
+  `Cache-Control: max-age=` `DlnaAnnouncementLeaseTime` (1800). How often it renews was not seen in
+  the 20 s recorded; rex renews at half the lease. rex reads the pref every second, sends the byebye
+  when it is turned off and when SIGTERM stops it, and closes both ports.
+- **SSDP.** A search for `ssdp:all` draws six answers in the NOTIFYs' order (rootdevice, the UDN,
+  MediaServer:1, X_MS_MediaReceiverRegistrar, ContentDirectory, ConnectionManager); each of those STs
+  draws its own; any other draws none. Every answer is sent again 200 ms later, from a port of its
+  own, after whole seconds below MX (MX 1: 0 s; 2: 0 and 1; 3: 0, 1 and 2; 5: 0 and 2; 8: 1 and 3).
+  A search sent to plexlab's LAN address was answered and one sent to loopback was not. An answer
+  carries `EXT:`, `BOOTID.UPNP.ORG` (the second the server started) and `CONFIGID.UPNP.ORG` (24 bits,
+  9821517 there; rex's is a digest of what its description says, so it changes with it). LOCATION is
+  the address facing the searcher; rex's NOTIFYs leave by its LAN interface (`IP_MULTICAST_IF`), and a
+  rex with no private IPv4 sends none.
+- **The description.** The UDN is the machineIdentifier's first 32 characters as a UUID, the
+  `friendlyName` `Plex Media Server: <FriendlyName>`, `modelNumber` the version less its hash; six
+  icons from `DlnaDescriptionIcons` (PNG and JPEG at 260, 120 and 48), which rex lists and draws as
+  its own plain stand-ins, never PMS's. The three SCPDs are plexlab's text (`data/dlna_*.xml`).
+- **The HTTP side is Platinum's** (`Server: UPnP/1.0 DLNADOC/1.50 Platinum/1.0.5.13`, last):
+  `Date`, `Content-Length`, `Content-Type`, then `Connection: close` only for a request that asked
+  for it or spoke HTTP/1.0, otherwise the connection is kept. A SOAP answer starts with `Ext:`. An
+  unknown path, a control URL read with GET and an eventSubURL read with GET are a bare 404;
+  SUBSCRIBE is 200 with a SID and `TIMEOUT: Second-1800` whatever was asked; UNSUBSCRIBE of a SID it
+  does not hold 412 (rex sends no events, so it holds none: every UNSUBSCRIBE is that 412, and an
+  11-letter method PMS's own port refuses); a POST with no SOAPACTION `500 Bad Request` with no body;
+  HEAD of an icon or a poster a bare 200 with `Content-Length: 0`.
+- **The actions.** GetSearchCapabilities and GetSortCapabilities answer empty (there is no Search
+  action: fault 401 `Invalid Action`, as any unknown action); GetProtocolInfo's Source is
+  `DlnaDefaultProtocolInfo` as stored, its missing colons (`http-get:*image/jpeg:*`) included;
+  GetCurrentConnectionIDs `0` and fixed connection info; the registrar authorizes and validates
+  every device. GetSystemUpdateID and Browse's UpdateID were 89716252 and grew as the walk read
+  files; rex answers its catalog's generation. An unknown object is fault 701 `No such object`, a
+  BrowseFlag of neither kind 701 `Invalid Name`, both `s:Client` `UPnPError` with status 500.
+- **Browse.** RequestedCount 0 is every child; a page past the end is none of N in an empty
+  DIDL-Lite; BrowseMetadata answers 1 of 1 whatever the paging; BrowseDirectChildren of an ITEM
+  answers the item itself with its own id as its parent. Text is escaped in the DIDL (`'` as
+  `&apos;`) and the DIDL again inside `Result` (`&`, `<`, `>` only).
+- **The tree.** The root holds Video, Music and Photos. Video holds each library (a
+  `playlistContainer`; a show library's carries its own title as `upnp:seriesTitle`), Video Channels
+  and Preferences. A movie library holds All Movies, Unwatched, Recently Released, Recently Added,
+  Recently Viewed, Continue Watching, By Collection, By Edition, By Genre, By Year, By Decade, By
+  Director, By Starring Actor, By Country, By Content Rating, By Rating, By Resolution, By First
+  Letter, By Folder; a show library All Shows, Unwatched, Recently Released, Recently Added, Recently
+  Viewed Episodes, Recently Viewed Shows, Continue Watching, By Collection, By Edition, By First
+  Letter, By Genre (after By First Letter, where a movie library has it before), By Year, By Content
+  Rating, By Folder. A genre is `object.container.genre.musicGenre`, in a video library too; years
+  and decades (`2010s`) newest first, genres and letters in order, a bucket's titles by title;
+  Recently Added newest first, Recently Released by date, Recently Viewed by last view.
+- **The objects.** A film is `Title (Year)`, `object.item.videoItem.movie`; an episode
+  `Show - S1 E3 - Title` in its season and in Recently Added and `S1 E3 - Title` in All episodes,
+  `object.item.videoItem`, its `upnp:seriesTitle` the show's in a season and the LIBRARY's in All
+  episodes and Recently Added (none under By Folder). In order: `dc:title`, `dc:creator` (the first
+  director; a show's studio; else `Unknown`), `dc:date` (`originallyAvailableAt`; All episodes and a
+  season the first day of their year), `upnp:actor` each, `upnp:genre` each (`Unknown` when none, as
+  every episode), `upnp:albumArtURI dlna:profileID="JPEG_MED"`, `dc:description` (the title again),
+  `upnp:longDescription` (the summary, when there is one), `upnp:icon`, an episode's
+  `upnp:programTitle`, `upnp:seriesTitle` and `upnp:episodeNumber`, `res`, `upnp:class`. A show is a
+  `playlistContainer` with `childCount` its episodes; it holds All episodes (a `storageFolder` drawn
+  with the show's poster) and then its seasons (`playlistContainer`s), each `childCount` its episodes.
+- **`res`.** `duration` `H:MM:SS.000`, whole seconds (a Media of 10,030 ms is `0:00:10.000`),
+  `size` the Part's, `resolution` `WxH`, `bitrate` in BYTES per second (the Media's kbps × 125:
+  4999 is 624875), `nrAudioChannels`, and `protocolInfo`
+  `http-get:*:<type>:DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000`.
+  The one mp4 (H.264 High, 1080p at 24, AAC) added `DLNA.ORG_PN=AVC_MP4_HP_HD_24_AAC;`; no Matroska
+  named a profile. rex names that profile for exactly that combination, the only one measured, and
+  none for anything else (DLNA makes the profile optional). A row of several Media or Parts offers its
+  first Part.
+- **Ids.** PMS's are 20-hex hashes (UUIDs for the fixed folders): one item has one id in every
+  folder, while a show listed under Unwatched has another, and BrowseMetadata names as parent wherever
+  the object was last listed (after the walk, By Folder). rex's are the path from the root (`s1/all/1007`,
+  a genre or letter hex-encoded): stable across restarts, and the parent is always the folder the
+  client came from.
+- **Streams** are `/object/<id>/file.<ext>`, GET and HEAD: `Content-Length`, `Content-Type`, `Date`,
+  `Content-Range` on a 206, `transferMode.dlna.org` echoing the request's (`Streaming`,
+  `Interactive`) only when it sent one, `contentFeatures.dlna.org` only to
+  `getcontentFeatures.dlna.org: 1`, `Accept-Ranges: bytes`. A Range past the end is a 416 with the
+  Part's type, `Cache-Control: no-cache` and the HTML refusal. rex reads the bytes through its own
+  part read (`open_part`): any source, Range by the PMS port's grammar, a redirect source's link sent
+  on with a 302 under `--part-mode redirect`.
+- **The Preferences trap.** Under Video's Preferences (and Music's) each setting is a folder of its
+  options, ids `<uuid>_<value>`, the current one titled `[x] ...`: Direct Play, Direct Stream, Local,
+  Remote and Online resolution and quality, subtitle size, audio boost, music bitrate. BROWSING an
+  option SETS it for the client: the recording's first walk left plexlab's DLNA client preferences at
+  the last option it read, and they were restored by hand. A recorder must not browse them.
+- **What rex leaves out, and why.** Preferences: its options choose what PMS converts to, and rex
+  converts nothing for DLNA, so they would set nothing. Music and Photos are empty (PMS lists Music
+  Channels and a music Preferences, and Photo Channels). The person, country, content rating, rating,
+  resolution, collection, edition and folder axes, and a show library's Recently Released, Recently
+  Viewed and Continue Watching, are not built. rex sends no UPnP events. The recently-* folders are
+  not capped: five films cannot show PMS's cap.
+- **What rex does that PMS does not.** DLNA has no authentication, so rex answers its HTTP port only
+  to a peer on a private network, by the socket address (`feed::source_peer`), and answers no search
+  from anyone else: an SSDP answer to a forged public source is a reflection attack. Like plexlab,
+  it answers no search sent from loopback.
+- **Cost.** 10,000 films with a state file: a page of 50 in 23-97 ms (All Movies, a genre, a letter,
+  Recently Added), By Genre's list in 41 ms, all 10,000 at once (RequestedCount 0) in 1.1 s. The
+  listing reads its titles' hot fields and the search index's genres (`corpus.rs`), and only the
+  page's rows (`Catalog::read_listed`).
+
+## A claim whose device was removed (2026-11-16)
+
+A patron's rex (zurg+rex Android, engine 2026.11.15) sat claimed and invisible to the Plex apps for
+over a day: every plex.tv call it made with the claim's server token was a 401 (pubsub a 403), it kept
+answering `/identity` with `claimed="1"`, and it answered a new claim 409. Measured on a lab account
+the same day, `tests/fixtures/plextv_device_removed_2026_11_16.json`:
+
+- **Removing the server's device on plex.tv** (`DELETE plex.tv/devices/<id>.xml`, the API call; that
+  Authorized Devices' Remove button does the same is inferred, not clicked) **kills its server token at once.** Asked 5 s later with that token: the
+  access-token list, the owner read (`/api/v2/user`), the webhooks and `/api/v2/resources` answer 401
+  `User could not be authenticated` (code 1001), the device PUT and `POST /servers.xml` 401 `Invalid
+  authentication token.`, and pubsub a bare nginx 403. **The features read (`/api/v2/features`) still
+  answers 200** with the token in the query, so a 2xx from it says nothing about the token. A rex
+  restarted on that claim logs the patron's lines exactly, in the same order.
+- **A second claim does not kill the first.** A second rex claimed to the same account left the
+  first's server token answering 200 on every one of those calls, and the account's own sign-in
+  token too. Which of the other candidates the patron hit (a device removed by hand, a sign-out of
+  every device or a password change) is not known; only the first was measured.
+- **A real PMS drops a refused claim.** plexlab's PMS (1.43.4), claimed to the lab account and its
+  device removed, went on answering `claimed="1"` and `signInState="ok"` for the 30 s watched; once
+  restarted, its first access-token read was a 401, it logged `MyPlex: Token was invalid, resetting
+  security.`, emptied `PlexOnlineToken` and answered `/identity` `claimed="0"` and `/myplex/account`
+  `signInState="invalid"`, `mappingError="badauth"`. Whether a running PMS does the same on its own
+  schedule was not measured.
+
+What rex did at first, which was **not** what that PMS does (a start now drops it, below): rex kept the claim (the token
+gate, `claim_state.json`, `claimed="1"`) and never drops or exchanges one on its own, since a claim
+redeemed again is what reset the account's tokens on 2026-09-11. It records the refusal instead
+(`plextv::verdict`): a 401 to a call made with the claim's current token -- the access-token read,
+the owner read, the webhooks, the resources check, the device PUT, `servers.xml` -- marks the claim
+refused, logged once as a WARNING; a 2xx from one of them clears it (an INFO). A 403, a 5xx and a
+network failure leave it as it is, as do pubsub (403 here), the features read (200 here) and
+rex-direct, whose 401 is its provider's (a wrong `REX_DIRECT_KEY` is one too) and which was off in
+the measurement. Those signs only have plex.tv asked (`plextv::suspect`, below). The refusal is kept
+in memory only: a restart finds it again on its first calls.
+
+It is shown at `GET /rex/claim`, rex's own and answered only to rex's own networks with no token
+(the gate `POST /myplex/claim` keeps unclaimed): `{"claimed": bool, "refused": bool,
+"refused_since": <unix seconds> | null, "owner": <username> | null}`. Nothing is added to
+`/identity` or `/myplex/account`, which Plex clients parse. A refused claim takes a new
+`POST /myplex/claim?token=` from those networks with no token, through the same exchange as a
+first claim: on success `claim_state.json` holds the new claim alone (no features, cursor or
+access tokens of the old one), the old list stops letting its account in, the new one is read, and
+`servers.xml`, the device PUT and the owner refresh run at once; the refused claim's pubsub loop,
+heartbeat and rex-direct pick up the new token on their next turn. A working claim still answers
+another claim 409 (401 with no token, from the gate, as before). `tests/test_plextv.py`,
+`refused_claim`.
+
+**Dropped at a start, as the PMS does (Ben, later on 2026-11-16).** A running rex still only marks
+the refusal. A start whose first call, the access-token read, plex.tv answers 401 drops the claim
+(`plextv::drop_refused_claim`), logging `Token was invalid, resetting security` as plexlab's PMS did:
+`claim_state.json` keeps the machineIdentifier and version and loses the token, owner, account id,
+features and access lists, nothing is registered with the dead token (no `servers.xml`, no pubsub),
+`/identity` says `claimed="0"` and `GET /rex/claim` `{"claimed": false, ...}`, which the zurg app and
+rex-android already read as Sign in to Plex. The PMS's `/myplex/account` then answered
+`signInState="invalid"`, `mappingError="badauth"`; rex answers that path 401 to everyone while unclaimed
+(its unclaimed gate), so there is nothing to mirror. A 403, a 5xx or no answer at a start keeps the
+claim, and the running refusal path takes over. Live on zen, lab account: a scratch rex claimed, its
+device removed (19:00:03 UTC) and rex stopped, then started at 19:00:17.75: its first calls were 401,
+the claim was dropped at 19:00:18 and `/rex/claim` said unclaimed from 19:00:19; a new claim token
+POSTed from the LAN was taken in 0.8 s and the server listed again. `tests/test_plextv.py`,
+`refused_claim` (`pms_restart` in the fixture).
+
+Run live the same day on the lab rex whose device was removed: `GET /rex/claim` answered
+`"refused": true` from the first second, a new claim token POSTed with no token from the LAN was
+exchanged, and the new token's next calls answered 200 (access tokens, owner, webhooks, resources,
+device PUT; `servers.xml` its usual 422) and plex.tv listed the server again. **The access-token
+read made a second after the exchange answered 403** and the same call 200 a minute later: a fresh
+server token is not yet everywhere on plex.tv, one more reason a 403 marks nothing.
+
+**Seen within seconds, not at the heartbeat** (measured later the same day on zen, lab account,
+`REX_DIRECT_URL=off`). Of the calls above only the 600 s heartbeat ran on its own, so a running rex
+marked the removal at its next beat: 9 min 22 s on the Fire TV Cube, 6 min 18 s and 6 min 21 s for two
+scratch rex (ae2d690c and a build that asked plex.tv on pubsub's 403 alone) whose devices were removed
+together. Neither got a 403: **plex.tv left the removed server's pubsub stream open**, still sending
+its `: -1` keepalive every 10 s, and sent `notifyFavoritesChange` on it twice in the second of the
+removal (0.47 to 0.6 s after the DELETE began, before it returned; the fixture's
+`pubsub_after_removal`). The same message reaches the account's other servers, and came to both
+when another server of the account was claimed; the removed server got no later ones. The removed
+token's access-token read, asked every 0.5 s, answered 200 up to 0.13 to 0.22 s before the DELETE
+and 401 from the first read after it returned (0.65 to 0.74 s). The patron's and the Cube's pubsub
+403s come from subscribing again once a stream has ended; why theirs ended is not known.
+
+So `notifyFavoritesChange`, a pubsub 403 and rex-direct's provider answering 401 or 403 each have
+the access-token read asked (`plextv::suspect`), the notice 5 s on (`SUSPECT_NOTIFY_DELAY`), the
+others at once; its 401 marks the claim as any 401 does, a 403, a 5xx or a 200 marks nothing. One
+check at a time and one a minute at most (`SUSPECT_GAP`), the gap doubling to 10 min while the read
+fails without a 401 and back to a minute once it is answered; a sign inside the gap is checked when
+the gap ends, not dropped, and none is checked while the claim is already refused. Nothing is
+exchanged or dropped. Measured with that build: a removal was marked **6.1 s** after the DELETE, and
+29.6 s after one that came 36 s after a check (another server's claim had sent the notice), the
+check waiting for the minute's end: at most about 65 s while the checks are answered (after a 403,
+a 5xx or a network failure the gap grows, to 10 min at most). Two fresh claims read their access
+tokens 200 from the first second (40 reads), so the early 403 above was not seen again; a notice with the
+token working had it asked once, 200, nothing marked. No check on a timer was added, since the
+notice came on every removal measured. Not measured: whether Authorized Devices' Remove or a password
+change send the notice (signing out of all devices sends another, below), and rex-direct's provider live (off throughout;
+`tests/test_rex_direct.py` drives it against a stub). `tests/test_plextv.py`, `refused_claim`.
+
+**Signing out of all devices** (measured later the same day on zen, lab account, twice). Plex Web has
+no button of that name: it is the account page's password change with "Sign out connected devices
+after password change" checked (`resetDevices`, also offered when two-factor is turned on), which
+saves as `PUT clients.plex.tv/api/v2/user?includeSubscriptions=1&includeProviders=1&...` with
+`password`, `passwordConfirmation`, `currentPassword` and `resetDevices: true`. plex.tv took the
+unchanged password and answered 204 when the request named itself Plex Web, and 403 code 1068 "This
+action is not available for this device." under another `X-Plex-Product`. The servers' tokens and the
+caller's own answered 401 afterwards (the page says it signs out "all claimed servers and client
+applications"; the other devices' tokens were not read), while all 43 device rows stayed, so a
+signed-out server is not missing from Authorized Devices. Its open pubsub stream stayed open and got
+`notifyResetToken` 2.05 s and 2.30 s after the PUT began, then `notifyAccountChange` 0.07 s later
+(`pubsub_after_sign_out_everywhere`, the raw lines read on a second server's stream), and the server
+token's access-token read answered 401 from 2.28 s and 2.58 s. Nothing else came: rex 88ffee06, its
+heartbeat an hour away, still said `"refused": false` 66 s on and would have waited for its next beat
+(up to 10 min). So `notifyResetToken` now has the access-token read asked as `notifyFavoritesChange`
+does, 5 s on: the second run marked the claim 7.7 s after the PUT and `GET /rex/claim` said refused
+8.6 s after it. On the lab account that is, by plex.tv's own description, the Pixel 6's Plex for Android, Plezy
+and zurg+rex apps and the servers on it, plexav on kids, every Plex Web session and Plexamp.
+Not measured: whether a real password change or two-factor's option sends the same notice.
+
+## The provider's address, taken for the server's (2026-11-16)
+
+On the Fire TV Cube (zurg app sign-in, rex ae2d690c, DMM's rex-direct provider) a first claim was
+listed by plex.tv's `/api/v2/resources` only 3 to 3.5 min after it, though rex's log ran as on any
+claim: the provider's 403 0.5 s after the exchange, `servers.xml` at 1.0 s, pubsub at 1.5 s, no
+failed announce. 55 s in, its device row already held its LAN connection but
+`publicAddress="128.140.121.142"`: dmm-01, the host DMM's provider runs on, not the home line, and
+`lastSeenAt` was the second of the provider's call. It was listed between +184 s and +211 s, and
+rex's first heartbeat beat (600 s from its start at 10:11:56) fell at +195 s; a beat that succeeds logs
+nothing, so that this beat listed it is inferred from the timing.
+
+Measured on zen the same day with the lab account (`tests/fixtures/plextv_provider_address_2026_11_16.json`),
+scratch rex 841e7bc6, a 3600 s heartbeat so no beat fell in the window, the provider a stand-in on
+dmm-01 making DMM's `plexServerOwner` calls header for header:
+
+| Claim | Runs | First listed |
+|---|---|---|
+| rex-direct off | 3 | 5.1 to 5.3 s |
+| re-claim after its device was removed, off | 1 | 5.1 s |
+| DMM's real provider (dmm-01), once, stopped before its minute retry | 1 | 5.2 s |
+| a real PMS (pms-docker 1.43.5, new config) | 1 | 2.5 s (the first poll) |
+| provider on dmm-01, its write applied before rex's announce | 11 | 5.3 to 8.7 s |
+| provider on dmm-01, its write applied after rex's announce | 3 | not in 240 s, 900 s, 900 s |
+
+- **A request made with the server's token is the server's to plex.tv, from wherever it comes.** The
+  provider's `GET /api/v2/resources` from dmm-01 set the server's `publicAddress` to dmm-01's, with the
+  server's machineIdentifier as `X-Plex-Client-Identifier` and equally with the provider's own (6 of 6
+  runs; with none plex.tv answers 400 `X-Plex-Client-Identifier is missing`). No device row was made
+  for the provider's identifier.
+- **A server whose `publicAddress` is not its own is left out of `/api/v2/resources`**, presence true,
+  connection and all. The next device PUT from the server puts the address back and lists it within
+  the second (one announce-shaped PUT, 200). Without one it stays out: three runs held out until they
+  were stopped, the Cube until its heartbeat.
+- **On a first claim it is a race.** rex asks its provider before its `servers.xml` and device PUT
+  (`finish_claim`), so the provider's call comes first, but plex.tv applies its write when it does:
+  in 11 runs before the announce, which then wins, in 3 after it, seen 5.4 to 7.8 s after the claim.
+- **Any call does it, not only the first.** A listed server asked once from dmm-01 ~15 s after its
+  claim was gone from the list within a second, 8 of 8 (`provider_after_announce`). Not every call
+  moved an old row: five calls to one listed 18 min had no effect, one to another listed 9 min did;
+  what decides that was not found. So DMM's minute retries and 6-hourly re-registration can hide a
+  running server until its next beat, up to 10 min; that was not measured on a live rex-direct.
+- A rex announcing no connection at all (bound to loopback) was not listed in 600 s.
+
+So rex looks for itself after each provider call (`plextv::settle_after_provider`): 10, 30 and 70 s
+after it, it reads `/api/v2/resources` as the heartbeat does, now matched on the machineIdentifier
+rather than the name (an account can hold several servers named alike), and announces again when
+the read leaves it out, then stops; a read that fails (a refused token, plex.tv down) or a server with no
+address to announce is left to the heartbeat rather than logged three more times per provider call. The provider is not changed: no header keeps its call off the server's row.
+`tests/test_rex_direct.py` leg 4c, the provider's write landing 7.8 s on as the latest measured did.
+
+Live on zen with the fix (88ffee06), the provider stand-in on dmm-01 answering its 403 at once and asking
+plex.tv 3 s later, so its write lands after the claim's announce every time: 841e7bc6 was listed at
+5.4 s, gone at 8.7 s and still gone at 100 s; the fix's server lost its address at 5.4 s, logged `not in
+/api/v2/resources after rex-direct's provider asked plex.tv; announced again` 11 s after the claim and
+was listed from 15.4 s to the end. Six more fixed claims through the plain stand-in were listed in 5.1
+to 5.5 s and never needed the second announce, the provider's minute retry included.
+
+## The photo transcoder, measured (2026-11-17, rex#24)
+
+rex answered every `/photo/:/transcode` with the picture as it is, so Plex Web's grid tile of a Plex
+agent poster (`width=240&height=360&minSize=1&upscale=1`, 76 times in `reference-walk.jsonl`) was its
+1920x2880 original, 600-800 KB, and a page of posters tens of megabytes (rex#24). PR #25 (espensgr)
+scaled it with the transcoder's FFmpeg with no reference to compare against. plexlab (1.43.4,
+unclaimed) was then asked by hand, not through a client (`probes/record_photo_transcode.py`,
+`tests/fixtures/photos/transcode_s1434.json`), for Sintel's poster (Plex's agent: a 1920x2880
+progressive 4:2:0 JPEG at IJG quality 85, 632 KB), its clearLogo (a 786x132 RGBA PNG, labelled
+`image/jpeg` by the direct path too), the same poster by its metadata-static and TMDB `original`
+urls, and pictures made for it and served on its own network: a 300x200 JPEG with EXIF orientation
+6 and without, a half-transparent PNG, a WebP and a GIF.
+
+- **Geometry.** Fitted inside the box by default, covering it with `minSize=1`, never past the
+  picture's own size without `upscale=1`, each side rounded to the nearest pixel: 1000x300 is
+  200x300, with `minSize=1` 1000x1500; 2000x2000 with `minSize=1` 1920x2880, with `upscale=1` too
+  2000x3000; 4096x4096 1920x2880 (re-encoded, 627 KB); the clearLogo into 400x200 400x67, covering
+  it 1191x200. A zero side is a 256x256 box: 0x0, 0x360 and 240x0 were all 171x256.
+- **No 2000-pixel cap.** 4096x6144, 5461x8192 and 6667x10000 were answered; 11000 into the
+  poster's box (7333x11000) and 8192 covering it (8192x12288) were 500s, so the limit is about the
+  answer's sides, past 10000. The box is not limited (12000x1000 into the logo: 5955x1000). A
+  negative side and `width=1&height=100` (a 1x2 answer) were 500s too.
+- **EXIF orientation is applied** and the tag dropped: the picture with orientation 6 into 150x150
+  was 100x150, its red band on top.
+- **Type.** A JPEG, WebP or GIF is answered as a JPEG, a PNG as a PNG with its alpha. Every answer is
+  labelled `image/jpeg`, a PNG's bytes included, but `format=`'s: `png` is a PNG labelled `image/png`
+  (RGB from the JPEG), `jpeg` and `jpg` a JPEG, `webp` a WebP labelled `image/webp`, and `gif` a JPEG
+  labelled `image/gif`.
+- **JPEG.** Baseline, chroma at full resolution (4:4:4), no EXIF, at the IJG quality `quality=` names
+  and 75 without it: the luminance table is libjpeg's scaled standard table exactly, at 1, 10, 50, 90
+  and 100. The value is read by its low seven bits: -1, 0, 128 and 256 are 75; 101, 127 and 255 are
+  100; 129 is 1, 150 22, 200 72, 300 44. The grid tile was 18,273 bytes; at quality 10 4,107, at 90
+  31,297, at 100 102,631; `format=png` 144,737.
+- `blur=20` blurred the tile (3,082 bytes); `opacity=50` and `background=ff0000` changed nothing on
+  an opaque JPEG.
+- By its metadata-static url the poster was the same file and the same 18,273-byte tile; by TMDB's
+  `original` (1000x1500, 338 KB) a 240x360 tile of 21,996 bytes.
+
+**What rex does, with an FFmpeg** (`transcoder::PhotoFit`). The answer's size is worked out from the
+picture's header as above (`fitted_size`; `transcoder::image_cache_tests` holds every recorded size),
+and FFmpeg scales to exactly that. rex applies the EXIF orientation itself, with `-noautorotate` and
+a transpose: Ubuntu 22.04's FFmpeg 4.4 leaves the picture sideways where jellyfin's 8.1.3 and FFmpeg
+9.0 turn it on their own, which would have turned it twice. FFmpeg reads the picture as the format
+its bytes start with (`jpeg_pipe`, `png_pipe`, `webp_pipe`) with only `pipe` allowed to open, never
+guessing at a remote body; at most two pictures are scaled at once, a slot waited for up to 10 s, and
+each is killed after 15 s. Anything else, a failure or a timeout is the picture as it is, kept
+nowhere, so it is tried again. FFmpeg's MJPEG writes no IJG tables (its DC step is fixed at 8 and
+its matrix is MPEG's), so `quality` becomes the qscale whose files came out the size libjpeg's did
+on a 480x720 test picture at 4:4:4: the IJG scaling percentage over ten, within 2..31 (75 is 5:
+32,563 bytes against libjpeg's 32,623; 90 is 2: 48,625 against 47,902; 50 is 10: 22,004 against
+24,183; 10 is 31: 11,242 against 14,269; 100 cannot be reached). Types and labels are as measured.
+An answer is kept by the picture (its remote url with the source's login, or the bytes the route
+read) and the shape asked, in memory (8192 answers within 64 MB) and on disk under
+`REX_ARTWORK_CACHE_MB`. Both memory caches, the fetched originals' and the fitted answers', let their
+least recently used picture go one at a time where they were cleared whole once full: with 3 MB
+backgrounds the 22nd dropped the 21 before it. `tests/test_photo_transcode.py` replays every
+recorded request for stand-ins of the same sizes and formats: 68 checks, 12 passing on 424d85ac and
+on #25's head (8529c55b), which capped every box at 2000 (4096x4096 was 1333x2000), wrote 4:2:0 at a
+fixed qscale and labelled a PNG `image/png`.
+
+Live, a throwaway rex (2fff9e00, jellyfin-ffmpeg 8.1.3) asked Plex Web's grid request for the real
+files: the poster by its metadata-static url was 240x360 in 17,843 bytes (plexlab: 18,273), asked
+again with no fetch; by TMDB's url 240x360 in 21,265 bytes from `w342` (plexlab: 21,996 from
+`original`); the clearLogo into 400x200 a 400x112 RGBA PNG labelled `image/jpeg`, as plexlab's.
+424d85ac answered the poster's 1920x2880 original (632,028 bytes), TMDB's `w342` file (342x513) and
+the logo's 790x222 original labelled `image/png`; #25's head 240x360 at 4:2:0 (20,882 bytes).
+
+**Measured and not emulated.** WebP and GIF output (no recorded client asks for either, and rex for
+Android's FFmpeg has no WebP encoder: such a request is answered as without `format=`), `blur=` (Plex
+Web asks it for backgrounds), plexlab's 500s (the picture as it is; a 1-pixel side is fitted), a GIF
+(served as it is), and `Accept-Ranges` left off a first transcode. A photo library's pictures are not
+fitted: a Part is streamed from its source after the lock, never held whole. Without an FFmpeg every
+answer is the picture as it is, as before, at `_at_width`'s TMDB variant, which also picks what is
+fetched for fitting (a variant at least as wide as asked: the same size, from a smaller fetch).
+
+## Library items asked by guid: Discover's "Movies & Shows in Media Libraries" (2026-11-18)
+
+A Discover person page in Plex Web (4.160.0) lists the person's titles a server holds by asking
+every server of the account, ten guids a request (`main-8792` chunk, generators `WP`/`HP`):
+
+    GET /library/metadata/${guids.map(encodeURIComponent).join(",")}?skipRefresh=1
+
+and reads any error as "none here". rex decoded the path, met the guid's `//` in the
+empty-segment guard and answered 404, so a rex never appeared in that row (reported with a patch
+on Discord, 2026-10-19).
+
+Measured on plexlab (1.43.4, unclaimed, from its own host; `probes/record_guid_lookup.py`,
+`tests/fixtures/guid_lookup_s1434.json`), each guid request beside the same request by ratingKey:
+
+| Asked by guid | plexlab | Same bytes as |
+|---|---|---|
+| a film, show, season or episode | 200 | its ratingKey |
+| `local://11` (a season Plex's agent did not match) | 200 | `11` |
+| a batch, out of key order; ten at once | 200, request order | the keys in that order |
+| known, unknown (either order) | 200 | the known key alone (a detail, not a batch) |
+| unknown alone; two unknowns | 404 | an unknown key's 404 |
+| guid then key, key then guid | 200 | the keys in that order |
+| one guid twice; a guid and its own key | 200, the row twice | `1,1` |
+| `/children` of a show by guid | 200 | its key's `/children` |
+| JSON and XML, with or without `skipRefresh` | as by key | |
+| a film's id under `plex://show/`, `plex://bogus/`, `com.plexapp.agents.imdb://...` | 404 | |
+| the guid NOT encoded (`/library/metadata/plex://movie/...`) | 404 | |
+| `plex://movie/`, `plex://movie/5d77688`, `plex://show/5d9c08` | 200, one row | |
+
+The last row is a PREFIX match: each answers one row, the first whose guid starts with it in guid
+order (`plex://movie/` is Elephants Dream, the smallest movie guid, not the lowest key). plexlab
+holds no guid on two rows, so plexscratch42 (1.42.2, offline) had two of its films given one
+plex:// guid in its database for the requests and put back: the guid answered the lower id alone,
+in a batch too, where `3,4` by key answered both.
+
+rex now exchanges each encoded member that names a scheme for the key of the row holding exactly
+that guid (the lowest key when several do, through the catalog's guid lookup) before routing, so
+what follows is the request by key: a member with no row drops out, and nothing left is the 404.
+Without a token a guid lookup is always the 401 a held one gets, a miss included: an unknown KEY is
+PMS's 404 before the token, but guids are public, so a peer could test which titles a server holds.
+A claimed PMS's tokenless answer for a guid is unmeasured. **Measured and not emulated:** the prefix match (no client sends a partial guid, and it would read
+the library for each). `tests/test_guid_lookup.py` replays the fixture on `catalog_ui.json`'s rows.

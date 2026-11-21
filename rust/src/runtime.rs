@@ -40,6 +40,7 @@ mod cinema;
 mod collections;
 mod detail;
 mod diskcache;
+mod dlna;
 mod downloads;
 mod edit;
 mod frames;
@@ -728,6 +729,9 @@ pub struct Runtime {
     /// A subtitle apply or automatic search a route asked for (`subtitles.rs`), run on a
     /// thread of its own once the lock is released.
     pending_subtitle: Option<subtitles::Job>,
+    /// The version a playback decision last played of each item of several (`subtitles_decided`):
+    /// what automatic subtitles, and a search or apply naming no `mediaItemID`, are for.
+    played_media: HashMap<String, String>,
     pending_subtitle_read: Option<subtitles::ReadJob>,
     /// A VobSub's `.sub` a stream read asked for: read off the lock from its source (`vobsub_read`).
     pending_vobsub: Option<subtitles::VobSubRead>,
@@ -1062,6 +1066,7 @@ impl Runtime {
             agent_answers: HashMap::new(),
             pending_auto_collections: false,
             pending_subtitle: None,
+            played_media: HashMap::new(),
             pending_subtitle_read: None,
             pending_vobsub: None,
             analysis_jobs,
@@ -3635,6 +3640,14 @@ impl Runtime {
                         // `_identity_prefs`: the rows whose value IS this server's
                         // identity, the claimed owner's email among them.
                         object.insert("value".to_string(), value);
+                    }
+                }
+                // The device the transcoder's probe found, read per request: the probe
+                // finishes after the start (`Hardware::device_option`).
+                if object.get("id").and_then(Value::as_str) == Some("HardwareDevicePath") {
+                    if let Some(device) = self.transcoder.as_ref().and_then(|transcoder| transcoder.with_hardware(universal::Hardware::device_option)) {
+                        let lead = object.get("enumValues").and_then(Value::as_str).unwrap_or(":Auto");
+                        object.insert("enumValues".to_string(), json!(format!("{lead}|{device}")));
                     }
                 }
             }
@@ -8277,6 +8290,45 @@ impl Runtime {
         Some(result)
     }
 
+    /// `/library/metadata/` asked by guid: Plex Web's Discover person page asks every server
+    /// for the person's titles as `/library/metadata/<encodeURIComponent(guid)>,...?skipRefresh=1`,
+    /// ten a request, and draws none from a server that refuses ("Movies & Shows in Media
+    /// Libraries"). Decoded, the guid's `//` met the empty-segment 404. plexlab answers each
+    /// guid as its row's ratingKey, byte for byte, in request order, under `/children` too;
+    /// one it holds no row of drops out, and nothing left is the unknown key's 404; a guid two
+    /// rows share is the lower id's alone (plexscratch42), and only the encoded form is a guid
+    /// (`guid_lookup_s1434.json`). PMS takes any guid PREFIX (the first row by guid);
+    /// no client sends one, so rex matches whole guids only. `None`: not a guid lookup;
+    /// `Some(None)`: no guid named a row.
+    fn guid_lookup_path(&self, target: &str) -> Option<Option<String>> {
+        let raw = target.split('?').next().unwrap_or("");
+        let rest = raw.strip_prefix("/library/metadata/")?;
+        let (lookup, tail) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
+        let lookup = percent_decode(lookup);
+        if !lookup.contains("://") {
+            return None;
+        }
+        let keys = lookup
+            .split(',')
+            .filter_map(|member| {
+                if !member.contains("://") {
+                    return Some(member.to_string());
+                }
+                self.catalog
+                    .lazy_by(crate::catalog::By::Guid, member)
+                    .iter()
+                    // The lookup files by a hash: the text decides.
+                    .filter(|row| row.get("guid").and_then(Field::as_str) == Some(member))
+                    .filter_map(key_of)
+                    .min_by_key(|key| (key.parse::<u64>().unwrap_or(u64::MAX), key.clone()))
+            })
+            .collect::<Vec<_>>();
+        if keys.is_empty() {
+            return Some(None);
+        }
+        Some(Some(format!("/library/metadata/{}{}", keys.join(","), percent_decode(&tail.replace('+', "%2B")))))
+    }
+
     fn request_route(&mut self, request: &Request) -> Response {
         let (mut path, raw_query) = split_target(&request.target);
         if path.is_empty() {
@@ -8287,6 +8339,21 @@ impl Runtime {
             .any(|part| !part.is_empty() && !part.contains('='))
         {
             return Response::error(400, "rex: bad request");
+        }
+        // A guid no row holds is a 404 only once the token is admitted. An unknown KEY is
+        // PMS's 404 before the token (`unauthorized_route`), but guids are public: without a
+        // token every guid lookup is the 401 a held one gets, so a peer rex-direct lets in
+        // cannot test which titles a server holds (a claimed PMS's answer is unmeasured).
+        let mut guid_missed = false;
+        if matches!(request.method.as_str(), "GET" | "HEAD") {
+            match self.guid_lookup_path(&request.target) {
+                Some(Some(resolved)) => path = resolved,
+                Some(None) => {
+                    guid_missed = true;
+                    path = "/library/metadata/guid".to_string();
+                }
+                None => {}
+            }
         }
         // Empty path components are refused by the route table.  A finite
         // measured table of routes is the exception (cycle 50): the doubled
@@ -8481,6 +8548,9 @@ impl Runtime {
                 split_target(&request.target).0
             );
             return response;
+        }
+        if guid_missed {
+            return Response::error(404, "rex: not found");
         }
         if let Some(refusal) = self.share_refusal(request, &path) {
             return refusal;
@@ -8737,14 +8807,16 @@ impl Runtime {
                 match query.get("token").filter(|token| !token.is_empty()) {
                     None => Response::error(400, "rex: missing claim token"),
                     // rex's own refusal: repeated exchanges are what reset the account's
-                    // tokens on 2026-09-11. Re-claiming means removing claim_state.json first.
+                    // tokens on 2026-09-11. A claim plex.tv refuses the token of (its device
+                    // removed, 2026-11-16) is the exception: a new claim replaces it.
                     Some(_)
                         if self
                             .plextv
                             .claim
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner())
-                            .claimed() =>
+                            .claimed()
+                            && !self.claim_refused() =>
                     {
                         Response::error(409, "rex: already claimed")
                     }
@@ -8760,6 +8832,7 @@ impl Runtime {
                 }
             }
             ("PATCH", "/myplex/claim") => Response::plain(500, b"500".to_vec()),
+            ("GET" | "HEAD", "/rex/claim") => self.route_rex_claim(),
             ("PUT", "/myplex/refreshReachability") => Response::empty(200),
             // server.py checks no verb on these four routes.
             (_, "/myplex/account") => self.myplex_account(),
@@ -9003,9 +9076,13 @@ impl Runtime {
             }
             ("GET" | "HEAD" | "OPTIONS", "/music/:/transcode/universal/decision") => self.route_music_decision(&query, request),
             ("GET" | "HEAD" | "OPTIONS", "/video/:/transcode/universal/decision") => {
-                // The item's subtitle job, if one is finding the account's subtitle, ends first.
+                // The item's subtitle job, if one is finding the account's subtitle, ends first:
+                // one for the version this decision plays, started here if none is.
                 let path = query.get("path").map(String::as_str).unwrap_or_default();
                 let key = path.split("/library/metadata/").nth(1).and_then(|tail| tail.split(['/', '?']).next()).unwrap_or("");
+                if request.method == "GET" {
+                    self.subtitles_decided(key, &query);
+                }
                 if self.subtitle_wait(key) {
                     Response::empty(200)
                 } else {
@@ -9102,6 +9179,11 @@ impl Runtime {
             ) && matches!(request.method.as_str(), "GET" | "HEAD"))
         {
             return true;
+        }
+        // rex's own claim state, and a new claim for one plex.tv refuses the token of: what an
+        // app on rex's own networks asks with no token, since the refused claim's lists none.
+        if path == "/rex/claim" || (path == "/myplex/claim" && self.claim_refused()) {
+            return self.local_request(request);
         }
         // An unclaimed server serves no client, only its claim (2026-10-19): with no claim it
         // has no token to ask Plex's agent with, so nothing it could show would have a name.
@@ -13829,7 +13911,7 @@ impl Runtime {
             let playing = queue.items.iter().find(|item| Some(item.id) == queue.selected).map(|item| item.rating_key.clone());
             self.queues.insert(id, queue);
             if let Some((key, row)) = playing.and_then(|key| Some((key.clone(), self.catalog.get(&key)?.clone()))) {
-                self.subtitles_wanted(&key, &row, true);
+                self.subtitles_wanted(&key, &row, true, None);
             }
             return response;
         }
@@ -18948,7 +19030,7 @@ impl Runtime {
             }
             // The requesting account's subtitle, found before its playback picks the tracks.
             if request.method == "GET" {
-                self.subtitles_wanted(key, row, false);
+                self.subtitles_wanted(key, row, false, None);
             }
             let checks_requested = ["checkFiles", "asyncCheckFiles", "checkFileAvailability"]
                 .iter()
@@ -22492,25 +22574,7 @@ impl Runtime {
     ) -> Response {
         let size = part.get("size").and_then(Value::as_u64).unwrap_or(0);
         let range = request.headers.get("range").cloned();
-        // Cycle 44: the MEASURED grammar decides the window rather than the upstream's
-        // own leniency; with no size in the catalog there is nothing to compute a window
-        // from, so the client's header passes through and the source's answer is echoed.
-        let window = if size == 0 {
-            PartWindow::Passthrough(range.clone())
-        } else {
-            match parse_range(range.as_deref(), size) {
-                RangeResult::Unsatisfiable => PartWindow::Unsatisfiable,
-                RangeResult::Partial(window) => PartWindow::Partial {
-                    first: window.start,
-                    last: window.end,
-                    content_range: format!(
-                        "bytes {}-{}/{}",
-                        window.advertised_start, window.advertised_end, size
-                    ),
-                },
-                RangeResult::Whole => PartWindow::Whole(size),
-            }
-        };
+        let window = part_window(range.as_deref(), size);
         let mut response = Response::bytes(200, part_content_type(part));
         response
             .headers
@@ -23535,6 +23599,21 @@ extern "C" fn on_sigterm(_signal: libc::c_int) {
     TERMINATE.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
+/// SIGTERM sets `TERMINATE` instead of ending the process: the state saver, and the DLNA server's
+/// byebye (`dlna.rs`), run first.
+fn install_sigterm() {
+    // SAFETY: the handler only stores to an atomic, which is async-signal-safe.
+    unsafe {
+        libc::signal(
+            libc::SIGTERM,
+            on_sigterm as *const () as libc::sighandler_t,
+        );
+    }
+}
+
+/// Whether the state saver runs, which exits the process once `TERMINATE` is set.
+static SAVER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Where a restored state came from: the database itself, or a legacy JSON file.
 enum StateSource {
     Database(PathBuf),
@@ -23643,13 +23722,8 @@ fn start_state_saver(runtime: SharedRuntime) {
     if !enabled {
         return;
     }
-    // SAFETY: the handler only stores to an atomic, which is async-signal-safe.
-    unsafe {
-        libc::signal(
-            libc::SIGTERM,
-            on_sigterm as *const () as libc::sighandler_t,
-        );
-    }
+    install_sigterm();
+    SAVER.store(true, std::sync::atomic::Ordering::SeqCst);
     let _ = thread::Builder::new().name("state-saver".to_string()).spawn(move || {
         // `run()` waits for the dirty flag and then a whole interval, so a write is
         // saved two seconds after the first request that dirtied the state.
@@ -23663,6 +23737,7 @@ fn start_state_saver(runtime: SharedRuntime) {
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             if terminate {
                 drop(guard);
+                dlna::bye();
                 analysis::shutdown(&runtime);
                 guard = runtime.lock().unwrap_or_else(PoisonError::into_inner);
                 guard.stop_downloads();
@@ -23925,6 +24000,8 @@ pub fn serve(options: RuntimeOptions) -> Result<(), String> {
         );
     }
     start_gdm(Arc::clone(&runtime), &gdm_mode, port);
+    // Off until `DlnaEnabled` is turned on, as a real PMS's is.
+    dlna::start(&runtime, &host);
     // Announced with the claim's token only; unclaimed the heartbeat waits for the claim
     // (`plextv::start_heartbeat`).
     if heartbeat {
@@ -24548,6 +24625,10 @@ fn handle_connection<S: Read + Write + PollRead>(
             // A route that needs Plex's agent asked for it (`agent_answer`): it is asked here
             // with the lock released, and the request routed again with its answer.
             for _ in 0..2 {
+                // A subtitle job the route started runs before anything waits on it (a decision's).
+                if let Some(job) = guard.pending_subtitle.take() {
+                    subtitles::spawn(&runtime, job);
+                }
                 let Some((key, call)) = guard.pending_agent.take() else {
                     break;
                 };
@@ -24611,6 +24692,13 @@ fn handle_connection<S: Read + Write + PollRead>(
                 }
             });
             let ultrablur = guard.pending_ultrablur.take();
+            // Only the client's own `/photo/:/transcode` is fitted: the ultrablur route's inner
+            // transcode reads the original, as PMS's does.
+            let fit_with = guard
+                .transcoder
+                .as_ref()
+                .filter(|_| request_path == "/photo/:/transcode" && response.status == 200)
+                .map(|transcoder| (transcoder.ffmpeg().to_path_buf(), plextv::claim_path(&guard.catalog_path).with_file_name("")));
             let claim = guard.pending_claim.take();
             let artifact = guard.pending_artifact.take().map(|(artifact, seek, kind)| (Arc::clone(&guard.analysis_jobs), artifact, seek, kind));
             if std::mem::take(&mut guard.pending_auto_collections) {
@@ -24671,6 +24759,20 @@ fn handle_connection<S: Read + Write + PollRead>(
             if let Some(plan) = PROJECTION_PLAN.with(|plan| plan.borrow_mut().take()) {
                 project_planned(&runtime, &request, &mut response, plan);
             }
+            // The picture the route resolved: the remote url it is about to fetch, or the bytes it
+            // read, hashed here, outside the lock. A kept answer for the same picture and box is the
+            // whole answer: nothing is fetched.
+            let photo_fit = fit_with.and_then(|(ffmpeg, dir)| {
+                let remote = image.as_ref().map(|(url, from_source)| transcoder::remote_picture(url, from_source.as_deref()));
+                transcoder::PhotoFit::new(&query, remote.as_deref().unwrap_or(&response.body), ffmpeg, dir)
+            });
+            let fitted = photo_fit.as_ref().and_then(transcoder::PhotoFit::cached);
+            let served_kept = fitted.is_some();
+            let image = if served_kept { None } else { image };
+            if let Some((body, content_type)) = fitted {
+                response.body = body;
+                response.content_type = content_type;
+            }
             let mut response = match (image, claim) {
                 (_, Some(token)) => plextv::finish_claim(&runtime, &token, &request.target),
                 (Some((url, from_source)), _) if response.status == 200 && response.body.is_empty() && response.doc.is_none() => {
@@ -24678,6 +24780,9 @@ fn handle_connection<S: Read + Write + PollRead>(
                 }
                 _ => response,
             };
+            if let Some(fit) = photo_fit.filter(|_| !served_kept) {
+                fit.apply(&mut response);
+            }
             if let Some(fallback) = ultrablur {
                 response = blur::colors_response(response, fallback);
             }
@@ -25283,6 +25388,17 @@ fn read_request<S: Read>(
     pending: &mut Vec<u8>,
     first_request: bool,
 ) -> Result<Option<Request>, String> {
+    read_request_bounded(stream, pending, first_request, 10)
+}
+
+/// `read_request` with the method token bounded at `max_method` bytes: PMS's own port refuses an
+/// eleventh, while its DLNA port answers UPnP's `UNSUBSCRIBE` (`dlna.rs`).
+fn read_request_bounded<S: Read>(
+    stream: &mut S,
+    pending: &mut Vec<u8>,
+    first_request: bool,
+    max_method: usize,
+) -> Result<Option<Request>, String> {
     let mut first_byte_at = (!pending.is_empty()).then(std::time::Instant::now);
     let header_end = loop {
         // A LOWER-CASE first byte on a connection's first request draws no answer at
@@ -25311,10 +25427,10 @@ fn read_request<S: Read>(
                 if delimiter == 0 {
                     return Err("silence".to_string());
                 }
-                if delimiter > 10 {
+                if delimiter > max_method {
                     return Err("method length".to_string());
                 }
-            } else if pending.len() > 10 {
+            } else if pending.len() > max_method {
                 return Err("method length".to_string());
             }
             // Cycle 27: a request line ended by a bare LF, with no CR, is a 400 on plexlab
@@ -25388,7 +25504,7 @@ fn read_request<S: Read>(
         return Err("bad request line".to_string());
     }
     let parts = first.split(' ').collect::<Vec<_>>();
-    if parts.first().is_some_and(|method| method.len() > 10) {
+    if parts.first().is_some_and(|method| method.len() > max_method) {
         return Err("method length".to_string());
     }
     let legacy_http09 =
@@ -26698,27 +26814,43 @@ fn virtual_link(ifindex: &str, iflink: &str) -> bool {
     ifindex.trim() != iflink.trim()
 }
 
-/// Whether the address rex reaches the world from sits on a container network: Docker, Podman
-/// or LXC without host networking, where the default route leaves through a veth. Nothing
-/// outside that network reaches such an address, so it is no LAN address to announce or to
-/// hand rex-direct's provider; `--announce-url` names the real one. Linux only, where those
-/// networks live.
+/// Whether the address rex reaches the world from sits on a container engine's network: Docker,
+/// Podman or Kubernetes without host networking, where the default route leaves through a
+/// virtual link. Nothing outside that network reaches such an address, so it is no LAN address to
+/// announce or to hand rex-direct's provider; `--announce-url` names the real one. A virtual link
+/// alone is no such network: an LXC container (or a bare network namespace) on a bridge to the
+/// LAN leaves through a veth too, with the LAN's own address (rex#22, measured on zen 2026-11-15,
+/// `lxc_bridge_eth0.txt`: eth0 2/920, 192.168.10.128/24), and it leaves no engine's marker.
+/// Linux only, where those networks live.
 fn on_container_network() -> bool {
     #[cfg(target_os = "linux")]
     {
         let read = |path: String| std::fs::read_to_string(path).ok();
-        let Some(iface) = read("/proc/net/route".to_string()).and_then(|table| default_route_interface(&table)) else {
-            return false;
-        };
-        let (Some(ifindex), Some(iflink)) =
-            (read(format!("/sys/class/net/{iface}/ifindex")), read(format!("/sys/class/net/{iface}/iflink")))
-        else {
-            return false;
-        };
-        virtual_link(&ifindex, &iflink)
+        // Docker's `/.dockerenv` (measured on zen, 2026-11-15), Podman's `/run/.containerenv`, and
+        // the variable the kubelet sets in every pod. Unmeasured: rootless Docker's marker, and
+        // that a containerd pod leaves neither file.
+        let engine = std::path::Path::new("/.dockerenv").exists()
+            || std::path::Path::new("/run/.containerenv").exists()
+            || std::env::var_os("KUBERNETES_SERVICE_HOST").is_some();
+        let table = read("/proc/net/route".to_string()).unwrap_or_default();
+        container_network(&table, engine, |iface| {
+            Some((read(format!("/sys/class/net/{iface}/ifindex"))?, read(format!("/sys/class/net/{iface}/iflink"))?))
+        })
     }
     #[cfg(not(target_os = "linux"))]
     false
+}
+
+/// `on_container_network` off what it read: the route table, whether a container engine left
+/// its marker, and an interface's `ifindex` and `iflink`.
+// ponytail: a Docker macvlan with a LAN address is still refused -- its sysfs reads as a veth's
+// (zen 2026-11-15); telling them apart needs the driver's name (ethtool), not read here.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn container_network(route_table: &str, engine: bool, link: impl Fn(&str) -> Option<(String, String)>) -> bool {
+    engine
+        && default_route_interface(route_table)
+            .and_then(|iface| link(&iface))
+            .is_some_and(|(ifindex, iflink)| virtual_link(&ifindex, &iflink))
 }
 
 /// `local_interface_address` when it is an address other devices on the LAN can reach: not one
@@ -28465,6 +28597,24 @@ struct RangeWindow {
     advertised_end: u64,
 }
 
+/// A part read's window over a Part of `size` bytes. Cycle 44: the MEASURED grammar decides the
+/// window rather than the upstream's own leniency; with no size in the catalog there is nothing to
+/// compute a window from, so the client's header passes through and the source's answer is echoed.
+fn part_window(range: Option<&str>, size: u64) -> PartWindow {
+    if size == 0 {
+        return PartWindow::Passthrough(range.map(str::to_string));
+    }
+    match parse_range(range, size) {
+        RangeResult::Unsatisfiable => PartWindow::Unsatisfiable,
+        RangeResult::Partial(window) => PartWindow::Partial {
+            first: window.start,
+            last: window.end,
+            content_range: format!("bytes {}-{}/{}", window.advertised_start, window.advertised_end, size),
+        },
+        RangeResult::Whole => PartWindow::Whole(size),
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum RangeResult {
     Whole,
@@ -28823,39 +28973,28 @@ fn insert_after_accept_ranges(response: &mut Response, content_range: String) {
         .insert(at, ("Content-Range".to_string(), content_range));
 }
 
-/// Carry out a `PartProxy`: open the file on its source, write the head, stream the body.
-/// Answers whether the connection stays open (a part read never keeps it).
-fn serve_part_proxy<S: Write>(
-    stream: &mut S,
-    runtime: &SharedRuntime,
-    mut response: Response,
-    plan: PartProxy,
-    envelope: &wire::Wire,
-    keep: bool,
-) -> Result<bool, String> {
-    let part_id = plan.part_id.clone();
-    // `_send_error` logs its sentence as it answers, here as for any other refusal.
-    let refuse = |stream: &mut S, status: u16, sentence: &str| {
-        info!("{status} {} {} -- {sentence}", plan.method, plan.route);
-        wire::write_enveloped(stream, &Response::error(status, sentence), envelope, keep)
-    };
+/// What opening a `PartProxy` on its source came to (`open_part`); every refusal is logged there.
+enum PartOpened {
+    /// The window lies past the file's end: the measured 416.
+    Unsatisfiable,
+    /// A refusal: its status and the sentence a part read answers with.
+    Refused(u16, &'static str),
+    /// `--part-mode redirect`: the source's link, for the client to fetch itself.
+    Elsewhere(String),
+    /// The bytes: the status to answer, a Content-Range to add, the body's length when known,
+    /// how many bytes to send (`None`: to the source's end) and the source's answer.
+    Body { status: u16, content_range: Option<String>, length: Option<u64>, want: Option<u64>, upstream: upstream::Upstream },
+}
+
+/// Open a part read's file on its source with the measured window, before any status is written:
+/// the PMS port's part reads (`serve_part_proxy`) and the DLNA server's (`dlna.rs`) alike.
+fn open_part(plan: &PartProxy) -> PartOpened {
+    let part_id = &plan.part_id;
     let mut headers: Vec<(&'static str, String)> = Vec::new();
     let want = match &plan.window {
         PartWindow::Unsatisfiable => {
             info!("416 {} {} -- rex: range not satisfiable", plan.method, plan.route);
-            let refusal = Response {
-                status: 416,
-                content_type: "text/html".to_string(),
-                body: error_document(416),
-                headers: vec![
-                    ("X-Plex-Protocol".to_string(), "1.0".to_string()),
-                    ("Cache-Control".to_string(), "no-cache".to_string()),
-                    ("Date".to_string(), http_date()),
-                ],
-                close: false,
-                doc: None,
-            };
-            return wire::write_enveloped(stream, &refusal, envelope, keep);
+            return PartOpened::Unsatisfiable;
         }
         PartWindow::Partial { first, last, .. } => {
             headers.push(("Range", format!("bytes={first}-{last}")));
@@ -28876,21 +29015,11 @@ fn serve_part_proxy<S: Write>(
                 // bytes never pass through rex. Only the host is logged: the link is a credential.
                 let host = location.split("://").nth(1).and_then(|rest| rest.split(['/', '?']).next()).unwrap_or("");
                 info!("PART {part_id} range={} -> 302 to {host}", plan.range.as_deref().unwrap_or("-"));
-                let mut redirect = Response::bytes(302, "");
-                redirect.headers = response
-                    .headers
-                    .iter()
-                    .filter(|(name, _)| matches!(name.as_str(), "X-Plex-Protocol" | "Access-Control-Allow-Origin" | "Vary" | "Date"))
-                    .cloned()
-                    .collect();
-                redirect.headers.push(("Location".to_string(), location));
-                redirect.close = true;
-                wire::write_enveloped(stream, &redirect, envelope, keep)?;
-                return Ok(false);
+                return PartOpened::Elsewhere(location);
             }
             Ok(upstream::Opened::Here(upstream)) if plan.redirect_only && upstream.status < 400 => {
                 info!("PART {part_id} range={} -> 403: the source answered with the bytes, not a link", plan.range.as_deref().unwrap_or("-"));
-                return refuse(stream, 403, "rex: this server only sends clients to a source's link");
+                return PartOpened::Refused(403, "rex: this server only sends clients to a source's link");
             }
             Ok(upstream::Opened::Here(upstream)) => Ok(upstream),
             Err(error) => Err(error),
@@ -28904,7 +29033,7 @@ fn serve_part_proxy<S: Write>(
         // answers for a part it cannot open (the 1.42.2 reference's part 23595).
         Ok(refused) if refused.status == 404 => {
             error!("part {part_id} is unavailable upstream: {}", plan.path);
-            return refuse(stream, 404, "rex: not found");
+            return PartOpened::Refused(404, "rex: not found");
         }
         Ok(refused) => {
             error!(
@@ -28912,11 +29041,11 @@ fn serve_part_proxy<S: Write>(
                 refused.status,
                 logging::py_opt(plan.range.as_ref())
             );
-            return refuse(stream, refused.status, "rex: upstream refused");
+            return PartOpened::Refused(refused.status, "rex: upstream refused");
         }
         Err(error) => {
             error!("PART {part_id} upstream failed: <urlopen error {error}>");
-            return refuse(stream, 502, "rex: upstream failed");
+            return PartOpened::Refused(502, "rex: upstream failed");
         }
     };
     // A source may ignore `Range` and answer 200 with the whole file (Python's
@@ -28925,36 +29054,30 @@ fn serve_part_proxy<S: Write>(
         let skipped = std::io::copy(&mut (&mut upstream).take(*first), &mut std::io::sink()).unwrap_or(0);
         if skipped < *first {
             error!("PART {part_id} upstream ended at {skipped} skipping to {first}");
-            return refuse(stream, 502, "rex: upstream failed");
+            return PartOpened::Refused(502, "rex: upstream failed");
         }
     }
-    let length = match (&plan.window, want) {
-        (PartWindow::Partial { content_range, .. }, Some(want)) => {
-            response.status = 206;
-            insert_after_accept_ranges(&mut response, content_range.clone());
-            Some(want)
-        }
-        (_, Some(want)) => Some(want),
-        (_, None) => {
-            response.status = upstream.status;
-            if let Some(range) = upstream.header("content-range") {
-                insert_after_accept_ranges(&mut response, range.to_string());
-            }
-            upstream
-                .header("content-length")
-                .and_then(|value| value.trim().parse::<u64>().ok())
-        }
+    let (status, content_range, length) = match (&plan.window, want) {
+        (PartWindow::Partial { content_range, .. }, Some(want)) => (206, Some(content_range.clone()), Some(want)),
+        (_, Some(want)) => (200, None, Some(want)),
+        (_, None) => (
+            upstream.status,
+            upstream.header("content-range").map(str::to_string),
+            upstream.header("content-length").and_then(|value| value.trim().parse::<u64>().ok()),
+        ),
     };
     info!(
         "PART {part_id} range={} -> {} len={}",
         plan.range.as_deref().unwrap_or("-"),
-        response.status,
+        status,
         length.map_or_else(|| "None".to_string(), |length| length.to_string())
     );
-    let still_open = wire::write_enveloped_head(stream, &response, envelope, keep, length)?;
-    if plan.head {
-        return Ok(still_open);
-    }
+    PartOpened::Body { status, content_range, length, want, upstream }
+}
+
+/// Send an opened part read's body: `want` bytes, or to the source's end. A seek or a stop
+/// closes the socket mid-body, which is normal. What was written counts as served bytes.
+fn pump_part<S: Write>(stream: &mut S, runtime: &SharedRuntime, upstream: &mut upstream::Upstream, want: Option<u64>, part_id: &str) {
     let mut written = 0_u64;
     let mut buffer = vec![0_u8; 256 * 1024];
     loop {
@@ -28966,7 +29089,6 @@ fn serve_part_proxy<S: Write>(
             Ok(0) | Err(_) => break,
             Ok(count) => count,
         };
-        // A seek or a stop closes the socket mid-body. Normal.
         if stream.write_all(&buffer[..count]).is_err() {
             debug!("PART {part_id} client closed");
             break;
@@ -28977,9 +29099,66 @@ fn serve_part_proxy<S: Write>(
     if written > 0 {
         runtime.lock().unwrap_or_else(PoisonError::into_inner).count_part_bytes(written);
     }
-    Ok(false)
 }
 
+/// Carry out a `PartProxy`: open the file on its source, write the head, stream the body.
+/// Answers whether the connection stays open (a part read never keeps it).
+fn serve_part_proxy<S: Write>(
+    stream: &mut S,
+    runtime: &SharedRuntime,
+    mut response: Response,
+    plan: PartProxy,
+    envelope: &wire::Wire,
+    keep: bool,
+) -> Result<bool, String> {
+    match open_part(&plan) {
+        PartOpened::Unsatisfiable => {
+            let refusal = Response {
+                status: 416,
+                content_type: "text/html".to_string(),
+                body: error_document(416),
+                headers: vec![
+                    ("X-Plex-Protocol".to_string(), "1.0".to_string()),
+                    ("Cache-Control".to_string(), "no-cache".to_string()),
+                    ("Date".to_string(), http_date()),
+                ],
+                close: false,
+                doc: None,
+            };
+            wire::write_enveloped(stream, &refusal, envelope, keep)
+        }
+        // `_send_error` logs its sentence as it answers, here as for any other refusal.
+        PartOpened::Refused(status, sentence) => {
+            info!("{status} {} {} -- {sentence}", plan.method, plan.route);
+            wire::write_enveloped(stream, &Response::error(status, sentence), envelope, keep)
+        }
+        PartOpened::Elsewhere(location) => {
+            let mut redirect = Response::bytes(302, "");
+            redirect.headers = response
+                .headers
+                .iter()
+                .filter(|(name, _)| matches!(name.as_str(), "X-Plex-Protocol" | "Access-Control-Allow-Origin" | "Vary" | "Date"))
+                .cloned()
+                .collect();
+            redirect.headers.push(("Location".to_string(), location));
+            redirect.close = true;
+            wire::write_enveloped(stream, &redirect, envelope, keep)?;
+            Ok(false)
+        }
+        PartOpened::Body { status, content_range, length, want, mut upstream } => {
+            response.status = status;
+            if let Some(range) = content_range {
+                insert_after_accept_ranges(&mut response, range);
+            }
+            let still_open = wire::write_enveloped_head(stream, &response, envelope, keep, length)?;
+            if plan.head {
+                return Ok(still_open);
+            }
+            pump_part(stream, runtime, &mut upstream, want, &plan.part_id);
+            Ok(false)
+        }
+    }
+}
 
 fn base64_decode_bytes(text: &str) -> Option<Vec<u8>> {
     let mut value = 0_u32;
@@ -30033,6 +30212,22 @@ mod announce_tests {
         // The bridged container's eth0 read 2/87, the host's eno1 and a host-networked container's 2/2.
         assert!(virtual_link("2\n", "87\n"));
         assert!(!virtual_link("2\n", "2\n"));
+    }
+
+    #[test]
+    fn an_lxc_containers_bridged_veth_is_a_lan_address() {
+        // rex#22: an LXC container on a bridge to the LAN, as reproduced on zen on 2026-11-15 (a
+        // network namespace, a veth on a bridge, 192.168.10.128/24 and its default route; eth0
+        // 2/920). A veth, but no Docker, Podman or Kubernetes marker: the address is the LAN's.
+        let lxc = include_str!("../../tests/fixtures/proc_net_route/lxc_bridge_eth0.txt");
+        let bridged = include_str!("../../tests/fixtures/proc_net_route/docker_bridge_eth0.txt");
+        let host = include_str!("../../tests/fixtures/proc_net_route/zen_host_eno1.txt");
+        let link = |ifindex: &'static str, iflink: &'static str| move |_: &str| Some((ifindex.to_string(), iflink.to_string()));
+        assert!(!container_network(lxc, false, link("2\n", "920\n")), "an LXC's bridged veth announces its LAN address");
+        // Docker's bridge (2/87, /.dockerenv) still announces none; its host networking (2/2) does.
+        assert!(container_network(bridged, true, link("2\n", "87\n")));
+        assert!(!container_network(host, true, link("2\n", "2\n")));
+        assert!(!container_network("", true, link("2\n", "87\n")), "no default route");
     }
 
     #[test]

@@ -85,6 +85,12 @@ class Stub(ThreadingHTTPServer):
         self.records = []
         self.answer = answer
         self.status = 200
+        # plex.tv taking the provider's address for the server's, the provider's request this many
+        # seconds on: /api/v2/resources leaves the server out until its next device PUT (leg 4c).
+        self.move_after = None
+        self.moved = False
+        # A status /api/v2/resources answers instead, as plex.tv answers a refused token 401.
+        self.resources_status = None
         # (status, body) answered before `status`, one per register request.
         self.queue = []
 
@@ -110,6 +116,8 @@ class Handler(BaseHTTPRequestHandler):
             self.server.records.append(record)
         if target.path == "/api/rex-direct/register":
             # The provider contract's answers (docs/rex-direct-api.md).
+            if self.server.move_after is not None:
+                threading.Timer(self.server.move_after, lambda: setattr(self.server, "moved", True)).start()
             with self.server.lock:
                 status, body = self.server.queue.pop(0) if self.server.queue else (self.server.status, None)
             if body is None:
@@ -120,12 +128,18 @@ class Handler(BaseHTTPRequestHandler):
             body = ('<?xml version="1.0" encoding="UTF-8"?>\n<user id="1" username="stubowner" '
                     'email="owner@stub.invalid" authToken="%s"/>\n' % SERVER_TOKEN).encode()
         elif target.path == "/servers.plex.tv/devices/%s" % MACHINE and self.command == "PUT":
+            self.server.moved = False
             status, kind = 200, "application/xml"
             body = ('<?xml version="1.0" encoding="UTF-8"?>\n<device clientIdentifier="%s"/>\n'
                     % MACHINE).encode()
+        elif target.path == "/plex.tv/api/v2/resources" and self.server.resources_status:
+            status, kind = self.server.resources_status, "application/json"
+            body = json.dumps({"errors": [{"code": 1001, "message": "User could not be authenticated"}]}).encode()
         elif target.path == "/plex.tv/api/v2/resources":
             status, kind = 200, "application/json"
-            body = json.dumps([{"name": "rex-ui-fixture", "provides": "server"}]).encode()
+            rows = [] if self.server.moved else [
+                {"name": "rex-ui-fixture", "provides": "server", "clientIdentifier": MACHINE}]
+            body = json.dumps(rows).encode()
         else:
             status, kind, body = 404, "text/plain", b"stub: no such route"
         self.send_response(status)
@@ -138,10 +152,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class Instance:
-    def __init__(self, directory, port, stub_port, register_url, extra=(), env_extra=None):
+    def __init__(self, directory, port, stub_port, register_url, extra=(), env_extra=None, heartbeat=2):
         self.port = port
         command = server_command("--port", port, "--catalog", os.path.join(directory, "catalog.json"),
-                                 "--gdm", "off", "--heartbeat-interval", 2, *extra, root=ROOT)
+                                 "--gdm", "off", "--heartbeat-interval", heartbeat, *extra, root=ROOT)
         env = dict(os.environ, REX_DIRECT_URL=register_url,
                    REX_PLEXTV_URL="http://127.0.0.1:%d" % stub_port, **(env_extra or {}))
         for name in ("REX_STATE", "REX_TOKEN", "PLEX_TOKEN", "REX_DIRECT_PORT", "REX_DIRECT_KEY",
@@ -218,9 +232,14 @@ def announced(stub):
 
 
 def on_container_network():
-    """Whether the default route leaves through a veth (Docker, Podman or LXC without host
-    networking), as rex reads it off /proc/net/route and sysfs: then it announces no LAN address
-    and sends no lanIp, since nothing outside that network reaches one. Linux only."""
+    """Whether the default route leaves through a veth inside a container engine's network
+    (Docker, Podman or Kubernetes without host networking: its marker), as rex reads it off
+    /proc/net/route and sysfs: then it announces no LAN address and sends no lanIp, since nothing
+    outside that network reaches one. An LXC container's bridged veth carries the LAN's own
+    address and leaves no marker (rex#22). Linux only."""
+    if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+            or os.environ.get("KUBERNETES_SERVICE_HOST") is not None):
+        return False
     try:
         with open("/proc/net/route") as table:
             iface = next(line.split()[0] for line in list(table)[1:] if line.split()[1:2] == ["00000000"])
@@ -414,6 +433,13 @@ def main():
         check("...the refusal is a WARN with the provider's status and reason",
               logged(log, "WARNING", r"rex-direct: registration failed: HTTP 401 \(%s\); retrying in 10 min"
                      % re.escape(REFUSAL)), log[-3000:])
+        # The provider checks the token with plex.tv, so its 401 may be plex.tv's (a removed device,
+        # 2026-11-16): rex asks plex.tv itself, with the access-token read, beside the start's own.
+        check("...and has plex.tv asked whether the claim's token still works",
+              logged(log, "INFO", r"rex-direct's provider answered HTTP 401 \(%s\); asking plex\.tv whether the "
+                     r"claim's server token still works" % re.escape(REFUSAL))
+              and len(stub.taken("/plex.tv/api/v2/server/access_tokens")) == 2,
+              (len(stub.taken("/plex.tv/api/v2/server/access_tokens")), log[-3000:]))
 
         # 3b. Bound to loopback rex has no LAN address, so the request names none.
         loopback = os.path.join(work, "loopback")
@@ -513,6 +539,62 @@ def main():
         check("...the 403 is a WARN saying so",
               logged(log, "WARNING", re.escape("rex-direct: registration failed: HTTP 403 (The Plex account does "
                                                "not own this server); retrying in 1 min")), log[-3000:])
+
+        # 4c. The provider asks plex.tv with the claim's token from its own address, and plex.tv
+        #     takes that address for the server's and leaves it out of /api/v2/resources until
+        #     its next announce. On a first claim that write can land after the claim's announce:
+        #     the Fire TV Cube stayed unlisted until its heartbeat, 3 min on (zen, 2026-11-16,
+        #     tests/fixtures/plextv_provider_address_2026_11_16.json). rex looks for itself after
+        #     each provider call and announces again; the heartbeat here is an hour away.
+        measured = json.load(open(os.path.join(HERE, "fixtures", "plextv_provider_address_2026_11_16.json")))
+        late = max(next(row["t"] for row in run["polled"] if row["publicAddress"] == "provider")
+                   for run in measured["claims_provider_first"]["runs"] if run["first_listed_s"] is None)
+        moved = os.path.join(work, "provider-address")
+        setup(moved, claimed=False)
+        with stub.lock:
+            stub.records = []
+            stub.queue = [(403, NOT_OWNED)]
+        stub.move_after, stub.moved = late, False
+        instance = Instance(moved, free_port(), stub.server_address[1], register_url,
+                            extra=("--announce-url", LAN), heartbeat=3600)
+        live.append(instance)
+        check("a claim whose provider's address plex.tv takes late is answered", instance.claim() == 200)
+        asked = wait_for(lambda: stub.taken("/api/rex-direct/register"), 10)
+        wait_for(lambda: stub.moved, late + 5)
+        check("...plex.tv took the provider's address after the claim's announce (the stub)",
+              stub.moved and len(announced(stub)) == 1, announced(stub))
+        check("...rex announces again and is listed, not left out until its heartbeat",
+              wait_for(lambda: not stub.moved and len(announced(stub)) >= 2, 20) and asked,
+              (stub.moved, announced(stub)))
+        stub.move_after = None
+        instance.stop()
+        check("...and says why",
+              logged(instance.output(), "INFO", re.escape("not in /api/v2/resources after rex-direct's provider "
+                                                          "asked plex.tv; announced again")),
+              instance.output()[-3000:])
+
+        # 4d. ...but only when the list leaves rex out. A list read that fails -- a refused token's 401,
+        #     plex.tv down -- is the heartbeat's to report, not an announce and an ERROR per provider call.
+        refused = os.path.join(work, "provider-refused-token")
+        setup(refused, claimed=False)
+        with stub.lock:
+            stub.records = []
+            stub.queue = [(403, NOT_OWNED)]
+        stub.resources_status = 401
+        instance = Instance(refused, free_port(), stub.server_address[1], register_url,
+                            extra=("--announce-url", LAN), heartbeat=3600)
+        live.append(instance)
+        check("a claim whose token plex.tv refuses is answered", instance.claim() == 200)
+        wait_for(lambda: stub.taken("/api/rex-direct/register"), 10)
+        asked = wait_for(lambda: stub.taken("/plex.tv/api/v2/resources"), 15)
+        time.sleep(1)
+        check("...rex reads the list after its provider and, refused, announces nothing more",
+              asked and len(announced(stub)) == 1, (len(asked or []), announced(stub)))
+        stub.resources_status = None
+        instance.stop()
+        check("...and logs no announce or failure for it",
+              "announced again" not in instance.output() and "announcing again" not in instance.output(),
+              instance.output()[-3000:])
 
         # 5. A 202 is a provider still issuing the certificate: an INFO, the port opens at
         #    once, and rex asks again after retryAfter, kept to 15 s at least.

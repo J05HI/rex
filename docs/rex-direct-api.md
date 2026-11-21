@@ -62,7 +62,7 @@ value: the identity rex announces to plex.tv on. rex logs neither the token nor 
 | Field | Meaning |
 |---|---|
 | `machineIdentifier` | Always sent |
-| `lanIp` | rex's address on its LAN, the one it announces as `http://<lanIp>:<port>`: the first RFC 1918 IPv4 among `--announce-url`'s plain `http://` entries (how a setup names it when rex cannot read it itself: Docker without host networking, a VPN), else the bound address, or under `--host 0.0.0.0` the interface its default route leaves from, read at each request, unless that interface is a container network's (a veth: Docker, Podman or LXC without host networking), which nothing outside the container reaches. Sent only when it is RFC 1918 IPv4 (10/8, 172.16/12, 192.168/16); IPv6, a tunnel's (Tailscale's 100.64/10), a public address or loopback leaves the key out. So the provider can give rex a name on its LAN as well; a provider that does not know the key ignores it |
+| `lanIp` | rex's address on its LAN, the one it announces as `http://<lanIp>:<port>`: the first RFC 1918 IPv4 among `--announce-url`'s plain `http://` entries (how a setup names it when rex cannot read it itself: Docker without host networking, a VPN), else the bound address, or under `--host 0.0.0.0` the interface its default route leaves from, read at each request, unless rex runs on a container engine's network (Docker, Podman or Kubernetes without host networking: a `/.dockerenv`, `/run/.containerenv` or `KUBERNETES_SERVICE_HOST` beside a default route through a veth), which nothing outside the container reaches. An LXC container bridged to the LAN leaves through a veth too, but with the LAN's own address and no engine's marker, so its address is sent. Sent only when it is RFC 1918 IPv4 (10/8, 172.16/12, 192.168/16); IPv6, a tunnel's (Tailscale's 100.64/10), a public address or loopback leaves the key out. So the provider can give rex a name on its LAN as well; a provider that does not know the key ignores it |
 | `publicIpv6` | The global IPv6 (2000::/3, not 2001:db8::/32, Teredo or 6to4) this machine reaches the internet from, its stable address rather than a privacy one where the OS can say (RFC 5014 on Linux, `IPV6_PREFER_TEMPADDR` on macOS; Windows offers its temporary one); `""` without one. For an AAAA on `hostname`, which reaches rex on a connection with no public IPv4 (CGNAT, DS-Lite). Absent from the request a start sends before the port opens (above); a provider that does not know the key ignores it |
 | `port` | Sent with `publicIpv6`: `REX_DIRECT_PORT`, else `--port`, where the provider checks the IPv6. rex listens on `[::]` beside `0.0.0.0` under the default `--host` |
 
@@ -83,6 +83,13 @@ It answers a JSON array of the account's devices. The caller is genuine when an 
 the account, including rows that are not servers (`provides` `controller`), so match on all
 three fields; a bad token is 401. Point the name at the request's source address (DMM's
 provider writes an IPv4 A record).
+
+plex.tv takes the address this check comes from for the server's own (`publicAddress`), whatever
+`X-Plex-Client-Identifier` says, and leaves the server out of `/api/v2/resources` until rex
+announces again (findings, "The provider's address, taken for the server's", 2026-11-16). rex
+looks for itself 10, 30 and 70 s after each registration and announces again when it is missing,
+so a provider needs to do nothing about it, but each call it makes to plex.tv with the token can
+hide the server for those seconds.
 
 `lanIp` is the caller's word alone: nothing can check it, and a record holding it points a
 public name wherever the caller says. Accept it only when it is RFC 1918 IPv4, so the worst a
@@ -155,8 +162,8 @@ port no longer than the request took.
 
 A WARN with the status and the reason, `rex-direct: registration failed: HTTP 401 (the token
 does not own this server); retrying in 10 min`, and rex runs on with what it has. A 403 is
-DMM's answer when plex.tv does not list the server as the account's, which it also is for the
-first minutes after a claim (`HTTP 403 (The Plex account does not own this server); retrying in
+DMM's answer when plex.tv does not list the server as the account's, which it always is for a
+first claim's own registration, sent before rex's first announce (`HTTP 403 (The Plex account does not own this server); retrying in
 1 min`, ten times, then every 10 min). An
 unreachable provider and a 200 that is not the answer above are the same: never fatal.
 
